@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/* Identidade visual Fio de Amor (src/config/marca.json) */
+:root {
+  --rose: #cea6b6;
+  --rose-escuro: #8e5b6f;
+  --rose-claro: #f4e7ec;
+  --creme: #f6efe6;
+  --dourado: #b8925a;
+  --texto: #4a353d;
+  --fundo: #fffbf8;
+  --borda: #ead9e0;
+}
+
+@theme inline {
+  --color-rose: var(--rose);
+  --color-rose-escuro: var(--rose-escuro);
+  --color-rose-claro: var(--rose-claro);
+  --color-creme: var(--creme);
+  --color-dourado: var(--dourado);
+  --color-texto: var(--texto);
+  --color-fundo: var(--fundo);
+  --color-borda: var(--borda);
+  --font-titulo: "Cormorant Garamond", Georgia, serif;
+  --font-script: "Satisfy", cursive;
+  --font-sans: "Jost", system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-titulo);
+  color: var(--rose-escuro);
+}
+
+.rotulo {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a6d78;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid var(--borda);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #fff;
+  width: 100%;
+  font-size: 0.9rem;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--rose);
+  outline-offset: 0;
+}
+input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--rose-escuro);
+}
+
+.tabela th {
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8a6d78;
+  font-weight: 500;
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--borda);
+  background: var(--rose-claro);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.tabela td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #f3e8ec;
+  vertical-align: top;
+  font-size: 0.85rem;
+}
+.tabela tr:hover td {
+  background: #fdf6f8;
+}
+
+@media print {
+  .nao-imprimir {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}

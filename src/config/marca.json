@@ -1,0 +1,403 @@
+{
+  "nome": "Fio de Amor Semijoias",
+  "instagram": "@fiodeamorsemijoias",
+  "conceito": "O 'fio' que une pessoas: laço, vínculo, presente. Joias delicadas e afetivas, com o brilho do dourado e a suavidade do rosé.",
+  "assinatura_visual": "Um fio/fita fina de cetim rosé (#CEA6B6) passando pela composição das fotos e das artes, como um laço de presente. É o elemento que torna as fotos reconhecíveis sem precisar do logo.",
+  "logo": {
+    "principal": "/marca/logo-fiodeamor.png",
+    "branco": "/marca/logo-fiodeamor-branco.png",
+    "vetor": "/marca/logo-fiodeamor.ai",
+    "regras": [
+      "Usar sempre o arquivo do logo; nunca reescrever 'fiodeamor' com a fonte script.",
+      "Versão rosé sobre fundos claros (branco, creme, primaria_clara); versão branca sobre fotos escuras ou sobre a cor primaria_escura.",
+      "Área de respiro mínima ao redor = altura do coração do 'i'.",
+      "Largura mínima: 160 px em arte de 1080 px; nunca distorcer, girar, aplicar sombra ou contorno."
+    ]
+  },
+  "cores": {
+    "primaria": "#CEA6B6",
+    "primaria_escura": "#8E5B6F",
+    "primaria_clara": "#F4E7EC",
+    "creme": "#F6EFE6",
+    "dourado": "#B8925A",
+    "texto": "#4A353D",
+    "fundo": "#FFFBF8",
+    "branco": "#FFFFFF",
+    "uso": {
+      "primaria": "Cor do logo. Faixas, selos, fios decorativos e títulos grandes (contraste 2,1:1 com branco: não usar em texto pequeno).",
+      "primaria_escura": "Texto de destaque, preço e botões sobre fundos claros (contraste ≥ 4,5:1 com fundo, creme e primaria_clara).",
+      "primaria_clara": "Fundo de faixas de texto e cards; casa com o veludo rosé das fotos.",
+      "creme": "Fundo de fotos e do catálogo; aquece o dourado das peças.",
+      "dourado": "Somente detalhes finos (linhas de 1–2 px, molduras, ícones). Não usar em texto: contraste 2,8:1.",
+      "texto": "Texto corrido e legendas na arte (ameixa escura, mais suave que o preto).",
+      "fundo": "Fundo geral do app e das artes sem foto."
+    }
+  },
+  "fontes": {
+    "titulo": "Cormorant Garamond",
+    "script": "Satisfy",
+    "texto": "Jost",
+    "google_fonts_url": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@200;300;400;500&family=Satisfy&display=swap",
+    "alternativas": {
+      "titulo": "Playfair Display",
+      "script": "Dancing Script",
+      "texto": "Josefin Sans"
+    },
+    "uso": {
+      "titulo": "Preço, nome de coleção e chamadas curtas. Pesos 500–600. Itálico 400 para frases afetivas.",
+      "script": "Só para o nome comercial da peça ou da coleção (até 4 palavras), na cor primaria_escura. Lembra o lettering do logo; nunca substitui o logo.",
+      "texto": "Informações técnicas, CTA e rodapé. Peso 300 em MAIÚSCULAS com espaçamento de 0.18em ecoa o 'SEMI JÓIAS' do logo; peso 400–500 para corpo de texto."
+    }
+  },
+  "tom_de_voz": {
+    "personalidade": [
+      "afetuosa: fala de vínculos, presentes e memórias",
+      "delicada e feminina, sem clichê",
+      "próxima: conversa como uma amiga que entende de joia",
+      "confiante sem ser esnobe",
+      "honesta: diz exatamente o que a peça é"
+    ],
+    "faca": [
+      "Abrir com a emoção ou a ocasião da peça e depois trazer o detalhe técnico (banho, pedra, tamanho).",
+      "Falar com 'você' e usar verbos de convite: usar, presentear, combinar, montar.",
+      "Citar ocasiões reais: trabalho, aniversário, formatura, casamento, Natal, Réveillon, Dia das Mães.",
+      "Mostrar o preço na arte ou na legenda. 'Preço no direct' afasta a cliente.",
+      "Usar o conceito do nome (fio, laço, nó, coração, presente) como fio condutor dos textos.",
+      "Ensinar cuidados com carinho: guardar separada, evitar perfume, água e academia.",
+      "CTA claro e único por post: 'Chama no direct', 'Toque no link da bio', 'Salve para depois', 'Marque quem merece'.",
+      "Emojis com moderação: no máximo 2 por legenda, dos permitidos.",
+      "Usar as palavras-chave da peça na primeira linha da legenda (ex.: 'brinco flor esmaltado'), porque a busca do Instagram lê a legenda."
+    ],
+    "evite": [
+      "Prometer o que a semijoia não garante: 'não escurece nunca', 'antialérgico', 'hipoalergênico'.",
+      "Anunciar quilate ou milésimos ('ouro 18k', '14k', '10 milésimos') sem laudo do fornecedor. Na China, 14K/14KF indica tom de cor, não teor.",
+      "Chamar zircônia de diamante, esmalte de madrepérola ou pérola sintética de natural.",
+      "Citar marcas ou personagens de terceiros ('estilo Cartier', 'azul Tiffany', 'tipo Vivara', 'Barbie') sem licença.",
+      "Escassez ou desconto falsos ('últimas unidades', 'de R$ 199 por R$ 59' sem preço real anterior).",
+      "Excesso de MAIÚSCULAS, '!!!', gírias datadas e tom agressivo de venda ('CORRE', 'APROVEITA').",
+      "Mostrar foto com cartela, etiqueta, QR code ou logo do fornecedor.",
+      "Publicar imagem gerada por IA sem aviso ou que mude a aparência real da peça."
+    ],
+    "emojis_permitidos": ["✨", "🤍", "🌸", "💗", "🎁", "🌿"],
+    "assinaturas": [
+      "Fio de Amor: joias que unem.",
+      "Um fio de brilho para cada história.",
+      "Feito para presentear, inclusive você."
+    ]
+  },
+  "padrao_nome": {
+    "formato": "TIPO (SIGLA) DESCRITORES",
+    "regras": [
+      "Tudo em MAIÚSCULAS, no máximo 60 caracteres contando espaços.",
+      "TIPO no singular e primeiro, igual ao nome do tipo em src/config/taxonomia.json (BRINCO, COLAR, PINGENTE, PULSEIRA, BRACELETE, ANEL, CONJUNTO...). Kits de brincos usam BRINCO.",
+      "SIGLA do material entre parênteses logo após o tipo, conforme taxonomia.json (SJ = semijoia banhada).",
+      "Ordem dos descritores: [KIT/QUANTIDADE] + FORMA ou MOTIVO + ACABAMENTO/TÉCNICA + PEDRA/PÉROLA + COR do esmalte/pedra + MEDIDA.",
+      "O banho dourado é o padrão e fica na grade ('SEMIJOIA BANHADA A OURO...'), não no nome. Acrescentar RÓDIO ou BICOLOR no fim só quando o acabamento não for dourado.",
+      "Kits: 'BRINCO (SJ) KIT 3 PARES ...'. Conjuntos: 'CONJUNTO (SJ) ...' citando as peças (COLAR E PULSEIRA) ou a quantidade (3 PEÇAS).",
+      "Par assimétrico (分左右) leva ASSIMÉTRICO.",
+      "Medidas sem espaço: 7MM, 43CM, 24X43MM. Pérola com a medida em mm quando o fornecedor informar.",
+      "Acentos permitidos (PÉROLA, ZIRCÔNIA, CORAÇÃO). O app normaliza sem acento para busca, SKU e hashtags.",
+      "Sem adjetivos subjetivos (LINDO, LUXO, TOP, NOVIDADE): a emoção vai no nome comercial.",
+      "Sem nomes de marcas ou personagens de terceiros, a menos que o produto seja licenciado.",
+      "Nome único na loja: se repetir, diferenciar por cor, medida ou motivo. Nunca pelo código do fornecedor, que vai no Código Externo.",
+      "Para economizar caracteres, cortar primeiro DE/COM/E; manter COM quando ajudar a leitura (FLOR COM PÉROLA)."
+    ],
+    "exemplos": [
+      "BRINCO (SJ) INFANTIL BARBIE EM RESINA",
+      "BRINCO (SJ) FLOR PEROLADA COM PÉROLA E ZIRCÔNIAS",
+      "BRINCO (SJ) KIT 3 PARES ARGOLINHA TORCIDA CROISSANT",
+      "BRINCO (SJ) LEQUE PLISSADO ASSIMÉTRICO",
+      "PINGENTE (SJ) BORBOLETA CRAVEJADA FUNDO BRANCO",
+      "BRACELETE (SJ) ESMALTADO CREME E MARROM",
+      "ANEL (SJ) ESPIRAL COM PONTAS CRAVEJADAS",
+      "CONJUNTO (SJ) COLAR E PULSEIRA RIVIERA ZIRCÔNIA",
+      "CONJUNTO (SJ) 3 PEÇAS ZIRCÔNIA REDONDA 43CM RÓDIO"
+    ],
+    "nome_comercial": {
+      "formato": "Tipo + Motivo afetivo (2 a 5 palavras, só a primeira letra maiúscula)",
+      "regras": [
+        "Evocar imagem ou sentimento: 'Brinco Flor de Pérola', 'Bracelete Confeito', 'Trio Nó de Amor'.",
+        "Kits de brincos: 'Trio ...'. Conjuntos: 'Conjunto ...'.",
+        "Reservar 'Fio de Amor' para as peças-assinatura (corações, nós, fios entrelaçados).",
+        "Não repetir nome comercial entre peças ativas."
+      ]
+    },
+    "vocabulario": {
+      "tipos": ["BRINCO", "COLAR", "GARGANTILHA", "CHOKER", "PINGENTE", "CORRENTE", "PULSEIRA", "BRACELETE", "TORNOZELEIRA", "ANEL", "CONJUNTO", "PIERCING", "BERLOQUE", "ESCAPULÁRIO", "TERÇO"],
+      "subtipos_brinco": ["KIT 3 PARES", "PONTO DE LUZ", "ARGOLA", "ARGOLINHA", "MEIA ARGOLA", "TREPADOR", "EAR CUFF", "BOTÃO", "PENDENTE", "GOTA", "MAXI", "MINI"],
+      "formas_motivos": ["FLOR", "FLORZINHA", "PÉTALA", "TREVO", "FOLHA", "FOLHAGEM", "GINKGO", "LEQUE", "CONCHA", "CORAÇÃO", "NÓ", "ELO", "ARO", "ESTRELA", "BORBOLETA", "GOTA", "OVAL", "QUADRADO", "TRIÂNGULO", "ONDA", "ESPIRAL", "ESFERA", "BOLINHA", "MEDALHA", "NOSSA SENHORA", "RIVIERA", "MOSAICO", "BAMBU", "PARAFUSO", "MEIA LUA"],
+      "acabamentos": ["LISO", "POLIDO", "ESPELHADO", "MARTELADO", "TEXTURIZADO", "DIAMANTADO", "PLISSADO", "TORCIDO", "TRANÇADO", "VAZADO", "RENDADO", "NERVURADO", "ORGÂNICO", "ESCULTURAL", "ESMALTADO", "ESMALTE PINTADO", "MARMORIZADO", "PEROLADO", "CRAVEJADO", "PAVÊ"],
+      "pedras": ["ZIRCÔNIA", "MICROZIRCÔNIA", "ZIRCÔNIA BAGUETE", "ZIRCÔNIA NAVETE", "ZIRCÔNIAS COLORIDAS", "PÉROLA", "CRISTAL", "MADREPÉROLA", "RESINA"],
+      "cores": ["BRANCO", "OFF WHITE", "PEROLADO", "NUDE", "PÊSSEGO", "ROSA", "ROSÉ", "AZUL TURQUESA", "AZUL", "CREME", "MARROM CAFÉ", "CHOCOLATE", "MULTICOLOR", "COLORIDO"],
+      "banhos_no_nome": ["RÓDIO", "BICOLOR", "OURO ROSÉ", "OURO BRANCO"],
+      "tamanhos": ["MINI", "PEQUENO", "MÉDIO", "GRANDE", "MAXI", "3 TAMANHOS", "P M G"],
+      "publico": ["INFANTIL", "TEEN", "MASCULINO", "MÃE E FILHA"]
+    },
+    "glossario_fornecedor": {
+      "耳钉": "BRINCO (pino com tarraxa)",
+      "耳环": "BRINCO (argola ou pendente)",
+      "eaiing": "BRINCO (erro de digitação de 'earring')",
+      "吊坠": "PINGENTE",
+      "手环": "BRACELETE",
+      "戒指": "ANEL",
+      "两件套": "CONJUNTO 2 PEÇAS",
+      "三件套": "CONJUNTO 3 PEÇAS",
+      "四件套": "CONJUNTO 4 PEÇAS",
+      "滴油": "ESMALTADO",
+      "画油": "ESMALTE PINTADO",
+      "滴白油": "ESMALTE BRANCO",
+      "滴粉油": "ESMALTE ROSA",
+      "白油": "ESMALTE BRANCO",
+      "粉油": "ESMALTE ROSA",
+      "蓝油": "ESMALTE AZUL",
+      "珍珠白": "BRANCO PEROLADO",
+      "珍珠粉": "ROSA PEROLADO",
+      "深咖色": "MARROM CAFÉ",
+      "珠": "PÉROLA ou BOLINHA (ver foto) + medida em MM",
+      "白": "ZIRCÔNIA BRANCA",
+      "白锆": "ZIRCÔNIA BRANCA",
+      "彩锆": "ZIRCÔNIAS COLORIDAS",
+      "分左右": "ASSIMÉTRICO",
+      "单对": "PAR ÚNICO",
+      "单个": "UNIDADE",
+      "双色": "BICOLOR",
+      "三个尺寸混打": "KIT 3 TAMANHOS",
+      "混款": "MODELOS SORTIDOS",
+      "延长扣": "EXTENSOR",
+      "#": "número de tamanho/modelo do fornecedor (não vai no nome)"
+    }
+  },
+  "hashtags": {
+    "max_por_post": 5,
+    "regra": "Usar no máximo 5 hashtags por post: as fixas + até 3 do tipo, do subtipo/tema ou sazonais. Sem acento e em minúsculas. Hoje a legenda e o texto alternativo com palavras-chave pesam mais na busca do que hashtags.",
+    "fixas": ["#fiodeamorsemijoias", "#semijoias"],
+    "fixas_alternativas": ["#semijoiasfinas", "#semijoiasdeluxo", "#semijoiasdequalidade"],
+    "por_tipo": {
+      "brinco": ["#brincos", "#brincosdourados", "#brincosdelicados", "#brincosfemininos", "#brincostatement"],
+      "colar": ["#colares", "#colardourado", "#colarfeminino", "#mixdecolares"],
+      "gargantilha": ["#gargantilha", "#gargantilhadourada", "#colarcurto"],
+      "choker": ["#choker", "#chokerdourado", "#colarcurto"],
+      "pingente": ["#pingente", "#pingentedourado", "#colarcompingente", "#medalhinha"],
+      "corrente": ["#corrente", "#correntedourada", "#mixdecolares"],
+      "pulseira": ["#pulseiras", "#pulseiradourada", "#mixdepulseiras"],
+      "bracelete": ["#bracelete", "#braceletedourado", "#braceletes", "#mixdepulseiras"],
+      "tornozeleira": ["#tornozeleira", "#tornozeleiradourada", "#verao"],
+      "anel": ["#aneis", "#aneldourado", "#mixdeaneis"],
+      "conjunto": ["#conjuntodesemijoias", "#semijoiasparafesta", "#conjuntodejoias"],
+      "piercing": ["#piercing", "#piercingorelha", "#composicaodeorelha"],
+      "berloque": ["#berloque", "#pulseiradeberloques"],
+      "escapulario": ["#escapulario", "#escapulariodourado", "#fe"],
+      "terco": ["#terco", "#tercodourado", "#fe"],
+      "broche": ["#broche", "#brochedourado"],
+      "acessorio_cabelo": ["#acessoriosdecabelo", "#tiara", "#presilha"],
+      "oculos": ["#oculosdesol", "#oculosfeminino"],
+      "relogio": ["#relogiofeminino", "#relogiodourado"],
+      "chaveiro": ["#chaveiro", "#lembrancinha"]
+    },
+    "por_tema": {
+      "kit_brincos": ["#kitdebrincos", "#composicaodeorelha", "#segundofuro"],
+      "argola": ["#argolas", "#argolinhas", "#argoladourada"],
+      "esmaltado": ["#brincoesmaltado", "#semijoiasesmaltadas", "#joiacolorida"],
+      "perola": ["#perolas", "#brincodeperola", "#joiasdeperola"],
+      "floral": ["#brincodeflor", "#joiasflorais"],
+      "fe": ["#nossasenhora", "#medalhadefe", "#joiasreligiosas"],
+      "festa": ["#semijoiasparafesta", "#joiasparanoivas", "#madrinhas", "#formatura"],
+      "presente": ["#presenteparaela", "#presentecriativo", "#presentedeafeto"],
+      "statement": ["#maxibrinco", "#brincostatement", "#joiasescultural"]
+    },
+    "sazonais": {
+      "black_friday": ["#blackfriday", "#blackfridaysemijoias"],
+      "natal": ["#presentedenatal", "#natal2026", "#amigosecreto"],
+      "reveillon": ["#reveillon", "#lookdereveillon", "#anonovo"],
+      "dia_das_maes": ["#diadasmaes", "#presenteparamae"],
+      "dia_dos_namorados": ["#diadosnamorados", "#presenteparanamorada"],
+      "verao": ["#verao", "#lookdepraia"]
+    }
+  },
+  "templates_arte": [
+    {
+      "id": "feed_produto",
+      "nome": "Feed retrato: produto",
+      "largura": 1080,
+      "altura": 1350,
+      "uso": "feed",
+      "layout": "Foto ocupa o topo de 0 a 1150 px (sangrada, cortada em cover, peça centralizada no terço central). Faixa inferior de 1150 a 1350 px na cor primaria_clara, separada da foto por um fio de 2 px na cor dourado. Na faixa, à esquerda com margem de 72 px: nome comercial em Satisfy 64 px na cor primaria_escura e, abaixo, descrição curta em Jost 300 MAIÚSCULAS 22 px com tracking 0.18em na cor texto. À direita: preço em Cormorant Garamond 600 52 px na cor primaria_escura. Logo rosé com 200 px de largura no canto superior direito (margem de 56 px); usar o logo branco se a foto for escura. Manter textos e logo dentro dos 1012 px centrais, porque a grade do perfil (3:4) corta as laterais."
+    },
+    {
+      "id": "feed_lancamento",
+      "nome": "Feed retrato: lançamento ou destaque",
+      "largura": 1080,
+      "altura": 1350,
+      "uso": "feed",
+      "layout": "Igual a feed_produto, mais um selo circular de 170 px na cor primaria no canto superior esquerdo (margem de 56 px) com 'NOVIDADE' ou o nome da coleção em Jost 500 MAIÚSCULAS 20 px branco, contornado por um fio de 1 px dourado. Opcional: fio de cetim rosé desenhado atravessando a foto em diagonal suave (assinatura da marca)."
+    },
+    {
+      "id": "quadrado_feed",
+      "nome": "Quadrado 1:1: post, anúncio ou carrossel",
+      "largura": 1080,
+      "altura": 1080,
+      "uso": "feed",
+      "layout": "Foto sangrada em 100% da arte. Moldura interna de 1 px dourado a 32 px das bordas. No rodapé, um degradê de creme (0% em 760 px até 92% em 1080 px) leva o nome comercial centralizado em Satisfy 60 px na cor primaria_escura e o preço em Cormorant Garamond 600 44 px logo abaixo. Logo rosé com 180 px de largura centralizado no topo, a 48 px da borda. Para anúncio pago, deixar menos de 20% da área com texto."
+    },
+    {
+      "id": "stories_produto",
+      "nome": "Stories e Reels: capa e produto",
+      "largura": 1080,
+      "altura": 1920,
+      "uso": "stories",
+      "layout": "Fundo creme; a foto pode sangrar até as bordas. Zonas seguras: nenhum texto nos 250 px de cima nem nos 340 px de baixo (y > 1580), que ficam sob a interface do Instagram. Logo rosé com 220 px de largura centralizado em y = 270 a 350. Foto de 1080x980 px de y = 370 a 1350, com o fio de cetim rosé saindo da foto. Reservar o canto inferior da foto (y = 1200 a 1330) para o sticker de link ou de enquete. Abaixo da foto, centralizados: nome comercial em Satisfy 80 px na cor primaria_escura (y = 1365 a 1445), preço em Cormorant Garamond 600 56 px (y = 1455 a 1515) e CTA em Jost 400 MAIÚSCULAS 24 px na cor texto, 'CHAMA NO DIRECT' (y = 1535 a 1570)."
+    },
+    {
+      "id": "catalogo_whatsapp",
+      "nome": "Catálogo e WhatsApp: ficha de produto",
+      "largura": 1080,
+      "altura": 1080,
+      "uso": "whatsapp",
+      "layout": "Fundo branco ou creme liso. Peça recortada (sem fundo) centralizada, ocupando cerca de 72% da largura, com sombra suave de contato. Logo rosé com 150 px no canto superior esquerdo (margem de 48 px). Rodapé de 140 px na cor primaria_clara: nome comercial em Jost 500 30 px na cor texto, referência interna (ex.: BR_2611001) em Jost 300 20 px e preço em Cormorant Garamond 600 46 px na cor primaria_escura à direita. Gerar duas versões: com preço (cliente final) e sem preço (revendedoras e maletas consignadas, que podem aplicar a sua tabela)."
+    },
+    {
+      "id": "catalogo_colecao",
+      "nome": "Carrossel ou página de catálogo: coleção 2x2",
+      "largura": 1080,
+      "altura": 1350,
+      "uso": "catalogo",
+      "layout": "Fundo fundo (#FFFBF8). Topo de 0 a 230 px: nome da coleção em Satisfy 96 px na cor primaria_escura, centralizado, com 'COLEÇÃO' em Jost 300 MAIÚSCULAS 22 px e tracking 0.3em acima. Grade 2x2 de cards creme de 480x480 px com 32 px de espaço entre eles, começando em y = 260; cada card tem a foto da peça e, embaixo, o nome comercial em Jost 400 22 px e o preço em Cormorant Garamond 600 30 px. Rodapé com o logo rosé de 160 px centralizado e '@fiodeamorsemijoias' em Jost 300 18 px."
+    },
+    {
+      "id": "vitrine_loja",
+      "nome": "Vitrine, UP Vendas e marketplace: foto limpa",
+      "largura": 1200,
+      "altura": 1200,
+      "uso": "catalogo",
+      "layout": "Somente a foto do produto em fundo branco puro (#FFFFFF) ou creme muito claro, peça centralizada ocupando de 80% a 85% do quadro, sem texto, sem logo, sem moldura (marketplaces recusam arte com texto). Exportar JPG sRGB com qualidade 90."
+    }
+  ],
+  "prompts_ia_foto": {
+    "variaveis": {
+      "{piece_description}": "Descrição em inglês gerada a partir do cadastro (ex.: 'pair of gold-plated flower stud earrings with white enamel petals and one pavé petal').",
+      "{plating}": "Tom do banho: 'yellow gold', 'light champagne gold', 'rhodium silver' ou 'two-tone gold and silver'.",
+      "{size}": "Tamanho real aproximado (ex.: '2 cm wide'). É essencial para a IA não aumentar nem diminuir a peça.",
+      "{scene}": "Prompt do cenário escolhido em 'cenarios'.",
+      "{skin_tone}": "Variar entre 'fair', 'light olive', 'medium tan', 'deep brown' para representar as clientes brasileiras."
+    },
+    "base": "Use the reference photo as the exact product: it is the real jewelry piece being sold. Keep the jewelry IDENTICAL to the reference: same shape, silhouette and proportions, same real-world size ({size}), same number, cut, color and placement of stones and pearls, same enamel colors and patterns, same metal tone ({plating}) and surface finish (polished, hammered, pleated, textured, pavé), same posts, hinges, clasps and chain. Do not redesign, simplify, beautify, recolor, add or remove any detail. If the pair is intentionally asymmetric in the reference, keep each side exactly as it is. Completely remove the supplier display card, plastic bag, stickers, price tags, barcodes, QR codes, printed text and any third-party logo or brand name (such as 'Delicate'), as well as fingers, hands or props from the original shot. Product: {piece_description}. Scene: {scene}. Lighting: soft, diffused natural daylight from the side, gentle realistic highlights on the metal, no blown-out reflections, no harsh flash. Color grade: warm and clean, creamy whites with subtle blush-pink (#CEA6B6) accents. Photorealistic high-end jewelry e-commerce photography, sharp focus on the jewelry, shallow depth of field, 4:5 vertical framing, no text, no watermark.",
+    "por_tipo": {
+      "brinco": "Show the earrings worn by a Brazilian woman ({skin_tone} skin), in three-quarter profile with her hair tucked behind the ear, natural makeup, simple cream or blush top. Crop from the cheekbone to the collarbone, with the eyes out of frame, so the earring is the hero. The earring sits on the earlobe at the correct real-world scale and hangs naturally with gravity. Show one ear in focus; if the second earring is visible it must match the reference pair.",
+      "colar": "Show the necklace worn on the décolletage of a Brazilian woman ({skin_tone} skin), with an off-shoulder or V-neck cream top. Crop from the chin to mid-chest, face out of frame. The necklace lies naturally following the collarbones, at the exact length of the reference ({size}), with the clasp hidden at the back.",
+      "pingente": "Show the pendant hanging on a delicate plain gold chain on the décolletage of a Brazilian woman ({skin_tone} skin), with a cream top, cropped from chin to chest, face out of frame. Use a simple thin chain only and do not add other charms. The pendant keeps its real size ({size}) and faces the camera.",
+      "anel": "Show the ring worn on the index or ring finger of an elegant hand ({skin_tone} skin) with short natural nails in nude or soft blush polish, resting gracefully on {scene}. Anatomically correct hand with five fingers and natural knuckles. The ring keeps its real width and band thickness, front design facing the camera.",
+      "pulseira": "Show the bracelet worn on the wrist of a Brazilian woman ({skin_tone} skin), hand relaxed with fingers softly curved, sleeve pulled back, resting on {scene}. The bracelet drapes naturally with the clasp underneath, at its real length ({size}). Do not add other bracelets.",
+      "bracelete": "Show the rigid bangle worn on the wrist of a Brazilian woman ({skin_tone} skin), hand relaxed, forearm diagonal across the frame, resting on {scene}. Keep the bangle's exact rigid shape (round, oval or squared) and width; do not bend it. Do not add other bracelets unless they are part of the reference.",
+      "tornozeleira": "Show the anklet worn on a bare ankle of a Brazilian woman ({skin_tone} skin), on light sand or a cream linen surface, soft sunlight, cropped from mid-calf to toes. Keep the anklet's exact chain and charms.",
+      "piercing": "Show the piercing worn on the correct part of the ear (as in the reference type), close-up on the ear only, natural skin texture, hair tucked back. Keep the exact size and stones.",
+      "conjunto": "Show every piece of the set and only those pieces. Image 1: a styled flat lay of all pieces arranged harmoniously on {scene}, none overlapping. Image 2 (when asked): worn together by a Brazilian woman ({skin_tone} skin), necklace on the décolletage, bracelet on the wrist near the collarbone and earrings visible, cropped from the cheekbone to the chest, eyes out of frame. Do not add or omit any component.",
+      "default": "Show the piece alone, without a model, as a hero product shot on {scene}, centered, slightly angled to reveal depth and texture, with a soft contact shadow."
+    },
+    "aliases": {
+      "gargantilha": "colar",
+      "choker": "colar",
+      "corrente": "colar",
+      "escapulario": "colar",
+      "terco": "default",
+      "berloque": "pingente",
+      "broche": "default",
+      "acessorio_cabelo": "default",
+      "oculos": "default",
+      "relogio": "pulseira",
+      "chaveiro": "default"
+    },
+    "por_subtipo": {
+      "Kit de brincos": "Image 1: flat lay of every pair in the kit, side by side in size order, without the supplier card, on {scene}. Image 2: the pairs styled as a curated ear stack on one ear with several lobe piercings (largest at the bottom), cropped tightly on the ear, eyes out of frame. Use only the pairs in the reference.",
+      "Argola": "The hoop must keep its exact diameter, thickness and closure; it hangs from the lobe and frames the jawline.",
+      "Argolinha (huggie)": "The small hoop hugs the earlobe closely, at its exact diameter; close-up on the ear.",
+      "Ear climber (escalador)": "The ear climber follows the curve of the lobe upward along the ear exactly as in the reference; close-up on the ear.",
+      "Ear cuff": "The cuff sits on the middle cartilage of the ear without a piercing, exactly as in the reference; close-up on the ear."
+    },
+    "cenarios": [
+      {
+        "id": "veludo_rose",
+        "nome": "Porta-joias de veludo rosé (padrão da loja)",
+        "prompt": "resting on a blush-pink (#CEA6B6) velvet jewelry display cushion inside a soft velvet box, warm cream (#F6EFE6) seamless background, soft window light from the left, a thin blush satin ribbon loosely curved beside the piece"
+      },
+      {
+        "id": "linho_fita",
+        "nome": "Linho creme com fita de cetim (assinatura)",
+        "prompt": "flat lay on natural cream linen fabric with gentle folds, a thin blush-pink silk ribbon gracefully looping around the piece, a few tiny dried baby's breath flowers, top-down view, soft diffused daylight"
+      },
+      {
+        "id": "marmore_flores",
+        "nome": "Mármore claro com flores",
+        "prompt": "on a light white and cream marble surface with subtle grey veins, a few fresh pale-pink rose and peony petals softly out of focus, airy and bright, soft natural light"
+      },
+      {
+        "id": "close_macro",
+        "nome": "Close macro de detalhe",
+        "prompt": "extreme macro close-up revealing the metal texture, stone setting and enamel details, neutral warm cream backdrop, crisp focus on the details with a gentle falloff, realistic sparkle on the stones"
+      },
+      {
+        "id": "lifestyle_praia",
+        "nome": "Lifestyle praia ao entardecer",
+        "prompt": "summer beach lifestyle at golden hour, warm low sunlight, light sand and soft sea bokeh in the background, white linen clothing, relaxed and natural mood"
+      },
+      {
+        "id": "caixa_presente",
+        "nome": "Caixa de presente",
+        "prompt": "inside an open blush-pink gift box with cream tissue paper and a satin ribbon untied around it, a small blank tag, top-down soft light, elegant gifting mood"
+      },
+      {
+        "id": "festas_fim_de_ano",
+        "nome": "Festas de fim de ano",
+        "prompt": "elegant festive setting with warm golden bokeh lights, a blurred champagne flute in the background, cream and gold palette with a touch of blush, sophisticated and celebratory but uncluttered"
+      },
+      {
+        "id": "penteadeira",
+        "nome": "Penteadeira com espelho",
+        "prompt": "on a cream ceramic jewelry dish on a vanity table, soft reflection in a round mirror, a perfume bottle and a blush silk scarf softly out of focus, gentle morning light"
+      },
+      {
+        "id": "fe_serena",
+        "nome": "Fé e serenidade (peças religiosas)",
+        "prompt": "on a cream linen surface with delicate white flowers and a soft beam of warm light, serene and respectful mood, minimal composition"
+      }
+    ],
+    "negativo": [
+      "altered jewelry design",
+      "different shape or proportions",
+      "extra stones",
+      "missing stones",
+      "changed stone color",
+      "changed enamel color or pattern",
+      "different metal tone from reference",
+      "added charms, chains or components not in the reference",
+      "mismatched earrings in a symmetric pair",
+      "oversized jewelry",
+      "tiny jewelry",
+      "supplier display card",
+      "price tag",
+      "label",
+      "barcode",
+      "QR code",
+      "text",
+      "letters",
+      "watermark",
+      "logo",
+      "brand name",
+      "plastic bag",
+      "fingers holding the product",
+      "deformed ear",
+      "piercing in the wrong place",
+      "extra fingers",
+      "distorted hands",
+      "plastic-looking skin",
+      "full face of an identifiable person",
+      "celebrity likeness",
+      "oversaturated gold",
+      "harsh flash reflections",
+      "cluttered background",
+      "blurry jewelry",
+      "floating jewelry",
+      "low resolution"
+    ],
+    "aviso_publicacao": "Imagem ilustrativa criada com IA a partir da foto real da peça. Cores e tamanho podem variar levemente."
+  }
+}

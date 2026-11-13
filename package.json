@@ -1,0 +1,43 @@
+{
+  "name": "fiodeamor-semijoias",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "postinstall": "node scripts/copiar-pdf-worker.mjs",
+    "db:gerar": "drizzle-kit generate && node scripts/gerar-migracoes.mjs",
+    "test": "node --test --import tsx tests/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@google/genai": "^3.3.0",
+    "@libsql/client": "^0.18.0",
+    "bwip-js": "^4.11.4",
+    "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
+    "marked": "^18.2.0",
+    "next": "16.4.6",
+    "openai": "^7.57.0",
+    "pdfjs-dist": "^6.5.438",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,588 @@
+{
+  "versao": "1.2",
+  "atualizado_em": "2026-11-13",
+  "autor": "Especialista contador (parecer em docs/especialistas/contador.md)",
+  "aviso": "Parâmetros de orientação geral para o sistema de cadastro da Fio de Amor Semijoias. NÃO substituem o contador responsável pela empresa: NCM, alíquotas, CFOP/CSOSN e o tratamento da consignação devem ser validados por ele (e, em caso de NCM duvidoso, por despachante ou Solução de Consulta na RFB). Todos os valores são editáveis.",
+  "ncm_padrao": "71171900",
+  "ncm_precedencia": "Vence a regra mais específica: tipo+material > tipo+'*' > '*'+material > '*'+'*' > ncm_padrao. Os tipos de joalheria (brinco, colar, gargantilha, choker, pingente, pulseira, bracelete, tornozeleira, anel, conjunto, piercing, corrente, broche, berloque, escapulário, terço) não têm regra própria e caem nas regras por material. Os materiais aparecem com os ids do pedido original (semijoia, prata, aco, bijuteria) e também com os ids de src/config/taxonomia.json (prata_925, aco_inox, titanio, joia_ouro).",
+  "ncm": [
+    {
+      "tipo": "*",
+      "material": "semijoia",
+      "ncm": "71171900",
+      "descricao": "Bijuterias de metais comuns, mesmo prateados, dourados ou platinados - Outras",
+      "observacao": "Semijoia = base de metal comum (latão, cobre, zamac, aço) com banho galvânico de ouro, prata ou ródio. A RFB (SC Cosit 98.261/2023: brinco de latão com banho de ouro 18k) entende que a espessura da camada aplicada por galvanoplastia é irrelevante: continua sendo metal comum, portanto 7117.19.00. Use este código no lugar do 7117.90.00 usado hoje. Atenção: (a) se o fornecedor declarar 'gold filled' (camada laminada/soldada mecanicamente, possível significado de '14KF'), a posição passa a ser 7113.20.00 (plaqué); peça a especificação; (b) peças com zircônia ('锆') são tratadas no mercado como 7117.19.00, mas a Nota 11 do Cap. 71 exclui artigos com pedras sintéticas; se a zircônia for considerada pedra sintética da posição 71.04, a classificação pode ir para 7116.20.00. Validar com o contador/despachante."
+    },
+    {
+      "tipo": "*",
+      "material": "aco",
+      "ncm": "71171900",
+      "descricao": "Bijuterias de metais comuns, mesmo prateados, dourados ou platinados - Outras",
+      "observacao": "Aço inoxidável/aço cirúrgico, com ou sem banho (PVD ou galvânico), é metal comum: 7117.19.00."
+    },
+    {
+      "tipo": "*",
+      "material": "aco_inox",
+      "ncm": "71171900",
+      "descricao": "Bijuterias de metais comuns, mesmo prateados, dourados ou platinados - Outras",
+      "observacao": "Aço inoxidável/aço cirúrgico, com ou sem banho (PVD ou galvânico), é metal comum: 7117.19.00."
+    },
+    {
+      "tipo": "*",
+      "material": "titanio",
+      "ncm": "71171900",
+      "descricao": "Bijuterias de metais comuns, mesmo prateados, dourados ou platinados - Outras",
+      "observacao": "Titânio é metal comum (Seção XV da NCM): piercings e peças de titânio vão para 7117.19.00."
+    },
+    {
+      "tipo": "*",
+      "material": "prata",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De metais preciosos, mesmo revestidos, folheados ou chapeados de metais preciosos - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Prata 925, com ou sem banho de ouro/ródio. Exija laudo ou declaração do teor. Peça apenas 'prateada' (banho de prata sobre latão) NÃO é prata: use 'semijoia'."
+    },
+    {
+      "tipo": "*",
+      "material": "prata_925",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De metais preciosos, mesmo revestidos, folheados ou chapeados de metais preciosos - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Prata 925, com ou sem banho de ouro/ródio. Exija laudo ou declaração do teor. Peça apenas 'prateada' (banho de prata sobre latão) NÃO é prata: use 'semijoia'."
+    },
+    {
+      "tipo": "*",
+      "material": "joia_ouro",
+      "ncm": "71131900",
+      "descricao": "Artefatos de joalharia e suas partes - De outros metais preciosos, mesmo revestidos, folheados ou chapeados de metais preciosos",
+      "observacao": "Joia de ouro maciço (10k/14k/18k). Peça folheada a ouro por laminação (gold filled/plaqué): 7113.20.00. Peça com banho galvânico: 'semijoia' (7117.19.00)."
+    },
+    {
+      "tipo": "*",
+      "material": "bijuteria",
+      "ncm": "71179000",
+      "descricao": "Bijuterias - Outras",
+      "observacao": "Bijuteria de matérias NÃO metálicas: resina, acrílico, plástico, vidro/miçanga, madeira, tecido, couro, concha. Se a peça tiver estrutura de metal comum que lhe dá o caráter essencial, use 7117.19.00."
+    },
+    {
+      "tipo": "*",
+      "material": "*",
+      "ncm": "71171900",
+      "descricao": "Bijuterias de metais comuns, mesmo prateados, dourados ou platinados - Outras",
+      "observacao": "Padrão da loja: peças da China em latão/cobre/liga com banho. Conjuntos colar+pulseira+brinco acondicionados para venda a retalho seguem a mesma NCM (RGI 3 b). Se o conjunto misturar prata e metal comum, cadastre separado."
+    },
+    {
+      "tipo": "oculos",
+      "material": "*",
+      "ncm": "90041000",
+      "descricao": "Óculos para correção, proteção ou outros fins, e artigos semelhantes - Óculos de sol",
+      "observacao": "Somente óculos de sol sem grau. Armações isoladas: 9003; óculos com grau: 9004.90."
+    },
+    {
+      "tipo": "relogio",
+      "material": "*",
+      "ncm": "91021100",
+      "descricao": "Relógios de pulso, relógios de bolso e semelhantes, exceto os da posição 91.01 - Relógios de pulso, funcionando eletricamente - Só com mostrador mecânico",
+      "observacao": "Relógio de pulso analógico a pilha (quartzo) com caixa de metal comum, mesmo dourada. Digital (mostrador optoeletrônico): 9102.12.00; analógico+digital: 9102.19.00; caixa de metal precioso (ex.: prata 925): 9101; smartwatch: capítulo 85 (8517.62), a confirmar."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "*",
+      "ncm": "96151100",
+      "descricao": "Pentes, travessas para cabelo e artigos semelhantes - De borracha endurecida ou de plásticos",
+      "observacao": "Piranhas, presilhas, tiaras e pentes de plástico/acetato. A Nota 11 do Cap. 71 exclui expressamente de 'bijuteria' as travessas, pentes e grampos de cabelo da posição 96.15: não use 7117. Grampos/alfinetes de cabelo, bobs e partes: 9615.90.00. Elásticos/scrunchies de tecido: capítulos 61/62/63, a confirmar. Se a peça tiver pedras relevantes (inclusive sintéticas), a classificação pode mudar: validar."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "semijoia",
+      "ncm": "96151900",
+      "descricao": "Pentes, travessas para cabelo e artigos semelhantes - Outros",
+      "observacao": "Presilhas/travessas de metal comum, mesmo douradas. Grampos/alfinetes de cabelo de metal: 9615.90.00."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "aco",
+      "ncm": "96151900",
+      "descricao": "Pentes, travessas para cabelo e artigos semelhantes - Outros",
+      "observacao": "Presilhas/travessas de aço. Grampos/alfinetes de cabelo: 9615.90.00."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "aco_inox",
+      "ncm": "96151900",
+      "descricao": "Pentes, travessas para cabelo e artigos semelhantes - Outros",
+      "observacao": "Presilhas/travessas de aço. Grampos/alfinetes de cabelo: 9615.90.00."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "prata",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Acessório de cabelo de prata 925 sai da 96.15 e vai para joalharia (71.13)."
+    },
+    {
+      "tipo": "acessorio_cabelo",
+      "material": "prata_925",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Acessório de cabelo de prata 925 sai da 96.15 e vai para joalharia (71.13)."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "*",
+      "ncm": "83062900",
+      "descricao": "Estatuetas e outros objetos de ornamentação, de metais comuns - Outros",
+      "observacao": "CLASSIFICAÇÃO INCERTA: não localizamos Solução de Consulta específica. Chaveiro não é 'adorno pessoal' da Nota 9 a) do Cap. 71, por isso não recomendamos 7117. Alternativas conforme a matéria e a função: 7326.90.90 (obra de ferro/aço), 7907.00.90 (obra de zinco/zamac sem caráter ornamental), 3926.40.00 (plástico/acrílico). Confirme com o contador/despachante antes de importar volume relevante."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "aco",
+      "ncm": "73269090",
+      "descricao": "Outras obras de ferro ou aço - Outras",
+      "observacao": "Chaveiro de aço/inox. Classificação incerta: ver a observação da regra chaveiro/*."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "aco_inox",
+      "ncm": "73269090",
+      "descricao": "Outras obras de ferro ou aço - Outras",
+      "observacao": "Chaveiro de aço/inox. Classificação incerta: ver a observação da regra chaveiro/*."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "bijuteria",
+      "ncm": "39264000",
+      "descricao": "Outras obras de plásticos - Estatuetas e outros objetos de ornamentação",
+      "observacao": "Chaveiro de acrílico/resina/plástico. Classificação incerta: confirmar."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "prata",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Chaveiro/berloque de prata 925. Se for objeto de uso pessoal e não de adorno, pode ir para 7114: confirmar."
+    },
+    {
+      "tipo": "chaveiro",
+      "material": "prata_925",
+      "ncm": "71131100",
+      "descricao": "Artefatos de joalharia e suas partes - De prata, mesmo revestida, folheada ou chapeada de outros metais preciosos",
+      "observacao": "Chaveiro/berloque de prata 925. Se for objeto de uso pessoal e não de adorno, pode ir para 7114: confirmar."
+    }
+  ],
+  "cotacao": {
+    "fonte": "PTAX - Banco Central do Brasil",
+    "api_url_modelo": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda='{MOEDA}'&@dataCotacao='{MM-DD-AAAA}'&$top=100&$format=json&$select=paridadeCompra,paridadeVenda,cotacaoCompra,cotacaoVenda,dataHoraCotacao,tipoBoletim",
+    "api_url_modelo_periodo": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='{MOEDA}'&@dataInicial='{MM-DD-AAAA}'&@dataFinalCotacao='{MM-DD-AAAA}'&$top=100&$format=json&$select=paridadeCompra,paridadeVenda,cotacaoCompra,cotacaoVenda,dataHoraCotacao,tipoBoletim",
+    "api_url_exemplo": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@moeda='CNY'&@dataInicial='09-16-2026'&@dataFinalCotacao='09-26-2026'&$top=100&$format=json&$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao,tipoBoletim",
+    "formato_data": "MM-DD-AAAA entre aspas simples (ex.: '09-25-2026'). Moeda em código ISO de 3 letras entre aspas simples. Se a biblioteca HTTP não codificar, troque as aspas por %27.",
+    "estrategia_recomendada": "Chamar CotacaoMoedaPeriodo com dataInicial = data da compra − 10 dias e dataFinalCotacao = data da compra; filtrar os boletins de fechamento e pegar o de maior dataHoraCotacao. Uma chamada resolve fins de semana e feriados. Guardar em cache por (moeda, data): a PTAX de fechamento não muda depois de publicada, por volta das 13h de Brasília.",
+    "tipo": "venda",
+    "justificativa_tipo": "Quem importa COMPRA moeda estrangeira, ou seja, o banco lhe VENDE a moeda. Por isso a referência de custo é a taxa de venda. A Receita Federal também converte o valor aduaneiro pela PTAX de venda (taxa de conversão do Siscomex), e a venda é a opção mais conservadora, pois é maior que a de compra.",
+    "boletim": "Fechamento",
+    "filtro_boletim": "Aceitar tipoBoletim que comece com 'Fechamento' (a API pode retornar 'Fechamento' ou 'Fechamento PTAX'). Ignorar 'Abertura' e 'Intermediário'.",
+    "campo_valor": "cotacaoVenda (já vem em R$ por 1 unidade da moeda; para CNY o BCB calcula via paridade com o dólar)",
+    "regra_dia_sem_cotacao": "usar último dia útil anterior",
+    "regra_dia_sem_cotacao_detalhe": "Em sábado, domingo, feriado nacional ou compra feita antes da publicação do fechamento do dia, usar o fechamento do último dia útil anterior. Ex.: o pedido X260926017 é de 26/09/2026 (sábado), então vale a PTAX de sexta, 25/09/2026.",
+    "data_referencia": "Data da compra (data do pedido do fornecedor). Para fins fiscais (DIR/DI/DUIMP e nota de entrada) vale a taxa do Siscomex na data do registro da declaração, por isso o custo gerencial e o fiscal podem diferir um pouco.",
+    "cotacao_efetiva": "Se o usuário informar a taxa efetivamente paga (R$ debitados ÷ CNY pagos, pela fatura do cartão ou recibo do agente), ela substitui a PTAX e já contém spread e IOF. Nesse caso, zere spread_cambio e iof_cambio para não contá-los duas vezes.",
+    "permitir_edicao_manual": true,
+    "casas_decimais": 4,
+    "moedas": [
+      "CNY",
+      "USD"
+    ],
+    "exemplo_ilustrativo": {
+      "pedido": "X260926017",
+      "data_pedido": "2026-09-26",
+      "data_cotacao": "2026-09-25",
+      "cny_brl": 0.78,
+      "observacao": "Valor de EXEMPLO (parâmetro). Não foi possível consultar a API do BCB nesta pesquisa. Referências de mercado da época (não oficiais): USD/BRL ~5,18–5,20 e USD/CNY ~6,70–6,76, o que dá CNY/BRL ~0,77. Busque a PTAX oficial antes de usar."
+    }
+  },
+  "custo_aquisicao": {
+    "moeda_calculo": "BRL",
+    "cenario_padrao": "rts_courier_cnpj",
+    "componentes": [
+      {
+        "id": "taxa_agente",
+        "nome": "Taxa do agente de compras / redirecionador",
+        "tipo": "percentual",
+        "padrao": 8,
+        "base": "Valor da mercadoria em R$ (preço CNY × quantidade × cotação)",
+        "pago_no_exterior": true,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Comissão do agente que compra no atacado de Guangzhou, confere, reembala e despacha (mercado: 5% a 10%). Se o agente cobrar valor fixo, lance o equivalente em %. A comissão de COMPRA não integra o valor aduaneiro (Acordo de Valoração Aduaneira, art. 8) quando vem discriminada na fatura."
+      },
+      {
+        "id": "frete_internacional",
+        "nome": "Frete internacional (courier China → Brasil)",
+        "tipo": "valor_fixo_pedido",
+        "padrao": 1000,
+        "base": "Pedido inteiro, em R$ pela cotação (sem spread/IOF, que são calculados à parte)",
+        "pago_no_exterior": true,
+        "entra_valor_aduaneiro": true,
+        "entra_base_icms": true,
+        "explicacao": "Estimativa conservadora para ~8–10 kg de semijoias embaladas via courier ou linha do agente. Substitua pelo valor real da guia/conhecimento de transporte. Integra o valor aduaneiro, portanto também paga II e ICMS."
+      },
+      {
+        "id": "seguro_internacional",
+        "nome": "Seguro internacional",
+        "tipo": "percentual",
+        "padrao": 0,
+        "base": "Valor da mercadoria em R$",
+        "pago_no_exterior": true,
+        "entra_valor_aduaneiro": true,
+        "entra_base_icms": true,
+        "explicacao": "Normalmente já embutido no frete do courier. Se contratado à parte, integra o valor aduaneiro."
+      },
+      {
+        "id": "spread_cambio",
+        "nome": "Spread de câmbio (cartão / remessa / Alipay / agente)",
+        "tipo": "percentual",
+        "padrao": 4,
+        "base": "Valores pagos ao exterior (mercadoria + taxa do agente + frete internacional + seguro)",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Diferença entre a PTAX e a taxa realmente cobrada. Faixas típicas: cartão internacional 4–6%; remessa por fintech/banco 1–3%; agente que recebe em reais via Pix costuma embutir 3–8% na taxa. Zere se usar a cotação efetiva."
+      },
+      {
+        "id": "iof_cambio",
+        "nome": "IOF sobre o câmbio",
+        "tipo": "percentual",
+        "padrao": 3.5,
+        "base": "(Valores pagos ao exterior) × (1 + spread)",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Cartão de crédito/débito/pré-pago no exterior: 3,5% (Decreto 6.306/2007 na redação do Decreto 12.499/2025). Contrato de câmbio de importação em nome do CNPJ tem alíquota menor (historicamente 0,38%; confirme com o banco). Pagamento em reais a agente no Brasil não tem IOF, mas o spread do agente costuma ser maior. Zere se usar a cotação efetiva."
+      },
+      {
+        "id": "imposto_importacao",
+        "nome": "Imposto de Importação (II)",
+        "tipo": "percentual",
+        "padrao": 60,
+        "base": "Valor aduaneiro = mercadoria + frete internacional + seguro (sem a taxa do agente de compra)",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": true,
+        "explicacao": "Regime de Tributação Simplificada (remessa expressa/postal de até US$ 3.000) para CNPJ: 60%, que substitui II, IPI, PIS e COFINS. A isenção/alíquota reduzida até US$ 50 do Remessa Conforme vale só para pessoa física. A Lei 15.502/2026 autoriza a Fazenda a reduzir a alíquota para até 30%: só aplique quando houver portaria. Importação formal: TEC 18% (confirme a alíquota aplicada para 7117.19.00)."
+      },
+      {
+        "id": "ipi_importacao",
+        "nome": "IPI na importação",
+        "tipo": "percentual",
+        "padrao": 0,
+        "base": "Valor aduaneiro + II",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": true,
+        "explicacao": "Zero no RTS (já incluído nos 60%). Importação formal: TIPI 7117.19.00 = 7,8% (confirme a tabela vigente)."
+      },
+      {
+        "id": "pis_importacao",
+        "nome": "PIS-Importação",
+        "tipo": "percentual",
+        "padrao": 0,
+        "base": "Valor aduaneiro",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": true,
+        "explicacao": "Zero no RTS. Importação formal: 2,10%. Devido mesmo pela optante do Simples (fora do DAS) e sem crédito."
+      },
+      {
+        "id": "cofins_importacao",
+        "nome": "COFINS-Importação",
+        "tipo": "percentual",
+        "padrao": 0,
+        "base": "Valor aduaneiro",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": true,
+        "explicacao": "Zero no RTS. Importação formal: 9,65%. Devido mesmo pela optante do Simples (fora do DAS) e sem crédito."
+      },
+      {
+        "id": "taxa_siscomex",
+        "nome": "Taxa Siscomex e despesas aduaneiras",
+        "tipo": "valor_fixo_pedido",
+        "padrao": 0,
+        "base": "Pedido inteiro, em R$",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": true,
+        "explicacao": "Zero no RTS. Importação formal: taxa de utilização do Siscomex (~R$ 150 por declaração com poucas adições; confirme a tabela) + armazenagem/capatazia do aeroporto, total de ~R$ 300."
+      },
+      {
+        "id": "desembaraco_despachante",
+        "nome": "Desembaraço do courier / honorários do despachante",
+        "tipo": "valor_fixo_pedido",
+        "padrao": 150,
+        "base": "Pedido inteiro, em R$",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "O courier cobra taxa de desembaraço/despacho (~R$ 100–250). Na importação formal, o despachante aduaneiro cobra ~R$ 1.000–1.800 por processo."
+      },
+      {
+        "id": "icms_importacao",
+        "nome": "ICMS na importação",
+        "tipo": "percentual",
+        "padrao": 17,
+        "base": "Por dentro: (valor aduaneiro + II + IPI + PIS + COFINS + taxa Siscomex) ÷ (1 − alíquota) × alíquota",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Remessas internacionais: 17% ou 20% conforme a UF (vários estados passaram a 20% em 2025/2026). Importação formal: alíquota interna da UF do importador (17% a 23%, mais FCP). Para o Simples é CUSTO: não gera crédito e é pago fora do DAS."
+      },
+      {
+        "id": "frete_nacional",
+        "nome": "Frete nacional / retirada / entrega até a loja",
+        "tipo": "valor_fixo_pedido",
+        "padrao": 80,
+        "base": "Pedido inteiro, em R$",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Redespacho dentro do Brasil, quando não incluído no courier."
+      },
+      {
+        "id": "perdas_defeitos",
+        "nome": "Perdas, defeitos e peças faltantes",
+        "tipo": "percentual",
+        "padrao": 2,
+        "base": "Valor da mercadoria em R$",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Provisão para peças quebradas, oxidadas ou faltantes que não serão vendidas. Ajuste pelo histórico da loja."
+      },
+      {
+        "id": "embalagem_etiqueta",
+        "nome": "Embalagem, etiqueta e tag",
+        "tipo": "valor_por_peca",
+        "padrao": 0.4,
+        "base": "Por peça recebida",
+        "pago_no_exterior": false,
+        "entra_valor_aduaneiro": false,
+        "entra_base_icms": false,
+        "explicacao": "Saquinho zip/antioxidação, etiqueta de preço/código de barras e cartela. É somado direto ao custo de cada peça, sem rateio."
+      }
+    ],
+    "cenarios_importacao": {
+      "rts_courier_cnpj": {
+        "nome": "Remessa expressa (courier) no CNPJ, Regime de Tributação Simplificada, ICMS 17%",
+        "aplica_quando": "Remessa de até US$ 3.000 (mercadoria + frete + seguro), declarada pelo valor real, com destinatário = CNPJ da loja.",
+        "valores": {
+          "imposto_importacao": 60,
+          "ipi_importacao": 0,
+          "pis_importacao": 0,
+          "cofins_importacao": 0,
+          "taxa_siscomex": 0,
+          "desembaraco_despachante": 150,
+          "icms_importacao": 17
+        },
+        "observacao": "Carga tributária de ~93% do valor aduaneiro. Simples de operar, mas caro. Se a portaria reduzir o II do RTS (Lei 15.502/2026), atualize imposto_importacao."
+      },
+      "rts_courier_cnpj_icms20": {
+        "nome": "Remessa expressa no CNPJ, ICMS 20%",
+        "aplica_quando": "UF que adotou 20% para remessas internacionais (ex.: AC, AL, BA, CE, MG, PB, PI, RN, RR, SE; confirme a sua).",
+        "valores": {
+          "imposto_importacao": 60,
+          "ipi_importacao": 0,
+          "pis_importacao": 0,
+          "cofins_importacao": 0,
+          "taxa_siscomex": 0,
+          "desembaraco_despachante": 150,
+          "icms_importacao": 20
+        },
+        "observacao": "Carga tributária de ~100% do valor aduaneiro."
+      },
+      "importacao_formal": {
+        "nome": "Importação formal (DI/DUIMP) com Radar Siscomex e despachante",
+        "aplica_quando": "Volumes maiores; obrigatória acima de US$ 3.000 por remessa.",
+        "valores": {
+          "imposto_importacao": 18,
+          "ipi_importacao": 7.8,
+          "pis_importacao": 2.1,
+          "cofins_importacao": 9.65,
+          "taxa_siscomex": 300,
+          "desembaraco_despachante": 1500,
+          "icms_importacao": 18
+        },
+        "observacao": "Tributos de ~70–75% do valor aduaneiro mais custos fixos do processo. Tende a compensar a partir de ~US$ 1.500–2.000 por embarque. Confirme o II aplicado (TEC 18%), o IPI (TIPI 7,8%) e a alíquota interna de ICMS da sua UF. Revenda de importado próprio: Simples Anexo II (ADI RFB 1/2018)."
+      },
+      "compra_importador_nacional": {
+        "nome": "Compra de importador/distribuidor no Brasil (com NF-e)",
+        "aplica_quando": "Fornecedor brasileiro que já importou; preço em R$ (cotação = 1).",
+        "valores": {
+          "taxa_agente": 0,
+          "frete_internacional": 0,
+          "seguro_internacional": 0,
+          "spread_cambio": 0,
+          "iof_cambio": 0,
+          "imposto_importacao": 0,
+          "ipi_importacao": 0,
+          "pis_importacao": 0,
+          "cofins_importacao": 0,
+          "taxa_siscomex": 0,
+          "desembaraco_despachante": 0,
+          "icms_importacao": 0
+        },
+        "observacao": "Custo = valor da NF de compra + frete + embalagem. Origem da mercadoria = 2. Revenda no Anexo I."
+      },
+      "agente_ddp_impostos_inclusos": {
+        "nome": "Agente 'porta a porta com impostos inclusos' (DDP por kg)",
+        "aplica_quando": "Somente se o agente entregar documentação de importação em nome do CNPJ da loja.",
+        "valores": {
+          "imposto_importacao": 0,
+          "ipi_importacao": 0,
+          "pis_importacao": 0,
+          "cofins_importacao": 0,
+          "taxa_siscomex": 0,
+          "desembaraco_despachante": 0,
+          "icms_importacao": 0
+        },
+        "observacao": "NÃO RECOMENDADO sem documentos: costuma envolver subfaturamento, fracionamento ou remessa em nome de terceiros (CPF). Sem DIR/DI/DUIMP em nome da empresa não há como emitir nota de entrada, e o estoque fica sem origem comprovada. Se usar, lance o valor total por kg em frete_internacional."
+      }
+    },
+    "rateio": {
+      "recomendado": "por_valor",
+      "regra": "Todos os custos do pedido (percentuais e valor_fixo_pedido) entram no FATOR DE CUSTO e são rateados na proporção do valor de cada linha (preço CNY × quantidade). Componentes valor_por_peca são somados direto a cada peça.",
+      "justificativa": "Câmbio, IOF, agente, tributos e perdas já são proporcionais ao valor por natureza, por isso o rateio por valor é exato para eles. O frete seria idealmente rateado por peso, mas o peso de cada item não vem no pedido, e valor e peso andam juntos (conjuntos e braceletes pesam e custam mais). Ratear por peça faria um pingente de ¥3 carregar o mesmo frete de um conjunto de ¥87,50, distorcendo o preço dos itens baratos.",
+      "alternativa": "por_peca (opcional, só para valor_fixo_pedido)"
+    },
+    "formula": "1) M = Σ(preço_CNY × qtd) × cotação. 2) EXT = M + taxa_agente + frete_internacional + seguro (o que é pago ao exterior); SPREAD = EXT × spread%; IOF = (EXT + SPREAD) × iof%. 3) VA = M + frete_internacional + seguro; II = VA × ii%; IPI = (VA + II) × ipi%; PIS = VA × pis%; COFINS = VA × cofins%. 4) ICMS = (VA + II + IPI + PIS + COFINS + taxa_siscomex) ÷ (1 − icms%) × icms%. 5) ADICIONAIS = taxa_agente + frete_internacional + seguro + SPREAD + IOF + II + IPI + PIS + COFINS + taxa_siscomex + desembaraco_despachante + ICMS + frete_nacional + perdas_defeitos. 6) FATOR_CUSTO = (M + ADICIONAIS) ÷ M. 7) custo_unitário = preço_CNY × cotação × FATOR_CUSTO + embalagem_etiqueta. 8) preço_venda = custo_unitário × fator_multiplicador, onde fator_multiplicador = 1 + %Lucro ÷ 100 (tabela do UP Vendas).",
+    "exemplo_pedido_X260926017": {
+      "premissas": "cotação 0,78 (ilustrativa), cenário rts_courier_cnpj, demais componentes no padrão",
+      "mercadoria_cny": 8225.9,
+      "pecas": 858,
+      "mercadoria_brl": 6416.2,
+      "valor_aduaneiro_brl": 7416.2,
+      "imposto_importacao_brl": 4449.72,
+      "icms_importacao_brl": 2430.37,
+      "fator_custo": 2.4584,
+      "custo_total_pedido_brl": 16116.93,
+      "custo_medio_por_peca_brl": 18.78,
+      "exemplo_peca": "JCF1512A (pingente, ¥3,50): compra bruto 2,73 + insumo 4,38 = custo total 7,11"
+    }
+  },
+  "mapeamento_up_vendas": {
+    "custo_compra_bruto": "preço_CNY × cotação (valor da mercadoria convertido, sem nenhum acréscimo)",
+    "custo_insumo": "custo_unitário − custo_compra_bruto (rateio de câmbio, IOF, agente, fretes, tributos de importação, despesas e perdas, mais embalagem/etiqueta)",
+    "milesimos": "0. Só preencha se o fornecedor CERTIFICAR a espessura da camada. Nos pedidos chineses, 'G', '14K', 'MR' etc. indicam cor ou tipo de banho, não milésimos.",
+    "banho_ouro": "0. A peça importada já vem banhada; use só se a loja mandar a peça para galvanoplastia no Brasil.",
+    "banho_prata": "0 (idem)",
+    "banho_rodio": "0 (idem)",
+    "banho_verniz": "0 (idem; preencha se aplicar verniz antialérgico/protetor no Brasil)",
+    "custo_total": "custo_unitário (= custo_compra_bruto + custo_insumo + banhos)",
+    "percentual_lucro": "(fator_multiplicador − 1) × 100. É MARKUP sobre o custo, não margem."
+  },
+  "precificacao_referencia": {
+    "formula_up_vendas": "preço = custo_total × (1 + %Lucro ÷ 100)",
+    "margem_bruta_a_partir_do_markup": "margem = %Lucro ÷ (100 + %Lucro). Ex.: markup de 736% = margem bruta de 88% sobre o preço.",
+    "markup_divisor": "fator_multiplicador_minimo = 1 ÷ (1 − (simples% + comissao_consignacao% + taxa_cartao% + despesas_fixas% + lucro_desejado%) ÷ 100)",
+    "parametros_exemplo": {
+      "simples_pct": 7,
+      "comissao_consignacao_pct": 30,
+      "taxa_cartao_pct": 3,
+      "despesas_fixas_pct": 15,
+      "lucro_desejado_pct": 10
+    },
+    "fator_multiplicador_exemplo": 2.857,
+    "observacao": "Os percentuais do markup divisor incidem sobre o PREÇO de venda. Aplique o fator sobre o custo_total (landed cost), nunca sobre o preço em CNY convertido. Política comercial detalhada: src/config/precificacao.json."
+  },
+  "tributos_venda": {
+    "regime_padrao": "simples_nacional",
+    "anexo": "I (comércio)",
+    "anexo_mercadoria_importada_pela_propria_empresa": "II. A RFB entende que a optante que importa diretamente e revende fica equiparada a industrial (Solução de Divergência Cosit 4/2014 e ADI RFB 1/2018), e a receita dessas vendas vai para o Anexo II (inclui IPI). Mercadoria comprada de importador nacional continua no Anexo I. Segregue no PGDAS-D.",
+    "aliquota_efetiva_estimada_pct": 7.0,
+    "formula_aliquota_efetiva": "(RBT12 × alíquota_nominal − parcela_a_deduzir) ÷ RBT12",
+    "faixas_anexo_i": [
+      {
+        "ate_rbt12": 180000,
+        "aliquota_nominal": 4.0,
+        "deduzir": 0
+      },
+      {
+        "ate_rbt12": 360000,
+        "aliquota_nominal": 7.3,
+        "deduzir": 5940
+      },
+      {
+        "ate_rbt12": 720000,
+        "aliquota_nominal": 9.5,
+        "deduzir": 13860
+      },
+      {
+        "ate_rbt12": 1800000,
+        "aliquota_nominal": 10.7,
+        "deduzir": 22500
+      },
+      {
+        "ate_rbt12": 3600000,
+        "aliquota_nominal": 14.3,
+        "deduzir": 87300
+      },
+      {
+        "ate_rbt12": 4800000,
+        "aliquota_nominal": 19.0,
+        "deduzir": 378000
+      }
+    ],
+    "faixas_anexo_ii": [
+      {
+        "ate_rbt12": 180000,
+        "aliquota_nominal": 4.5,
+        "deduzir": 0
+      },
+      {
+        "ate_rbt12": 360000,
+        "aliquota_nominal": 7.8,
+        "deduzir": 5940
+      },
+      {
+        "ate_rbt12": 720000,
+        "aliquota_nominal": 10.0,
+        "deduzir": 13860
+      },
+      {
+        "ate_rbt12": 1800000,
+        "aliquota_nominal": 11.2,
+        "deduzir": 22500
+      },
+      {
+        "ate_rbt12": 3600000,
+        "aliquota_nominal": 14.7,
+        "deduzir": 85500
+      },
+      {
+        "ate_rbt12": 4800000,
+        "aliquota_nominal": 30.0,
+        "deduzir": 720000
+      }
+    ],
+    "observacao": "A estimativa de 7% vale para faturamento anual entre ~R$ 360 mil e R$ 720 mil (Anexo I: 5,3% a 7,6%; Anexo II: 5,9% a 8,1%). O contador deve informar a alíquota efetiva real do mês. Os tributos da importação (II, IPI, PIS, COFINS, ICMS) são pagos fora do DAS e não geram crédito. A venda porta a porta por revendedoras pode estar sujeita a ICMS-ST (Convênio ICMS 45/99, CEST do segmento 28), conforme a UF; nesse caso a receita é segregada no PGDAS. Reforma tributária: em 2026 o Simples está dispensado do destaque de teste de CBS/IBS; a partir de 2027, avaliar com o contador."
+  },
+  "cfop": {
+    "venda_dentro_estado": "5102",
+    "venda_fora_estado": "6102",
+    "venda_fora_estado_nao_contribuinte": "6108",
+    "remessa_consignacao": "5917",
+    "remessa_consignacao_fora_estado": "6917",
+    "retorno_consignacao": "1918",
+    "retorno_consignacao_fora_estado": "2918",
+    "venda_de_mercadoria_consignada": "5114",
+    "devolucao_simbolica_recebida": "1919",
+    "entrada_importacao": "3102",
+    "entrada_compra_mercado_interno": "1102",
+    "observacao": "Ponto de vista da Fio de Amor como CONSIGNANTE (Ajuste SINIEF 02/93). A remessa usa 5917/6917. Quando a peça volta, o consignatário contribuinte emite NF com 5918/6918 e a loja escritura a entrada com 1918/2918; se a revendedora for pessoa física não contribuinte, a própria loja emite NF de entrada 1918. Quando a revendedora vende, a loja fatura com 5114 (sem nova circulação) e o consignatário faz a devolução simbólica 5919 (entrada 1919 na loja). Para revendedoras pessoas físicas, vários estados não admitem consignação mercantil com não contribuinte e exigem remessa para venda fora do estabelecimento (5904/1904) ou venda porta a porta com ICMS-ST (Conv. ICMS 45/99, CFOP 5403/5405). Defina o modelo com o contador conforme a UF."
+  },
+  "csosn_padrao": "102",
+  "csosn_observacao": "102 = tributada pelo Simples sem permissão de crédito (venda a consumidor/não contribuinte). Use 101 na venda a contribuinte com crédito permitido; 201/202 se a loja for substituta tributária (porta a porta); 500 se o ICMS já foi retido por ST; 400 ou 900 nas remessas/retornos de consignação, conforme a orientação da UF.",
+  "origem_mercadoria": {
+    "importado_direto": "1",
+    "adquirido_mercado_interno_importado": "2",
+    "explicacao": "Tabela A do CST/CSOSN. 1 = estrangeira, importação direta (a loja é a importadora, com DIR/DI/DUIMP no seu CNPJ). 2 = estrangeira adquirida no mercado interno (comprada de importador/distribuidor brasileiro). Nunca use 0 (nacional) para peça chinesa: a origem afeta o ICMS interestadual (4%, Res. Senado 13/2012) e a fiscalização."
+  },
+  "unidade": "UN"
+}
