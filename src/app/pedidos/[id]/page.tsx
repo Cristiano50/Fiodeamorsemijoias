@@ -419,10 +419,10 @@ export default function PedidoPage() {
                     </div>
                   </td>
                   <td>
-                    <input type="number" defaultValue={p.quantidade} key={p.quantidade} className="w-16" onBlur={(e) => Number(e.target.value) !== p.quantidade && editar(p, { quantidade: Number(e.target.value) })} />
+                    <input type="number" defaultValue={p.quantidade} key={p.quantidade} className="w-20" onBlur={(e) => Number(e.target.value) !== p.quantidade && editar(p, { quantidade: Number(e.target.value) })} />
                   </td>
                   <td>
-                    <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={p.precoOrigem} className="w-20" onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
+                    <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={p.precoOrigem} className="w-24" onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
                   </td>
                   <td className="whitespace-nowrap">
                     {brl(p.custoTotalBrl)}
@@ -431,7 +431,7 @@ export default function PedidoPage() {
                   <td className="whitespace-nowrap font-titulo text-lg font-semibold text-rose-escuro">
                     {brl(p.precoVenda)}
                     {p.precos && config?.precificacao.tabelas_preco
-                      .filter((t) => t.id !== config.precificacao.tabela_base)
+                      .filter((t) => t.id !== config.precificacao.tabela_base && t.multiplicador_sobre_tabela_base !== 1)
                       .slice(0, 1)
                       .map((t) => (
                         <div key={t.id} className="font-sans text-xs font-normal text-[#9a8089]">

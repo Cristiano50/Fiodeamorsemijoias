@@ -148,10 +148,10 @@ export default function EstudioPage() {
       ctx.fillRect(0, 1150, 1080, 200);
       ctx.fillStyle = C.dourado;
       ctx.fillRect(0, 1149, 1080, 2);
-      texto(ctx, a.nomeComercial, 72, 1238, "64px Satisfy", C.escuro, { max: preco ? 640 : 900 });
-      texto(ctx, a.descricao, 74, 1290, "300 22px Jost", C.texto, { max: preco ? 640 : 900, tracking: 4 });
-      if (preco) texto(ctx, preco, 1008, 1262, "600 64px 'Cormorant Garamond'", C.escuro, { alinhar: "right" });
-      desenhaLogo(150, 72, 1300);
+      texto(ctx, a.nomeComercial, 72, 1245, "64px Satisfy", C.escuro, { max: 640 });
+      texto(ctx, a.descricao, 74, 1298, "300 22px Jost", C.texto, { max: 640, tracking: 4 });
+      if (preco) texto(ctx, preco, 1008, 1238, "600 60px 'Cormorant Garamond'", C.escuro, { alinhar: "right" });
+      desenhaLogo(170, 1008 - 170, preco ? 1262 : 1220);
       if (tpl === "feed_lancamento" && a.selo) {
         ctx.save();
         ctx.fillStyle = C.rose;

@@ -138,13 +138,30 @@ export default function ImportarPage() {
           arquivoNome: arquivos.map((a) => a.name).join(", "),
         }),
       );
-      form.set("itens", JSON.stringify(ativas.map((l, k) => ({ linha: k + 1, texto: l.texto, campo: `item_${k}` }))));
-      ativas.forEach((l, k) => form.set(`item_${k}`, l.imagem, `item_${k}.jpg`));
-      (extracao?.paginas ?? []).forEach((b, k) => form.set(`pagina_pdf_${k}`, b, `pagina_${k}.jpg`));
-      fotos.forEach((f, k) => form.set(`pagina_foto_${k}`, f.blob, f.nome));
       const pdf = arquivos.find((a) => a.name.toLowerCase().endsWith(".pdf"));
-      if (pdf) form.set("arquivo", pdf);
+      if (pdf && pdf.size < 3.5 * 1024 * 1024) form.set("arquivo", pdf);
       const r = await api<{ id: string; avisos: string[]; paginas: number }>("/api/pedidos", { method: "POST", body: form });
+
+      // Fotos em lotes pequenos (cabem no limite de upload de qualquer servidor).
+      const LOTE = 8;
+      for (let i = 0; i < ativas.length; i += LOTE) {
+        setStatus(`Enviando peças ${i + 1}–${Math.min(i + LOTE, ativas.length)} de ${ativas.length}…`);
+        const f = new FormData();
+        const lote = ativas.slice(i, i + LOTE);
+        f.set("itens", JSON.stringify(lote.map((l, k) => ({ linha: i + k + 1, texto: l.texto, campo: `item_${k}` }))));
+        lote.forEach((l, k) => f.set(`item_${k}`, l.imagem, `item_${k}.jpg`));
+        await api(`/api/pedidos/${r.id}/itens`, { method: "POST", body: f });
+      }
+      const paginas = [...(extracao?.paginas ?? []).map((b, k) => ({ b, nome: `pagina_${k}.jpg` })), ...fotos.map((f) => ({ b: f.blob, nome: f.nome }))];
+      for (let k = 0; k < paginas.length; k++) {
+        setStatus(`Enviando página/foto ${k + 1} de ${paginas.length}…`);
+        const f = new FormData();
+        f.set(`pagina_${k}`, paginas[k].b, paginas[k].nome);
+        await api(`/api/pedidos/${r.id}/itens`, { method: "POST", body: f });
+      }
+      setStatus("Calculando custos e preços…");
+      const fim = await api<{ paginas: number }>(`/api/pedidos/${r.id}/finalizar`, { method: "POST" });
+      r.paginas = fim.paginas;
       r.avisos.forEach((a) => avisar(a, "info"));
 
       if (analisarIa) {

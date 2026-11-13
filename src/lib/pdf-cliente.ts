@@ -142,7 +142,10 @@ function textoDaFaixa(trechos: Trecho[], c: Caixa): string {
     .join(" | ");
 }
 
-async function renderizarRegiao(page: PDFPageProxy, c: Caixa, ladoMax = 900): Promise<Blob> {
+async function renderizarRegiao(page: PDFPageProxy, caixa: Caixa, ladoMax = 900): Promise<Blob> {
+  // Recua um pouco as bordas para não levar as linhas da tabela do PDF junto com a foto.
+  const recuo = Math.max(0.8, Math.min(caixa.x1 - caixa.x0, caixa.y1 - caixa.y0) * 0.02);
+  const c = { x0: caixa.x0 + recuo, y0: caixa.y0 + recuo, x1: caixa.x1 - recuo, y1: caixa.y1 - recuo };
   const w = c.x1 - c.x0;
   const h = c.y1 - c.y0;
   const escala = Math.min(20, ladoMax / Math.max(w, h));

@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 }
 
 const EDITAVEIS = [
-  "nome", "nomeComercial", "traducao", "descricaoOriginal", "codigoFornecedor", "legenda", "hashtags", "destaque",
+  "nome", "nomeComercial", "nomesSugeridos", "avaliacao", "traducao", "descricaoOriginal", "codigoFornecedor", "legenda", "hashtags", "destaque",
   "tipo", "subtipo", "material", "banho", "corPedra", "tamanho", "variacao", "grupo", "ehConjunto", "componentes", "estilo",
   "quantidade", "precoOrigem", "fator", "referencia", "codigoBarras", "ncm", "unidade", "imagemId", "status",
 ] as const;

@@ -4,8 +4,8 @@ import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { buscarCotacao } from "@/lib/cambio";
 import { getCenarios, getConfig } from "@/lib/config";
-import { lerLinha } from "@/lib/extracao";
-import { agruparVariacoesAutomaticas, novoId, recalcularPedido, salvarImagem } from "@/lib/servicos";
+import { adicionarItens } from "@/lib/importacao";
+import { agruparVariacoesAutomaticas, novoId, recalcularPedido } from "@/lib/servicos";
 
 export const maxDuration = 300;
 
@@ -50,15 +50,14 @@ interface MetaPedido {
 
 /**
  * Cria o pedido a partir do que o navegador extraiu do PDF/fotos:
- *  - itens: [{ linha, texto, campo }] + arquivos "item_N" (foto recortada de cada linha)
- *  - paginas: arquivos "pagina_N" (fotos/páginas sem tabela — a IA localiza as peças depois)
- *  - arquivo: documento original
+ *  - meta: dados do pedido; arquivo: documento original (guardado se tiver até 4 MB)
+ *  - itens e páginas podem vir aqui ou, de preferência, em lotes por /api/pedidos/:id/itens
+ *    e depois /api/pedidos/:id/finalizar (agrupa variações e calcula preços)
  */
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const meta = JSON.parse(String(form.get("meta") ?? "{}")) as MetaPedido;
-    const itens = JSON.parse(String(form.get("itens") ?? "[]")) as { linha: number; texto: string; campo?: string }[];
     const db = await getDb();
     const sistema = await getConfig("sistema");
 
@@ -101,7 +100,7 @@ export async function POST(req: NextRequest) {
     });
 
     const arquivo = form.get("arquivo");
-    if (arquivo instanceof File && arquivo.size < 30 * 1024 * 1024) {
+    if (arquivo instanceof File && arquivo.size < 3.5 * 1024 * 1024) {
       await db.insert(schema.arquivos).values({
         id: novoId(),
         pedidoId,
@@ -111,41 +110,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    for (const it of itens) {
-      const produtoId = novoId();
-      const f = it.campo ? form.get(it.campo) : null;
-      const imagemId =
-        f instanceof File
-          ? await salvarImagem({ dados: Buffer.from(await f.arrayBuffer()), origem: "catalogo", produtoId, pedidoId })
-          : null;
-      const lida = lerLinha(it.texto);
-      await db.insert(schema.produtos).values({
-        id: produtoId,
-        pedidoId,
-        linha: it.linha,
-        textoOriginal: it.texto,
-        codigoFornecedor: lida.codigo ?? null,
-        descricaoOriginal: lida.descricao ?? null,
-        variacao: lida.especificacao ?? null,
-        precoOrigem: lida.preco ?? null,
-        quantidade: lida.quantidade ?? 1,
-        moeda,
-        unidade: sistema.unidade,
-        imagemId,
-      });
-    }
-
-    let ordem = 0;
-    for (const [campo, valor] of form.entries()) {
-      if (!campo.startsWith("pagina_") || !(valor instanceof File)) continue;
-      const imagemId = await salvarImagem({ dados: Buffer.from(await valor.arrayBuffer()), origem: "pagina", pedidoId });
-      await db.insert(schema.paginas).values({ id: novoId(), pedidoId, ordem: ordem++, imagemId, texto: null });
-    }
+    // Compatível com envio único; o navegador manda os itens em lotes por /api/pedidos/:id/itens.
+    const lote = await adicionarItens(pedidoId, form);
 
     await agruparVariacoesAutomaticas(pedidoId);
     await recalcularPedido(pedidoId);
     const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, pedidoId));
-    return ok({ id: pedidoId, pedido, avisos, paginas: ordem });
+    return ok({ id: pedidoId, pedido, avisos, paginas: lote.paginas });
   } catch (e) {
     return erro(e);
   }
