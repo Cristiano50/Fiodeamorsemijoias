@@ -16,6 +16,7 @@ export const pedidos = sqliteTable("pedidos", {
   cenario: text("cenario"), // cenário de importação (fiscal.json → custo_aquisicao.cenarios_importacao)
   custos: text("custos", { mode: "json" }).$type<Record<string, number>>(), // valores dos componentes de custo
   rateio: text("rateio").notNull().default("valor"), // valor | peca
+  fator: real("fator"), // fator multiplicador escolhido pelo funcionário para o pedido (vazio = padrão)
   totalDocumento: real("total_documento"),
   cabecalho: text("cabecalho"), // texto do cabeçalho do documento
   colunas: text("colunas"), // cabeçalho da tabela (ex: 序 条码 图片 货名 ...)

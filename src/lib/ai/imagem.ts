@@ -18,7 +18,11 @@ const BANHO_EN: Record<string, string> = {
 };
 const TONS_PELE = ["fair", "light olive", "medium tan", "deep brown"];
 
-/** Monta o prompt da foto publicitária a partir do guia de marketing (src/config/marca.json). */
+/**
+ * Monta o prompt na ordem definida pelo marketing (marca.json → prompts_ia_foto.montagem):
+ * base + (cenário com modelo: por_tipo[tipo|alias|default] + por_subtipo) ou (still: still_life)
+ * + cena + ajuste da avaliação anterior + "Avoid: " negativo.
+ */
 export function montarPromptFoto(
   marca: Marca,
   opts: { tipo?: string | null; subtipo?: string | null; banho?: string | null; tamanho?: string | null; cenarioId?: string; extra?: string; descricaoPeca?: string },
@@ -26,21 +30,28 @@ export function montarPromptFoto(
   const p = (marca.prompts_ia_foto ?? {}) as NonNullable<Marca["prompts_ia_foto"]> & {
     aliases?: Record<string, string>;
     por_subtipo?: Record<string, string>;
+    still_life?: string;
+    cenario_padrao?: string;
   };
+  const cen = p.cenarios?.find((c) => c.id === (opts.cenarioId || p.cenario_padrao)) ?? p.cenarios?.[0];
+  const comModelo = cen?.modelo !== false;
   const tipo = (opts.tipo && (p.por_tipo?.[opts.tipo] ? opts.tipo : p.aliases?.[opts.tipo])) || "default";
-  const porTipo = p.por_tipo?.[tipo] ?? p.por_tipo?.default ?? "";
-  const subtipoChave = Object.keys(p.por_subtipo ?? {}).find((k) => opts.subtipo?.toLowerCase().includes(k.toLowerCase()));
-  const porSubtipo = subtipoChave ? p.por_subtipo![subtipoChave] : "";
-  const cenario = p.cenarios?.find((c) => c.id === opts.cenarioId)?.prompt ?? p.cenarios?.[0]?.prompt ?? "";
+  const subtipoChaves = Object.keys(p.por_subtipo ?? {}).filter((k) => {
+    const sub = (opts.subtipo ?? "").toLowerCase();
+    return sub.includes(k.toLowerCase()) || (k.toLowerCase() === "religioso" && /religios|santa|nossa senhora|crucifix|terço|escapul/.test(sub));
+  });
+  const corpo = comModelo
+    ? [p.por_tipo?.[tipo] ?? p.por_tipo?.default ?? "", ...subtipoChaves.map((k) => p.por_subtipo![k])]
+    : [p.still_life ?? "", ...subtipoChaves.filter((k) => k.toLowerCase() === "religioso").map((k) => p.por_subtipo![k])];
+  const cenario = cen?.prompt ?? "";
+  const usaPlaceholderCena = [p.base, ...corpo].some((t) => t?.includes("{scene}"));
   const negativo = Array.isArray(p.negativo) && p.negativo.length ? `Avoid: ${p.negativo.join(", ")}.` : "";
   const texto = [
     p.base ??
       "Use the reference photo as the exact jewelry piece. Keep its shape, color, stones and plating identical. Remove supplier cards, tags and QR codes.",
-    porTipo,
-    porSubtipo,
-    p.base?.includes("{scene}") || porTipo.includes("{scene}") ? "" : cenario,
+    ...corpo,
+    usaPlaceholderCena ? "" : cenario,
     opts.extra ?? "",
-    `Brand palette: dusty rose ${marca.cores?.primaria ?? "#CEA6B6"}, cream and soft gold. Elegant, feminine, soft natural light. No text, no logos, no watermarks.`,
     negativo,
   ]
     .filter(Boolean)
@@ -76,7 +87,11 @@ export async function gerarFotoIA(opts: {
           parts: [{ inlineData: { mimeType: opts.mime, data: opts.imagem.toString("base64") } }, { text: opts.prompt }],
         },
       ],
-      config: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: opts.proporcao } },
+      config: {
+        responseModalities: ["IMAGE"],
+        // Modelos Gemini 3 aceitam resolução maior (2K) — melhor para campanha.
+        imageConfig: { aspectRatio: opts.proporcao, ...(/gemini-3/.test(sistema.geminiModelo) ? { imageSize: "2K" } : {}) },
+      },
     });
     const parte = resp.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
     if (!parte?.inlineData?.data) {
@@ -94,13 +109,24 @@ export async function gerarFotoIA(opts: {
   const apiKey = await getSegredo("OPENAI_API_KEY");
   if (!apiKey) throw new IaIndisponivel("Configure a chave da OpenAI em Configurações → Integrações.");
   const client = new OpenAI({ apiKey });
-  const size = opts.proporcao === "1:1" ? "1024x1024" : "1024x1536";
-  const resp = await client.images.edit({
-    model: sistema.openaiModelo,
-    image: await toFile(opts.imagem, "peca.jpg", { type: opts.mime }),
-    prompt: opts.prompt,
-    size,
-  });
+  // gpt-image-2 aceita resolução livre (LxA); se o modelo recusar, cai para um tamanho padrão.
+  const exato = { "4:5": "1024x1280", "9:16": "1024x1824", "1:1": "1024x1024" }[opts.proporcao];
+  const padrao = opts.proporcao === "1:1" ? "1024x1024" : "1024x1536";
+  const editar = async (size: string) =>
+    client.images.edit({
+      model: sistema.openaiModelo,
+      image: await toFile(opts.imagem, "peca.jpg", { type: opts.mime }),
+      prompt: opts.prompt,
+      size,
+      quality: "high",
+    });
+  let resp;
+  try {
+    resp = await editar(exato);
+  } catch (e) {
+    if (e instanceof OpenAI.BadRequestError && exato !== padrao) resp = await editar(padrao);
+    else throw e;
+  }
   const b64 = resp.data?.[0]?.b64_json;
   if (!b64) throw new Error("A OpenAI não devolveu a imagem.");
   return { dados: Buffer.from(b64, "base64"), mime: "image/png", provedor, modelo: sistema.openaiModelo };

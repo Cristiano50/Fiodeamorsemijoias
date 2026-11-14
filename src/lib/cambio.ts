@@ -1,11 +1,13 @@
 import "server-only";
 
 /**
- * Cotação do dia da compra.
- * 1) PTAX do Banco Central (boletim de Fechamento) — fonte oficial.
- *    Se a data não tem cotação (fim de semana/feriado), usa o último dia útil anterior.
- * 2) Alternativa: AwesomeAPI (economia.awesomeapi.com.br), caso o BCB esteja fora do ar.
- * 3) Se nada responder, o usuário informa a cotação manualmente na tela do pedido.
+ * Cotação do dia da compra (PTAX de fechamento do Banco Central).
+ * 1) Boletim diário de fechamento do BCB (www4.bcb.gov.br/Download/fechamento/AAAAMMDD.csv):
+ *    traz TODAS as moedas, inclusive o yuan (CNY). A API Olinda do BCB só tem 10 moedas e não tem CNY.
+ *    Se a data não tem boletim (fim de semana/feriado ou antes das ~13h), usa o último dia útil anterior.
+ * 2) API Olinda do BCB (USD, EUR e outras 8 moedas).
+ * 3) AwesomeAPI (mercado), se o BCB estiver fora do ar.
+ * 4) Se nada responder, o usuário informa a cotação manualmente na tela do pedido.
  */
 
 export interface Cotacao {
@@ -18,6 +20,26 @@ export interface Cotacao {
 
 const mmddyyyy = (d: Date) =>
   `${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}-${d.getUTCFullYear()}`;
+
+/** Boletim de fechamento PTAX (CSV): Data;Cód;Tipo;Moeda;Compra;Venda;Paridade compra;Paridade venda */
+async function boletimBcb(moeda: string, data: string, tipo: "venda" | "compra"): Promise<Cotacao | null> {
+  const dia = new Date(`${data}T12:00:00Z`);
+  for (let i = 0; i < 10; i++) {
+    const aaaammdd = dia.toISOString().slice(0, 10).replaceAll("-", "");
+    const res = await fetch(`https://www4.bcb.gov.br/Download/fechamento/${aaaammdd}.csv`, { signal: AbortSignal.timeout(12000), cache: "no-store" });
+    if (res.ok) {
+      const linha = (await res.text()).split(/\r?\n/).find((l) => l.split(";")[3]?.trim().toUpperCase() === moeda);
+      if (!linha) return null; // moeda não existe no boletim
+      const c = linha.split(";");
+      const valor = Number((tipo === "venda" ? c[5] : c[4]).replace(",", "."));
+      const [dd, mm, aaaa] = c[0].split("/");
+      return { moeda, valor, data: `${aaaa}-${mm}-${dd}`, fonte: "PTAX Banco Central (boletim de fechamento)", tipo };
+    }
+    if (res.status !== 404) throw new Error(`BCB (boletim) respondeu ${res.status}`);
+    dia.setUTCDate(dia.getUTCDate() - 1);
+  }
+  return null;
+}
 
 async function ptax(moeda: string, data: string, tipo: "venda" | "compra"): Promise<Cotacao | null> {
   const fim = new Date(`${data}T12:00:00Z`);
@@ -72,7 +94,7 @@ export async function buscarCotacao(
 ): Promise<{ cotacao: Cotacao | null; erros: string[] }> {
   if (moeda === "BRL") return { cotacao: { moeda, valor: 1, data, fonte: "BRL", tipo }, erros: [] };
   const erros: string[] = [];
-  for (const fonte of [() => ptax(moeda, data, tipo), () => awesome(moeda, data)]) {
+  for (const fonte of [() => boletimBcb(moeda, data, tipo), () => ptax(moeda, data, tipo), () => awesome(moeda, data)]) {
     try {
       const c = await fonte();
       if (c && c.valor > 0) return { cotacao: c, erros };

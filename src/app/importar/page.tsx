@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Botao, Campo, Cartao, Selo, useAviso } from "@/components/ui";
 import { api, brl, moedaSimbolo, num } from "@/lib/cliente";
@@ -27,7 +27,11 @@ export default function ImportarPage() {
   const [cotacao, setCotacao] = useState<number | "">("");
   const [cotacaoInfo, setCotacaoInfo] = useState<Cotacao | null>(null);
   const [cotacaoErro, setCotacaoErro] = useState("");
+  // Só enviamos a cotação se a pessoa digitou; senão o servidor busca a PTAX oficial da data da compra.
+  const [cotacaoManual, setCotacaoManual] = useState(false);
   const [analisarIa, setAnalisarIa] = useState(true);
+  const [fator, setFator] = useState("");
+  const [fotosModelo, setFotosModelo] = useState(true);
 
   async function selecionar(lista: FileList | File[]) {
     const arr = Array.from(lista);
@@ -43,7 +47,10 @@ export default function ImportarPage() {
         const ex = await extrairPdf(pdf, setStatus);
         setExtracao(ex);
         const cab = lerCabecalho(ex.cabecalho + "\n" + ex.textoCompleto.slice(0, 600));
-        if (cab.data) setDataCompra(cab.data);
+        if (cab.data) {
+          setDataCompra(cab.data);
+          setCotacaoManual(false);
+        }
         if (cab.numero) setNumero(cab.numero);
         if (cab.moeda) trocarMoeda(cab.moeda);
         const primeira = ex.cabecalho.split("\n").find((l) => l.trim().length > 3);
@@ -79,14 +86,19 @@ export default function ImportarPage() {
     }
   }
 
-  // Cotação do dia da compra (PTAX).
+  const cotacaoManualRef = useRef(false);
+  useEffect(() => {
+    cotacaoManualRef.current = cotacaoManual;
+  }, [cotacaoManual]);
+
+  // Cotação do dia da compra (PTAX) — prévia na tela; o servidor confirma ao criar o pedido.
   useEffect(() => {
     if (moeda === "BRL") return;
     let cancelado = false;
     api<{ cotacao: Cotacao | null; erros: string[] }>(`/api/cotacao?moeda=${moeda}&data=${dataCompra}`)
       .then((r) => {
         if (cancelado) return;
-        if (r.cotacao) {
+        if (r.cotacao && !cotacaoManualRef.current) {
           setCotacaoErro("");
           setCotacao(Number(r.cotacao.valor.toFixed(4)));
           setCotacaoInfo(r.cotacao);
@@ -131,7 +143,9 @@ export default function ImportarPage() {
           fornecedor,
           dataCompra,
           moeda,
-          cotacao: cotacao || undefined,
+          cotacao: cotacaoManual && cotacao ? cotacao : undefined,
+          cotacaoSugerida: !cotacaoManual && cotacao && cotacaoInfo?.data ? { valor: cotacao, data: cotacaoInfo.data, fonte: cotacaoInfo.fonte } : undefined,
+          fator: fator ? Number(fator.replace(",", ".")) : null,
           cabecalho: extracao?.cabecalho,
           colunas: extracao?.colunas,
           totalDocumento: extracao?.totalDocumento ?? null,
@@ -173,7 +187,7 @@ export default function ImportarPage() {
           avisar(`Pedido criado, mas a análise por IA parou: ${e instanceof Error ? e.message : e}`, "erro");
         }
       } else avisar("Pedido criado. Você pode rodar a análise por IA na tela do pedido.");
-      router.push(`/pedidos/${r.id}`);
+      router.push(`/pedidos/${r.id}${analisarIa && fotosModelo ? "?fotos=1" : ""}`);
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), "erro");
     } finally {
@@ -219,7 +233,7 @@ export default function ImportarPage() {
 
       {(extracao || fotos.length > 0) && (
         <Cartao titulo="Dados do pedido">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
             <Campo rotulo="Fornecedor" className="lg:col-span-2">
               <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" />
             </Campo>
@@ -227,7 +241,14 @@ export default function ImportarPage() {
               <input value={numero} onChange={(e) => setNumero(e.target.value)} />
             </Campo>
             <Campo rotulo="Data da compra">
-              <input type="date" value={dataCompra} onChange={(e) => setDataCompra(e.target.value)} />
+              <input
+                type="date"
+                value={dataCompra}
+                onChange={(e) => {
+                  setDataCompra(e.target.value);
+                  setCotacaoManual(false);
+                }}
+              />
             </Campo>
             <Campo rotulo="Moeda dos preços">
               <select value={moeda} onChange={(e) => trocarMoeda(e.target.value)}>
@@ -240,7 +261,19 @@ export default function ImportarPage() {
               rotulo={`Cotação (R$ por ${moedaSimbolo(moeda)} 1)`}
               dica={cotacaoErro ? <span className="text-red-700">{cotacaoErro}</span> : cotacaoInfo ? `${cotacaoInfo.fonte} · ${cotacaoInfo.data.split("-").reverse().join("/")}` : "buscando PTAX…"}
             >
-              <input type="number" step="0.0001" value={cotacao} onChange={(e) => setCotacao(e.target.value ? Number(e.target.value) : "")} disabled={moeda === "BRL"} />
+              <input
+                type="number"
+                step="0.0001"
+                value={cotacao}
+                onChange={(e) => {
+                  setCotacao(e.target.value ? Number(e.target.value) : "");
+                  setCotacaoManual(true);
+                }}
+                disabled={moeda === "BRL"}
+              />
+            </Campo>
+            <Campo rotulo="Fator multiplicador" dica="Preço = custo × fator. Em branco = padrão da loja.">
+              <input inputMode="decimal" placeholder="ex.: 10" value={fator} onChange={(e) => setFator(e.target.value)} className="border-rose font-titulo text-xl font-semibold text-rose-escuro" />
             </Campo>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-borda pt-4">
@@ -263,9 +296,14 @@ export default function ImportarPage() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={analisarIa} onChange={(e) => setAnalisarIa(e.target.checked)} /> Analisar com IA (classificar, traduzir, nomes)
-              </label>
+              <div className="flex flex-col gap-1 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={analisarIa} onChange={(e) => setAnalisarIa(e.target.checked)} /> Analisar com IA (classificar, traduzir, nomes)
+                </label>
+                <label className="flex items-center gap-2" title="Gemini 3 Pro Image ≈ US$ 0,13–0,24 por imagem gerada; o marketing pode pedir até 3 tentativas por peça">
+                  <input type="checkbox" checked={analisarIa && fotosModelo} disabled={!analisarIa} onChange={(e) => setFotosModelo(e.target.checked)} /> Fotos com modelo (IA) aprovadas pelo marketing
+                </label>
+              </div>
               <Botao onClick={criarPedido} carregando={enviando} disabled={lendo}>
                 Criar pedido
               </Botao>

@@ -57,7 +57,7 @@ export interface Marca {
   prompts_ia_foto?: {
     base?: string;
     por_tipo?: Record<string, string>;
-    cenarios?: { id: string; nome: string; prompt: string }[];
+    cenarios?: { id: string; nome: string; prompt: string; modelo?: boolean }[];
     negativo?: string[];
   };
   [k: string]: unknown;
@@ -76,6 +76,7 @@ export interface Sistema {
   claudeModelo: string;
   claudeEsforco: "low" | "medium" | "high";
   imagemProvedor: "gemini" | "openai" | "nenhum";
+  fotoTentativas: number; // tentativas até o marketing aprovar a foto com modelo
   geminiModelo: string;
   openaiModelo: string;
 }
@@ -92,8 +93,9 @@ export const SISTEMA_PADRAO: Sistema = {
   claudeModelo: "claude-opus-5-5",
   claudeEsforco: "medium",
   imagemProvedor: "gemini",
-  geminiModelo: "gemini-2.5-flash-image",
-  openaiModelo: "gpt-image-1",
+  fotoTentativas: 3,
+  geminiModelo: "gemini-3-pro-image", // Nano Banana Pro: o mais realista para foto comercial (alternativa mais barata: gemini-3.1-flash-image)
+  openaiModelo: "gpt-image-2", // gpt-image-1 foi desativado pela OpenAI em 23/10/2026
 };
 
 export interface UpVendasConfig {

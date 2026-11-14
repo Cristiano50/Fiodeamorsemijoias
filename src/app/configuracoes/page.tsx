@@ -157,12 +157,15 @@ function Precificacao({ config, recarregar }: Props) {
         }
       >
         <p className="mb-3 text-sm text-[#8a6d78]">
-          Preço de venda = custo total da peça × fator, arredondado. Prioridade: preço manual → fator manual da peça → faixa de custo (se ativa) → fator do tipo →
-          fator padrão.
+          Preço de venda = custo total da peça × fator, arredondado. O funcionário digita o fator em cada pedido (ou em cada peça). Prioridade: preço manual →
+          fator da peça → fator do pedido → faixa de custo (se ativa) → fator do tipo → fator padrão.
         </p>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-          <Campo rotulo="Fator padrão">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
+          <Campo rotulo="Fator padrão" dica="Usado quando o pedido fica em branco">
             <input type="number" step="0.01" value={pol.fator_padrao} onChange={setNum("fator_padrao")} />
+          </Campo>
+          <Campo rotulo="Fator mínimo" dica="Abaixo disso a peça mostra alerta">
+            <input type="number" step="0.01" value={pol.fator_minimo ?? ""} onChange={setNum("fator_minimo")} />
           </Campo>
           <Campo rotulo="Usar faixas de custo">
             <select value={pol.usar_faixas ? "1" : "0"} onChange={(e) => setPol((p) => ({ ...p, usar_faixas: e.target.value === "1" }))}>

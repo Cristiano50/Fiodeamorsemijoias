@@ -1,8 +1,7 @@
 {
-  "versao": "2026-11-13",
+  "versao": "2026-11-14",
   "moeda": "BRL",
-  "descricao": "Politica de precificacao da Fio de Amor Semijoias. Todos os fatores incidem sobre o CUSTO TOTAL em R$ por peca (preco do fornecedor x cotacao x (1 + custos adicionais) + custo fixo por peca). A tabela base e CONSIGNADO (preco de etiqueta), como no UP Vendas. Justificativas em docs/especialistas/administrador.md.",
-
+  "descricao": "Politica de precificacao da Fio de Amor Semijoias. A loja trabalha com fator multiplicador a partir de 10, escolhido pelo funcionario em cada pedido (campo em branco no pedido) ou em cada peca. Preco = custo total da peca x fator, arredondado para terminar em ,99. Se o campo ficar em branco, usa o fator_padrao.",
   "custo_total": {
     "formula": "preco_unitario_origem * cotacao * (1 + custos_adicionais_pct / 100) + custo_fixo_por_peca",
     "custos_adicionais_pct_padrao": 15,
@@ -10,50 +9,77 @@
     "rateio_custos_adicionais": "proporcional_ao_valor",
     "casas_decimais_custo": 2
   },
-
-  "fator_padrao": 5.0,
-
-  "fatores_por_tipo": {
-    "brinco": 6.0,
-    "colar": 5.0,
-    "gargantilha": 5.0,
-    "choker": 5.5,
-    "pingente": 6.5,
-    "pulseira": 5.5,
-    "bracelete": 5.0,
-    "tornozeleira": 6.0,
-    "anel": 6.0,
-    "conjunto": 3.8,
-    "piercing": 6.5,
-    "corrente": 4.5,
-    "oculos": 3.5,
-    "relogio": 3.0,
-    "acessorio_cabelo": 5.0,
-    "chaveiro": 5.0
-  },
-
-  "usar_faixas": true,
+  "fator_padrao": 10.0,
+  "fatores_por_tipo": {},
+  "usar_faixas": false,
   "faixas_modo": "degrau_monotonico",
   "faixas_regra": "Usa o fator da primeira faixa cujo 'ate' >= custo_total ('ate': null = sem limite). Regra monotonica: o preco bruto nunca fica abaixo de (ate da faixa anterior x fator da faixa anterior), para que uma peca mais cara nunca saia por preco menor que uma mais barata.",
   "faixas_custo": [
-    { "ate": 3.00, "fator": 8.0 },
-    { "ate": 4.00, "fator": 7.5 },
-    { "ate": 5.00, "fator": 7.0 },
-    { "ate": 6.50, "fator": 6.5 },
-    { "ate": 8.00, "fator": 6.0 },
-    { "ate": 10.00, "fator": 5.5 },
-    { "ate": 12.00, "fator": 5.0 },
-    { "ate": 16.00, "fator": 4.5 },
-    { "ate": 22.00, "fator": 4.25 },
-    { "ate": 30.00, "fator": 4.0 },
-    { "ate": 45.00, "fator": 3.75 },
-    { "ate": 65.00, "fator": 3.5 },
-    { "ate": 100.00, "fator": 3.25 },
-    { "ate": null, "fator": 3.0 }
+    {
+      "ate": 3.0,
+      "fator": 8.0
+    },
+    {
+      "ate": 4.0,
+      "fator": 7.5
+    },
+    {
+      "ate": 5.0,
+      "fator": 7.0
+    },
+    {
+      "ate": 6.5,
+      "fator": 6.5
+    },
+    {
+      "ate": 8.0,
+      "fator": 6.0
+    },
+    {
+      "ate": 10.0,
+      "fator": 5.5
+    },
+    {
+      "ate": 12.0,
+      "fator": 5.0
+    },
+    {
+      "ate": 16.0,
+      "fator": 4.5
+    },
+    {
+      "ate": 22.0,
+      "fator": 4.25
+    },
+    {
+      "ate": 30.0,
+      "fator": 4.0
+    },
+    {
+      "ate": 45.0,
+      "fator": 3.75
+    },
+    {
+      "ate": 65.0,
+      "fator": 3.5
+    },
+    {
+      "ate": 100.0,
+      "fator": 3.25
+    },
+    {
+      "ate": null,
+      "fator": 3.0
+    }
   ],
-
-  "prioridade_fator": ["preco_manual", "fator_manual", "faixas_custo (se usar_faixas)", "fatores_por_tipo", "fator_padrao"],
-
+  "prioridade_fator": [
+    "preco_manual",
+    "fator_da_peca (campo em branco na peca)",
+    "fator_do_pedido (campo em branco no pedido)",
+    "faixas_custo (se usar_faixas)",
+    "fatores_por_tipo",
+    "fator_padrao"
+  ],
   "arredondamento": {
     "modo": "terminar_em",
     "centavos": 0.99,
@@ -61,7 +87,6 @@
     "formula": "ceil(preco_bruto - centavos) + centavos",
     "minimo": 19.99
   },
-
   "tabela_base": "consignado",
   "tabelas_preco": [
     {
@@ -93,29 +118,36 @@
       "descricao": "Queima de pecas paradas (> 120 dias sem venda ou banho com avaria leve). Uso pontual, aprovado pela gestora."
     }
   ],
-
   "comissao_consignacao_pct": 30,
   "comissao_escalonada": [
-    { "vendas_ciclo_ate": 1499.99, "pct": 30 },
-    { "vendas_ciclo_ate": 2999.99, "pct": 35 },
-    { "vendas_ciclo_ate": null, "pct": 40 }
+    {
+      "vendas_ciclo_ate": 1499.99,
+      "pct": 30
+    },
+    {
+      "vendas_ciclo_ate": 2999.99,
+      "pct": 35
+    },
+    {
+      "vendas_ciclo_ate": null,
+      "pct": 40
+    }
   ],
-
   "margem_minima_pct": 50,
   "margem_definicao": "Margem bruta da loja sobre a receita liquida que ela recebe: (preco_tabela * (1 - comissao/100) - custo_total) / (preco_tabela * (1 - comissao/100)). Abaixo de margem_minima_pct o app deve alertar antes de salvar/sincronizar.",
-
   "integracao_up_vendas": {
     "campo_percentual_lucro": "(preco_final / custo_total_arredondado - 1) * 100, com 2 casas",
     "exemplo": "custo 2,75 e preco 22,99 -> % Lucro 736,00 (fator 8,36)",
     "preco_final_e_autoritativo": true
   },
-
   "metas": {
-    "markup_medio_alvo": 5.0,
+    "markup_medio_alvo": 10.0,
     "ticket_medio_alvo": 75.0,
     "pecas_por_venda_alvo": 1.6,
     "sell_through_ciclo_maleta_pct_alvo": 35,
     "sell_through_pedido_180_dias_pct_alvo": 65,
     "estoque_parado_dias_max": 120
-  }
+  },
+  "fator_minimo": 10.0,
+  "fator_minimo_regra": "Fator abaixo do minimo gera alerta na peca (nao bloqueia)."
 }

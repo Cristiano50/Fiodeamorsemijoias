@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Pedido, Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Numero, Selo, useAviso } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
@@ -35,6 +35,7 @@ interface Dados {
   detalheCustos: { mercadoriaBrl: number; linhas: { id: string; nome: string; valor: number }[]; adicionaisBrl: number; porPecaBrl: number; fatorCusto: number; custoTotalPedidoBrl: number } | null;
   componentesCusto: { id: string; nome: string; tipo: string; padrao: number; explicacao?: string }[];
   cenarios: { padrao: string; cenarios: Record<string, Cenario> };
+  fotosModelo: Record<string, { id: string; aprovada: boolean | null; nota: number | null }>;
 }
 type Parecer = { resumo: string; estoque: string; contador: string; administrador: string; marketing: string; pendencias: string[]; geradoEm?: string };
 
@@ -51,6 +52,9 @@ export default function PedidoPage() {
   const [abaParecer, setAbaParecer] = useState<"resumo" | "estoque" | "contador" | "administrador" | "marketing">("resumo");
   const [mostrarCustos, setMostrarCustos] = useState(false);
   const [filtro, setFiltro] = useState("");
+  const [fotos, setFotos] = useState<{ rodando: boolean; feitas: number; total: number; aprovadas: number; msg: string } | null>(null);
+  const parar = useRef(false);
+  const autoIniciou = useRef(false);
 
   const carregar = useCallback(() => api<Dados>(`/api/pedidos/${id}`).then(setD), [id]);
   useEffect(() => {
@@ -98,6 +102,57 @@ export default function PedidoPage() {
       "Análise da IA concluída.",
     );
 
+  /** Fotos com modelo (IA) aprovadas pelo marketing, uma peça por vez. */
+  const gerarFotos = useCallback(
+    async (ids: string[]) => {
+      if (!ids.length) return avisar("Todas as peças já têm foto com modelo aprovada.", "info");
+      parar.current = false;
+      let aprovadas = 0;
+      setFotos({ rodando: true, feitas: 0, total: ids.length, aprovadas: 0, msg: "Gerando a primeira foto…" });
+      for (let i = 0; i < ids.length; i++) {
+        if (parar.current) break;
+        try {
+          const r = await api<{ aprovada: boolean | null; avaliacao: { nota: number } | null; tentativas: unknown[] }>(`/api/produtos/${ids[i]}/ia`, { method: "POST", json: {} });
+          if (r.aprovada !== false) aprovadas++;
+          setFotos({
+            rodando: true,
+            feitas: i + 1,
+            total: ids.length,
+            aprovadas,
+            msg:
+              r.aprovada === null
+                ? `Foto ${i + 1}: gerada (sem avaliação — configure a chave do Claude)`
+                : `Foto ${i + 1}: ${r.aprovada ? "aprovada" : "reprovada"} pelo marketing (nota ${r.avaliacao?.nota?.toFixed(1)}, ${r.tentativas.length} tentativa(s))`,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          setFotos((f) => (f ? { ...f, feitas: i + 1, msg: `Foto ${i + 1}: erro — ${msg}` } : f));
+          if (/chave|Configure|desativad/i.test(msg)) {
+            avisar(msg, "erro");
+            break;
+          }
+        }
+        await carregar();
+      }
+      setFotos((f) => (f ? { ...f, rodando: false } : f));
+      avisar(`Fotos com modelo: ${aprovadas} aprovada(s).`);
+    },
+    [avisar, carregar],
+  );
+
+  const pendentesFoto = useMemo(() => (d ? d.produtos.filter((p) => !d.fotosModelo[p.id]?.aprovada).map((p) => p.id) : []), [d]);
+
+  useEffect(() => {
+    if (!d || autoIniciou.current) return;
+    autoIniciou.current = true;
+    if (new URLSearchParams(window.location.search).get("fotos") === "1") {
+      window.history.replaceState(null, "", window.location.pathname);
+      // Vindo da importação: começa a gerar as fotos assim que a tela abre.
+      const ids = pendentesFoto;
+      setTimeout(() => gerarFotos(ids), 0);
+    }
+  }, [d, gerarFotos, pendentesFoto]);
+
   const lote = (acaoLote: string, dados?: Record<string, unknown>, msg?: string) =>
     acao(acaoLote, () => api("/api/produtos/lote", { method: "POST", json: { ids: [...sel], acao: acaoLote, dados } }), msg);
 
@@ -138,6 +193,9 @@ export default function PedidoPage() {
               ✦ Analisar com IA ({d.semAnalise + d.paginasPendentes})
             </Botao>
           )}
+          <Botao variante="secundario" onClick={() => gerarFotos(sel.size ? [...sel] : pendentesFoto)} disabled={!!fotos?.rodando}>
+            📷 Fotos com modelo {sel.size ? `(${sel.size})` : pendentesFoto.length ? `(${pendentesFoto.length})` : ""}
+          </Botao>
           <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
             Gerar referências e EAN {d.semCodigo ? `(${d.semCodigo})` : ""}
           </Botao>
@@ -157,6 +215,28 @@ export default function PedidoPage() {
       </div>
 
       {progresso && <div className="rounded-xl bg-rose-claro px-4 py-2 text-sm text-rose-escuro">{progresso}</div>}
+      {fotos && (
+        <div className="rounded-xl border border-rose bg-white px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              <b>Fotos com modelo (IA)</b> — {fotos.feitas}/{fotos.total} · {fotos.aprovadas} aprovada(s) pelo marketing · {fotos.msg}
+            </span>
+            {fotos.rodando ? (
+              <Botao variante="perigo" onClick={() => (parar.current = true)}>
+                Parar
+              </Botao>
+            ) : (
+              <Botao variante="fantasma" onClick={() => setFotos(null)}>
+                Fechar
+              </Botao>
+            )}
+          </div>
+          <div className="mt-2 h-2 rounded-full bg-rose-claro">
+            <div className="h-2 rounded-full bg-rose-escuro transition-all" style={{ width: `${(fotos.feitas / Math.max(1, fotos.total)) * 100}%` }} />
+          </div>
+          {fotos.rodando && <p className="mt-1 text-xs text-[#9a8089]">Cada foto leva de 30 s a 2 min (gera, o marketing avalia e, se reprovar, gera de novo). Deixe esta página aberta.</p>}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Numero rotulo="Linhas · peças" valor={`${d.linhas} · ${d.pecas}`} detalhe={d.comAlerta ? `${d.comAlerta} com alerta` : "sem alertas"} />
@@ -171,6 +251,33 @@ export default function PedidoPage() {
         <Numero rotulo="Venda potencial" valor={brl(d.vendaPotencial)} detalhe="tabela CONSIGNADO" />
         <Numero rotulo="Margem após comissão" valor={`${num(d.margemBrutaPct, 1)}%`} detalhe={`líquido ${brl(d.receitaLiquidaPotencial)}`} />
         <Numero rotulo="Markup médio" valor={`× ${num(d.fatorMedio)}`} detalhe="preço ÷ custo" />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border-2 border-rose bg-white px-5 py-4">
+        <div className="min-w-[220px]">
+          <div className="rotulo">Fator multiplicador do pedido</div>
+          <input
+            key={`fator-${pedido.fator ?? ""}`}
+            inputMode="decimal"
+            placeholder={`padrão × ${num(Number(config?.precificacao.fator_padrao ?? 10), 0)}`}
+            defaultValue={pedido.fator ?? ""}
+            onBlur={(e) => {
+              const v = e.target.value.trim().replace(",", ".");
+              const novo = v ? Number(v) : null;
+              if (novo !== pedido.fator && (novo === null || novo > 0)) salvarPedido({ fator: novo });
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="mt-1 w-40 border-rose font-titulo text-3xl font-semibold text-rose-escuro"
+          />
+        </div>
+        <p className="max-w-xl text-sm text-[#6b5560]">
+          Digite o fator escolhido para este pedido (ex.: 10, 11, 12). <b>Preço = custo da peça × fator</b>, terminando em ,99. Vale para todas as peças; para uma
+          peça específica, use a coluna <b>Fator</b> da tabela (em branco = fator do pedido).
+        </p>
+        <div className="ml-auto text-right">
+          <div className="rotulo">Venda potencial</div>
+          <div className="font-titulo text-2xl font-semibold text-rose-escuro">{brl(d.vendaPotencial)}</div>
+        </div>
       </div>
 
       <Cartao
@@ -309,6 +416,17 @@ export default function PedidoPage() {
                 </option>
               ))}
             </select>
+            <input
+              className="w-28"
+              inputMode="decimal"
+              placeholder="fator…"
+              title="Digite o fator e tecle Enter para aplicar às peças selecionadas"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const v = (e.target as HTMLInputElement).value.trim().replace(",", ".");
+                lote("definir", { fator: v ? Number(v) : null }, "Fator aplicado às peças selecionadas.");
+              }}
+            />
             <select className="w-44" value="" onChange={(e) => e.target.value && lote("definir", { banho: e.target.value }, "Banho alterado.")}>
               <option value="">Definir banho…</option>
               {tax?.banhos.map((t) => (
@@ -345,6 +463,7 @@ export default function PedidoPage() {
                 <th>Qtd</th>
                 <th>Preço {moedaSimbolo(pedido.moeda)}</th>
                 <th>Custo R$</th>
+                <th>Fator</th>
                 <th>Venda</th>
                 <th>Referência · EAN</th>
               </tr>
@@ -368,10 +487,19 @@ export default function PedidoPage() {
                   </td>
                   <td className="text-xs text-[#9a8089]">{p.linha}</td>
                   <td>
-                    <Link href={`/produtos/${p.id}`}>
+                    <Link href={`/produtos/${p.id}`} className="relative block w-16">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {p.imagemId ? <img src={img(p.imagemId, 160)!} alt="" className="h-16 w-16 rounded-lg object-cover" /> : <div className="h-16 w-16 rounded-lg bg-rose-claro" />}
                     </Link>
+                    {d.fotosModelo[p.id] && (
+                      <Link href={`/produtos/${p.id}/estudio`} className="relative mt-1 block w-16" title={d.fotosModelo[p.id].aprovada ? "Foto com modelo aprovada pelo marketing" : "Foto com modelo (não aprovada)"}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img(d.fotosModelo[p.id].id, 160)!} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                        <span className={`absolute bottom-0.5 right-0.5 rounded-full px-1 text-[0.6rem] font-semibold text-white ${d.fotosModelo[p.id].aprovada ? "bg-emerald-600" : d.fotosModelo[p.id].aprovada === false ? "bg-amber-600" : "bg-stone-500"}`}>
+                          {d.fotosModelo[p.id].aprovada ? "✓" : d.fotosModelo[p.id].aprovada === false ? "!" : "?"} {d.fotosModelo[p.id].nota != null ? d.fotosModelo[p.id].nota!.toFixed(1) : ""}
+                        </span>
+                      </Link>
+                    )}
                   </td>
                   <td className="min-w-[280px]">
                     <input
@@ -424,9 +552,21 @@ export default function PedidoPage() {
                   <td>
                     <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={p.precoOrigem} className="w-24" onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
                   </td>
-                  <td className="whitespace-nowrap">
-                    {brl(p.custoTotalBrl)}
-                    <div className="text-xs text-[#9a8089]">fator ×{num(p.fatorAplicado ?? 0, 2)}</div>
+                  <td className="whitespace-nowrap">{brl(p.custoTotalBrl)}</td>
+                  <td>
+                    <input
+                      inputMode="decimal"
+                      key={`f-${p.fator ?? ""}-${p.fatorAplicado}`}
+                      defaultValue={p.fator ?? ""}
+                      placeholder={`×${num(p.fatorAplicado ?? 0, 1)}`}
+                      title="Em branco = fator do pedido"
+                      className="w-20"
+                      onBlur={(e) => {
+                        const v = e.target.value.trim().replace(",", ".");
+                        const novo = v ? Number(v) : null;
+                        if (novo !== p.fator) editar(p, { fator: novo });
+                      }}
+                    />
                   </td>
                   <td className="whitespace-nowrap font-titulo text-lg font-semibold text-rose-escuro">
                     {brl(p.precoVenda)}

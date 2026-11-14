@@ -27,6 +27,7 @@ export interface TabelaPreco {
 
 export interface PoliticaPreco {
   fator_padrao: number;
+  fator_minimo?: number;
   fatores_por_tipo: Record<string, number>;
   usar_faixas: boolean;
   faixas_modo?: string;
@@ -197,14 +198,16 @@ export function arredondar(valor: number, regra: PoliticaPreco["arredondamento"]
   return r2(v);
 }
 
-/** Fator pela prioridade: manual → faixas de custo (se ativas) → por tipo → padrão. */
+/** Fator pela prioridade: da peça → do pedido (escolhido pelo funcionário) → faixas (se ativas) → por tipo → padrão. */
 export function escolherFator(
   custoTotal: number,
   tipo: string | null | undefined,
   pol: PoliticaPreco,
   fatorManual?: number | null,
+  fatorPedido?: number | null,
 ): { fator: number; origem: string; piso: number } {
-  if (fatorManual && fatorManual > 0) return { fator: fatorManual, origem: "manual", piso: 0 };
+  if (fatorManual && fatorManual > 0) return { fator: fatorManual, origem: "fator da peça", piso: 0 };
+  if (fatorPedido && fatorPedido > 0) return { fator: fatorPedido, origem: "fator do pedido", piso: 0 };
   if (pol.usar_faixas && pol.faixas_custo?.length) {
     const faixas = pol.faixas_custo;
     const idx = faixas.findIndex((f) => f.ate === null || custoTotal <= f.ate);
@@ -234,10 +237,12 @@ export function calcularPreco(
   custoTotal: number,
   tipo: string | null | undefined,
   pol: PoliticaPreco,
-  opcoes: { fatorManual?: number | null; precoManual?: number | null } = {},
+  opcoes: { fatorManual?: number | null; fatorPedido?: number | null; precoManual?: number | null } = {},
 ): ResultadoPreco {
   const alertas: string[] = [];
-  const { fator, origem, piso } = escolherFator(custoTotal, tipo, pol, opcoes.fatorManual);
+  const { fator, origem, piso } = escolherFator(custoTotal, tipo, pol, opcoes.fatorManual, opcoes.fatorPedido);
+  if (pol.fator_minimo && fator < pol.fator_minimo && !(opcoes.precoManual && opcoes.precoManual > 0))
+    alertas.push(`Fator ×${fator} abaixo do mínimo da loja (×${pol.fator_minimo}).`);
   const precoBruto = r2(Math.max(custoTotal * fator, piso));
   const preco =
     opcoes.precoManual && opcoes.precoManual > 0 ? r2(opcoes.precoManual) : arredondar(precoBruto, pol.arredondamento);

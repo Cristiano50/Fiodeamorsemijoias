@@ -23,10 +23,10 @@ export async function GET() {
         cotacao: schema.pedidos.cotacao,
         status: schema.pedidos.status,
         criadoEm: schema.pedidos.criadoEm,
-        linhas: sql<number>`(select count(*) from produtos p where p.pedido_id = ${schema.pedidos.id})`,
-        pecas: sql<number>`(select coalesce(sum(p.quantidade),0) from produtos p where p.pedido_id = ${schema.pedidos.id})`,
-        custo: sql<number>`(select coalesce(sum(p.custo_total_brl * p.quantidade),0) from produtos p where p.pedido_id = ${schema.pedidos.id})`,
-        venda: sql<number>`(select coalesce(sum(p.preco_venda * p.quantidade),0) from produtos p where p.pedido_id = ${schema.pedidos.id})`,
+        linhas: sql<number>`(select count(*) from produtos p where p.pedido_id = pedidos.id)`,
+        pecas: sql<number>`(select coalesce(sum(p.quantidade),0) from produtos p where p.pedido_id = pedidos.id)`,
+        custo: sql<number>`(select coalesce(sum(p.custo_total_brl * p.quantidade),0) from produtos p where p.pedido_id = pedidos.id)`,
+        venda: sql<number>`(select coalesce(sum(p.preco_venda * p.quantidade),0) from produtos p where p.pedido_id = pedidos.id)`,
       })
       .from(schema.pedidos)
       .orderBy(desc(schema.pedidos.criadoEm));
@@ -42,6 +42,8 @@ interface MetaPedido {
   dataCompra?: string;
   moeda?: string;
   cotacao?: number;
+  fator?: number | null;
+  cotacaoSugerida?: { valor: number; data: string; fonte: string };
   cabecalho?: string;
   colunas?: string;
   totalDocumento?: number | null;
@@ -73,6 +75,14 @@ export async function POST(req: NextRequest) {
         cotacao = r.cotacao.valor;
         cotacaoFonte = r.cotacao.fonte;
         cotacaoData = r.cotacao.data;
+      } else if (
+        meta.cotacaoSugerida?.valor &&
+        meta.cotacaoSugerida.data <= dataCompra &&
+        Date.parse(dataCompra) - Date.parse(meta.cotacaoSugerida.data) <= 10 * 86400000
+      ) {
+        cotacao = meta.cotacaoSugerida.valor;
+        cotacaoFonte = `${meta.cotacaoSugerida.fonte} (consultada pela tela)`;
+        cotacaoData = meta.cotacaoSugerida.data;
       } else {
         avisos.push(`Não consegui buscar a cotação (${r.erros.join("; ")}). Informe manualmente no pedido.`);
       }
@@ -92,6 +102,7 @@ export async function POST(req: NextRequest) {
       cotacaoFonte,
       cotacaoData,
       cenario,
+      fator: meta.fator && meta.fator > 0 ? meta.fator : null,
       totalDocumento: meta.totalDocumento ?? null,
       cabecalho: meta.cabecalho || null,
       colunas: meta.colunas || null,

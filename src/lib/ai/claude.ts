@@ -244,3 +244,71 @@ export async function textosMarketing(produto: Record<string, unknown>, imagemBa
   });
   return chamar({ sistema: texto, schema: schemaTextos, conteudo, maxTokens: 6000 });
 }
+
+/* ------------------------------------- avaliação das fotos pelo marketing */
+
+const schemaAvaliacaoFoto = z.object({
+  aprovada: z.boolean(),
+  nota: z.number().describe("0 a 10"),
+  notas_criterios: z.array(z.object({ id: z.string(), nota: z.number().describe("0 a 10") })),
+  eliminatorios: z.array(z.string()).describe("motivos eliminatórios encontrados (vazio se nenhum)"),
+  problemas: z.array(z.string()).describe("problemas encontrados, em português"),
+  pontos_fortes: z.array(z.string()),
+  ajuste_prompt: z.string().describe("instrução em inglês para corrigir na próxima tentativa; vazio se aprovada"),
+});
+
+export type AvaliacaoFoto = z.infer<typeof schemaAvaliacaoFoto>;
+
+/**
+ * O especialista de marketing compara a foto gerada com a foto real da peça e aprova ou reprova
+ * segundo a rubrica de src/config/marca.json (avaliacao_foto).
+ */
+export async function avaliarFotoMarketing(opts: {
+  referenciaBase64: string;
+  geradaBase64: string;
+  geradaMime: string;
+  produto: Record<string, unknown>;
+}): Promise<AvaliacaoFoto> {
+  const marca = await getConfig("marca");
+  const rubrica = (marca as Record<string, unknown>).avaliacao_foto ?? {
+    nota_minima_aprovacao: 8,
+    criterios: [
+      { id: "fidelidade", nome: "Fidelidade da peça", peso: 35 },
+      { id: "realismo", nome: "Realismo", peso: 25 },
+      { id: "comercial", nome: "Apelo comercial", peso: 20 },
+      { id: "marca", nome: "Identidade Fio de Amor", peso: 10 },
+      { id: "limpeza", nome: "Limpeza", peso: 10 },
+    ],
+  };
+  const minima = Number((rubrica as { nota_minima_aprovacao?: number }).nota_minima_aprovacao ?? 8);
+  const minimasCriterio = ((rubrica as { nota_minima_por_criterio?: Record<string, number> }).nota_minima_por_criterio ?? {}) as Record<string, number>;
+  const sistema = `${PERSONAS.marketing.resumo}
+Você é a diretora de arte da ${marca.nome} e aprova (ou não) as fotos publicitárias geradas por IA antes de irem para o Instagram, o catálogo e o UP Vendas.
+Seja exigente como numa campanha de joalheria: só aprove fotos que pareçam fotografia real, comercial, com a peça IDÊNTICA à da foto de referência.
+Rubrica (JSON): ${JSON.stringify(rubrica)}
+Regras: dê nota inteira de 0 a 10 em cada critério (use os ids da rubrica em notas_criterios); nota final = média ponderada pelos pesos; qualquer item eliminatório reprova; aprove somente se não houver eliminatório, a nota final for >= ${minima} e as notas mínimas por critério forem atingidas: ${JSON.stringify(minimasCriterio)}.
+Escreva problemas e pontos fortes em português; o ajuste_prompt em inglês, curto e específico.`;
+  const r = await chamar({
+    sistema,
+    schema: schemaAvaliacaoFoto,
+    maxTokens: 6000,
+    conteudo: [
+      { type: "text", text: "FOTO DE REFERÊNCIA (a peça real, foto do fornecedor):" },
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: opts.referenciaBase64 } },
+      { type: "text", text: "FOTO GERADA POR IA para avaliação:" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: (opts.geradaMime === "image/png" ? "image/png" : "image/jpeg") as "image/png" | "image/jpeg", data: opts.geradaBase64 },
+      },
+      { type: "text", text: `Produto: ${JSON.stringify(opts.produto)}\nAvalie a foto gerada.` },
+    ],
+  });
+  // Garante a regra mesmo se o modelo se contradisser.
+  const abaixo = Object.entries(minimasCriterio).filter(([id, min]) => {
+    const n = r.notas_criterios.find((c) => c.id === id)?.nota;
+    return n != null && n < min;
+  });
+  if (abaixo.length) r.problemas.push(...abaixo.map(([id, min]) => `Nota de ${id} abaixo do mínimo (${min}).`));
+  r.aprovada = r.aprovada && r.eliminatorios.length === 0 && r.nota >= minima && abaixo.length === 0;
+  return r;
+}

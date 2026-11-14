@@ -143,7 +143,7 @@ export async function recalcularPedido(pedidoId: string) {
   );
   for (const i of itens) {
     const c = custos.get(i.id)!;
-    const p = calcularPreco(c.custoTotalBrl, i.tipo, pol, { fatorManual: i.fator, precoManual: i.precoManual });
+    const p = calcularPreco(c.custoTotalBrl, i.tipo, pol, { fatorManual: i.fator, fatorPedido: pedido.fator, precoManual: i.precoManual });
     await db
       .update(schema.produtos)
       .set({
@@ -155,7 +155,7 @@ export async function recalcularPedido(pedidoId: string) {
         precoVenda: p.preco,
         precos: p.precos,
         ncm: i.ncm || ncmPara(fiscal, i.tipo, i.material, sistema.ncmPadrao),
-        alertas: [...(i.alertas ?? []).filter((x) => !x.startsWith("Margem") && !x.startsWith("Tabela") && !x.startsWith("Sem custo")), ...p.alertas],
+        alertas: [...(i.alertas ?? []).filter((x) => !x.startsWith("Margem") && !x.startsWith("Tabela") && !x.startsWith("Sem custo") && !x.startsWith("Fator ×")), ...p.alertas],
         atualizadoEm: new Date().toISOString(),
       })
       .where(eq(schema.produtos.id, i.id));

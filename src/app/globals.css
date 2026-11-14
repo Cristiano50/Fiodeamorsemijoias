@@ -26,70 +26,72 @@
   --font-sans: "Jost", system-ui, sans-serif;
 }
 
-html,
-body {
-  background: var(--fundo);
-  color: var(--texto);
-  font-family: var(--font-sans);
-}
+@layer base {
+  html,
+  body {
+    background: var(--fundo);
+    color: var(--texto);
+    font-family: var(--font-sans);
+  }
 
-h1,
-h2,
-h3 {
-  font-family: var(--font-titulo);
-  color: var(--rose-escuro);
-}
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo);
+    color: var(--rose-escuro);
+  }
 
-.rotulo {
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #8a6d78;
-}
+  .rotulo {
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #8a6d78;
+  }
 
-input,
-select,
-textarea {
-  border: 1px solid var(--borda);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.6rem;
-  background: #fff;
-  width: 100%;
-  font-size: 0.9rem;
-}
-input:focus,
-select:focus,
-textarea:focus {
-  outline: 2px solid var(--rose);
-  outline-offset: 0;
-}
-input[type="checkbox"] {
-  width: auto;
-  accent-color: var(--rose-escuro);
-}
+  input,
+  select,
+  textarea {
+    border: 1px solid var(--borda);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: #fff;
+    width: 100%;
+    font-size: 0.9rem;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 2px solid var(--rose);
+    outline-offset: 0;
+  }
+  input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--rose-escuro);
+  }
 
-.tabela th {
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #8a6d78;
-  font-weight: 500;
-  text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--borda);
-  background: var(--rose-claro);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.tabela td {
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid #f3e8ec;
-  vertical-align: top;
-  font-size: 0.85rem;
-}
-.tabela tr:hover td {
-  background: #fdf6f8;
+  .tabela th {
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8a6d78;
+    font-weight: 500;
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--borda);
+    background: var(--rose-claro);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .tabela td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #f3e8ec;
+    vertical-align: top;
+    font-size: 0.85rem;
+  }
+  .tabela tr:hover td {
+    background: #fdf6f8;
+  }
 }
 
 @media print {

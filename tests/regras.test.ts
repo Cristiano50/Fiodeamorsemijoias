@@ -35,25 +35,40 @@ test("Arredondamento terminando em ,99 com mínimo", () => {
   assert.equal(arredondar(5, { modo: "terminar_em", centavos: 0.99, minimo: 19.99 }), 19.99);
 });
 
-test("Preço pelo fator: reproduz o exemplo do UP (custo 2,75 → R$ 22,99)", () => {
-  const r = calcularPreco(2.75, "brinco", pol);
-  assert.equal(r.fator, 8);
-  assert.equal(r.preco, 22.99);
-  assert.equal(r.lucroPct, 736);
+test("Fator escolhido no pedido: custo × fator, terminando em ,99", () => {
+  const r = calcularPreco(2.73, "brinco", pol, { fatorPedido: 10 });
+  assert.equal(r.fator, 10);
+  assert.equal(r.origemFator, "fator do pedido");
+  assert.equal(r.preco, 27.99);
+  assert.deepEqual(r.alertas.filter((a) => a.startsWith("Fator")), []);
 });
 
-test("Faixas monotônicas: peça mais cara nunca sai mais barata", () => {
+test("Pedido em branco usa o fator padrão da loja (10)", () => {
+  const r = calcularPreco(5, "colar", pol);
+  assert.equal(r.fator, 10);
+  assert.equal(r.preco, 50.99);
+});
+
+test("Fator da peça vence o do pedido; preço manual vence tudo", () => {
+  assert.equal(calcularPreco(10, "brinco", pol, { fatorManual: 12, fatorPedido: 10 }).preco, 120.99);
+  assert.equal(calcularPreco(10, "brinco", pol, { fatorPedido: 10, precoManual: 149.9 }).preco, 149.9);
+});
+
+test("Fator abaixo do mínimo (10) gera alerta; exemplo do UP: custo 2,75 × 8,36 = R$ 22,99", () => {
+  const r = calcularPreco(2.75, "brinco", pol, { fatorPedido: 8.36 });
+  assert.equal(r.preco, 22.99);
+  assert.equal(r.lucroPct, 736);
+  assert.ok(r.alertas.some((a) => a.includes("abaixo do mínimo")));
+});
+
+test("Faixas monotônicas (quando ativadas): peça mais cara nunca sai mais barata", () => {
+  const comFaixas = { ...pol, usar_faixas: true };
   let anterior = 0;
   for (let c = 1; c <= 120; c += 0.25) {
-    const p = calcularPreco(c, null, pol).preco;
+    const p = calcularPreco(c, null, comFaixas).preco;
     assert.ok(p >= anterior, `custo ${c} gerou ${p} < ${anterior}`);
     anterior = p;
   }
-});
-
-test("Fator manual e preço manual têm prioridade", () => {
-  assert.equal(calcularPreco(10, "brinco", pol, { fatorManual: 3 }).preco, 30.99);
-  assert.equal(calcularPreco(10, "brinco", pol, { precoManual: 49.9 }).preco, 49.9);
 });
 
 test("Somente mercadoria: custo = preço × cotação", () => {

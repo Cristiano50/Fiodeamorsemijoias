@@ -1,7 +1,7 @@
 # Parecer de Marketing: Fio de Amor Semijoias
 
 > Especialista: marketing para marcas de semijoias no Instagram (foto de produto, naming, copy, identidade visual).
-> Base: logo em `public/marca/`, estilo de foto atual da loja, padrão de nome do UP Vendas, pedido X260926017 (72 linhas, fornecedor fornecedor de Guangzhou).
+> Base: logo em `public/marca/`, estilo de foto atual da loja, padrão de nome do UP Vendas, pedido X260926017 (72 linhas, fornecedor de Guangzhou).
 > Configuração que o app lê: `src/config/marca.json`. Nomes do pedido: `amostras/pedido-X260926017/nomes-sugeridos.json`.
 > O Instagram @fiodeamorsemijoias não pôde ser acessado desta máquina; revisar este parecer com o perfil real aberto.
 
@@ -33,7 +33,7 @@
 
 ## 2. Guia de fotografia de produto
 
-O estilo atual (peça sobre porta-joias de veludo rosé, fundo creme, luz suave) **está certo e deve virar padrão**. O que falta é consistência.
+O estilo atual (peça sobre porta-joias de veludo rosé, fundo creme, luz suave) **continua sendo o padrão das fotos reais e do still**. Para divulgação, a foto principal passa a ser a **peça usada por uma modelo**, gerada por IA e aprovada pela rubrica de marketing (seção 8).
 
 **Montagem com celular (custo baixo):**
 1. Luz de janela lateral difusa (cortina voil ou papel vegetal) ou 2 softboxes de 5500 K. Rebatedor branco (isopor) do lado oposto. Nunca usar o flash.
@@ -42,10 +42,10 @@ O estilo atual (peça sobre porta-joias de veludo rosé, fundo creme, luz suave)
 4. Limpar a peça com flanela e manusear com luva de algodão (digital aparece muito no dourado polido).
 
 **Kit mínimo por produto (4 fotos e 1 vídeo):**
-1. **Capa:** peça no veludo rosé ou no creme, com o fio de cetim (template `feed_produto`).
+1. **Capa:** foto com modelo aprovada (seção 8), base dos templates `feed_produto`, `quadrado_feed`, `stories_produto` e `catalogo_whatsapp`.
 2. **Fundo branco limpo:** para vitrine, UP Vendas, WhatsApp e marketplace (`vitrine_loja`).
 3. **Macro de detalhe:** textura, cravação, esmalte.
-4. **Em uso e escala:** na orelha, colo, mão ou pulso (real ou IA, ver seção 6). É o que mais tira dúvida de tamanho no direct.
+4. **Em uso e escala:** na orelha, colo, mão ou pulso (real ou IA, ver seções 6 e 8). É o que mais tira dúvida de tamanho no direct.
 5. **Vídeo de 5 a 8 s** girando a peça na luz, para Reels e Stories.
 
 **Por tipo:**
@@ -83,7 +83,7 @@ Três camadas, cada uma com uma função:
 
 **Momento:** estamos em meados de novembro de 2026. A janela comercial é **Black Friday (27/11) → Natal → Réveillon**, mais formaturas e casamentos de fim de ano. O pedido é forte em brilho (zircônia, conjuntos) e em presentes de ticket médio. Lançar **antes** da Black Friday, construindo desejo e lista VIP, e usar a BF para converter. Não queimar os destaques com desconto: na BF, dar brinde (fita, caixa, cartão) ou frete, e reservar desconto para kits de entrada.
 
-**Preços:** seguir `src/config/precificacao.json` e mostrar o preço em todas as artes.
+**Preços:** seguir `src/config/precificacao.json` e mostrar o preço na arte ou na legenda (na arte ele é opcional; a versão sem preço é a das revendedoras).
 
 ### 4.1 As 11 peças destaque
 
@@ -142,7 +142,7 @@ Horários de partida: **12h** e **19h30–21h**. Depois de 2 semanas, ajustar pe
 | Qua 18 | **Reels "1 brinco, 3 looks"** (trabalho, casual, noite) | Quiz: "plissado ou ondas?" | 17, 23 |
 | Qui 19 | **Post `feed_lancamento`**: Bracelete Parafuso de Luz + carrossel "Monte seu mix" | Vídeo empilhando braceletes no pulso; link para o WhatsApp | 58, 60, 61, 63, 66 |
 | Sex 20 | **Carrossel "Presentes de Natal até R$ X"** (faixas de preço) | Abrir a **lista VIP da Black Friday** (Close Friends) | 49, 54, 7, 47, 69 |
-| Sáb 21 | **Reels "Brilho de Réveillon"** (cenário festas_fim_de_ano) | Prova no espelho (cliente real ou equipe), contagem regressiva da BF | 67, 69, 70, 21, 40 |
+| Sáb 21 | **Reels "Brilho de Réveillon"** (cenário `festa_brilho`) | Prova no espelho (cliente real ou equipe), contagem regressiva da BF | 67, 69, 70, 21, 40 |
 | Dom 22 | **Post de marca: "Por que Fio de Amor?"** com a peça-manifesto e a coleção Assinatura | Repost de clientes; lembrete "BF dia 27, a lista VIP compra antes" | 11, 33, 44, 8 |
 
 Durante a semana, enviar a mesma arte em versão **sem preço** (`catalogo_whatsapp`) para as revendedoras das maletas, com legenda pronta para colar.
@@ -163,7 +163,7 @@ Usar no máximo **5 hashtags** (limite atual do Instagram). A primeira linha da 
 - As fotos do fornecedor têm direito autoral (Lei 9.610/98). Use-as como **referência interna** e para gerar a imagem com IA. Para publicar a original, mesmo editada, peça autorização por escrito (WeChat/e-mail). O ideal é ter **foto própria** de toda peça destaque.
 - Modelos reais (clientes, revendedoras, equipe) assinam um termo simples de autorização de uso de imagem.
 
-**Imagens geradas por IA (modelo usando a peça):**
+**Imagens geradas por IA (modelo usando a peça; padrão de aprovação na seção 8):**
 - **Fidelidade acima de tudo:** pelo Código de Defesa do Consumidor, a oferta vincula e a publicidade não pode induzir a erro (arts. 30, 31 e 37). A peça gerada tem que ser **idêntica** à real em forma, número de pedras, cor do esmalte, banho e tamanho. Conferir cada imagem com a peça na mão antes de aprovar e descartar qualquer uma com detalhe inventado.
 - **Transparência:** em toda imagem fotorrealista feita com IA, ativar o rótulo de IA do Instagram e escrever na legenda ou na arte: *"Imagem ilustrativa criada com IA a partir da foto real da peça."* (`prompts_ia_foto.aviso_publicacao`).
 - Todo carrossel com IA leva **pelo menos uma foto real** da peça (macro ou fundo limpo).
@@ -177,3 +177,31 @@ Usar no máximo **5 hashtags** (limite atual do Instagram). A primeira linha da 
 - **Por post:** salvamentos e compartilhamentos (desejo), conversas no direct e cliques no link (intenção), vendas da peça em 7 dias.
 - **Por coleção:** sell-through em 30 dias e giro nas maletas. A coleção que girar define a recompra e o próximo pedido.
 - **Teste A/B simples:** a mesma peça com foto real × foto IA em uso, e com preço × sem preço na arte. Comparar o alcance e as conversas no direct.
+
+## 8. Fotos com modelo: padrão de aprovação
+
+A foto principal de divulgação é a **peça usada por uma modelo**, gerada por IA (Gemini 3 Pro Image ou gpt-image-2) a partir da foto do catálogo, que serve só como referência e nunca entra na arte. Configuração em `marca.json`: `prompts_ia_foto` (prompts) e `avaliacao_foto` (rubrica).
+
+**Fluxo no app**
+1. Monta o prompt (`prompts_ia_foto.montagem`): `base` + `por_tipo` + `por_subtipo` + cenário + negativo, junto com a foto de referência. Cenário padrão: **`estudio_rose`** (estúdio creme com brilho rosé, softbox e rim light). Também há cenários com modelo para lifestyle de luz natural, editorial dourado, festa, verão, presente e fé, e 2 stills sem modelo (veludo rosé e fundo limpo).
+2. A avaliadora de marketing (IA com visão) compara a foto gerada com a referência, dá as notas, aponta os eliminatórios e escreve um ajuste de prompt em inglês.
+3. Se reprovar, o app gera de novo com o ajuste, em até 3 tentativas. Sem aprovação, nada é publicado: a arte usa a foto real ou o still, e o item vai para revisão manual.
+4. A foto aprovada vira a foto principal e a base das artes (feed 4:5, quadrado, stories 9:16, catálogo/WhatsApp). A `vitrine_loja` continua com a peça sozinha em fundo limpo.
+
+**Rubrica (nota de 0 a 10 por critério, média ponderada)**
+
+| Critério | Peso | O que pesa |
+|---|---|---|
+| Fidelidade da peça | 40 | Forma, pedras, pérolas, esmalte, banho, fecho, par e escala idênticos à referência |
+| Realismo (pele, anatomia, luz) | 25 | Pele com poros, orelha e mão corretas, peça com gravidade, luz coerente |
+| Apelo comercial / composição | 15 | Peça como herói, close de editorial, fundo limpo, respiro para o texto e os recortes |
+| Identidade Fio de Amor | 10 | Creme, rosé e dourado suave, luz quente, clima afetivo, olhos fora do quadro |
+| Limpeza (sem artefatos) | 10 | Sem cartela, etiqueta, QR, texto, logo ou artefato de IA |
+
+**Aprova quando:** não há eliminatório, a nota final é **≥ 8,0**, a fidelidade é **≥ 9** e o realismo é **≥ 8**. Na dúvida sobre fidelidade, reprova.
+
+**Reprova na hora:** peça diferente da referência; pedras, pérolas ou esmalte trocados; banho de outra cor; brinco do par diferente; peça sobrando ou faltando no conjunto; peça fora de escala; dedos, orelha ou mão deformados; peça flutuando; pele de plástico ou cara de render; texto, logo ou marca d'água; cartela, etiqueta ou QR do fornecedor; olhos visíveis, rosto real ou criança; figura religiosa alterada; clima sensual.
+
+**Mesmo aprovada:** conferir com a peça na mão quando ela chegar, publicar com o aviso de IA (na arte e na legenda) e com o rótulo de IA do Instagram e incluir pelo menos uma foto real no carrossel. Peças infantis nunca aparecem numa criança: vão na palma da mão de uma adulta.
+
+**Artes sobre a foto com modelo:** foto sangrada, degradê ameixa sutil (ou creme, no modo claro) em vez de faixa chapada, no máximo 3 textos (rótulo, nome comercial e preço opcional), logo de 160 px e nada sobre a peça. A fita rosé fica no cenário da foto e não é desenhada por cima (`diretrizes_arte` e `templates_arte`).

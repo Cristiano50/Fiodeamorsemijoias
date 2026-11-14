@@ -291,8 +291,8 @@ export default function ProdutoPage() {
                 <span className="rotulo">Custo total</span>
                 <div className="mt-2 font-semibold">{brl(p.custoTotalBrl)}</div>
               </div>
-              <Campo rotulo="Fator multiplicador" dica={p.fator ? "manual" : `automático: × ${num(p.fatorAplicado ?? 0)}`}>
-                <input type="number" step="0.01" placeholder={num(p.fatorAplicado ?? 0)} defaultValue={p.fator ?? ""} key={`f${p.fator}`} onBlur={(e) => salvar({ fator: e.target.value ? Number(e.target.value) : null })} />
+              <Campo rotulo="Fator multiplicador da peça" dica={p.fator ? "definido para esta peça" : `em branco = fator do pedido (× ${num(p.fatorAplicado ?? 0)})`}>
+                <input inputMode="decimal" placeholder={`× ${num(p.fatorAplicado ?? 0)}`} defaultValue={p.fator ?? ""} key={`f${p.fator}`} onBlur={(e) => { const v = e.target.value.trim().replace(",", "."); const novo = v ? Number(v) : null; if (novo !== p.fator) salvar({ fator: novo }); }} />
               </Campo>
               <Campo rotulo="Preço de venda (CONSIGNADO)" dica="Digite para fixar um preço manual">
                 <input type="number" step="0.01" defaultValue={p.precoVenda ?? ""} key={`pv${p.precoVenda}`} onBlur={(e) => Number(e.target.value) !== p.precoVenda && salvar({ precoVenda: Number(e.target.value) }, "Preço atualizado.")} className="font-titulo text-xl font-semibold text-rose-escuro" />

@@ -3,10 +3,11 @@
 Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos fornecedores:
 
 1. **Importa o pedido ou catálogo** (PDF do fornecedor ou fotos). O app recorta a foto de cada peça e lê código, descrição, preço e quantidade. No pedido de exemplo, leu 72 de 72 linhas e o total bateu com o documento.
-2. **Converte a moeda pela cotação do dia da compra.** Usa a PTAX de venda do Banco Central; em fim de semana ou feriado, usa o último dia útil.
+2. **Converte a moeda pela cotação do dia da compra.** Usa a PTAX de venda do boletim de fechamento do Banco Central, que inclui o **yuan (CNY)**; em fim de semana ou feriado, usa o último dia útil. Exemplo: pedido de 26/09/2026 (sábado) → PTAX de 25/09/2026, R$ 0,7745 por yuan.
 3. **Calcula custo e preço:**
    - custo = preço × cotação (ou o custo real de importação, se você escolher um cenário do contador);
-   - preço = custo × **fator multiplicador**, por faixa de custo ou por tipo, com arredondamento para ,99;
+   - preço = custo × **fator multiplicador**, com arredondamento para ,99;
+   - o **funcionário digita o fator** num campo em branco no pedido (vale para todas as peças) ou numa peça específica; em branco, vale o padrão da loja (×10). Fator abaixo de 10 gera alerta;
    - tabelas Consignado, Varejo, Atacado e Liquidação.
 4. **Classifica cada peça com IA (Claude):** material (semijoia, prata, aço…), tipo (brinco, colar, anel, pulseira, bracelete, óculos, relógio…), subtipo, banho, cor da pedra (zircônia, cristal, azul, preto, pérola, esmalte…) e tamanho (único, aro de anel, comprimento). Também traduz o chinês e **avalia a peça, sugerindo 3 nomes de cadastro** no padrão `BRINCO (SJ) …` e um nome comercial.
 5. **Gera referência e código de barras:**
@@ -14,11 +15,11 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
    - **EAN-13 interno** `91…`, com dígito verificador;
    - variações da mesma peça compartilham a referência.
 6. **Imprime etiquetas:** rabicho térmico 95×12 mm, folha A4 Pimaco (6180 e 6187) e cartela de brinco.
-7. **Estúdio de fotos para publicidade:**
-   - artes com a identidade da marca (feed, stories, quadrado, catálogo/WhatsApp, vitrine), feitas no navegador e sem custo;
-   - **foto com modelo gerada por IA** (Google Gemini ou OpenAI) a partir da foto do catálogo, mantendo a peça fiel;
-   - legenda e hashtags.
-8. **Envia para o UP Vendas:** por API (conector configurável) ou por **planilha** com os campos da tela "Cadastro de Produtos Simplificado".
+7. **Fotos com modelo (padrão):**
+   - a IA (Google **Gemini 3 Pro Image** ou OpenAI **gpt-image-2**) gera a peça usada por uma modelo, com foto realista de campanha, a partir da foto do catálogo;
+   - o **especialista de marketing** (IA com visão) compara com a peça real e aprova pela rubrica da marca (fidelidade, realismo, apelo comercial, identidade e limpeza). Se reprovar, gera de novo com os ajustes, em até 3 tentativas;
+   - pode gerar para o pedido inteiro de uma vez. As artes (feed, stories, quadrado, catálogo) usam a foto aprovada como base; também há legenda e hashtags.
+8. **Envia para o UP Vendas:** por **planilha** com os campos da tela "Cadastro de Produtos Simplificado", que funciona hoje, ou por API. O conector da API está pronto, mas falta a documentação do UP; veja [docs/upvendas-suporte.md](docs/upvendas-suporte.md), que traz uma mensagem pronta para o suporte.
 9. **Especialistas:** um comitê de IA avalia cada pedido pelo olhar do **gestor de estoque, do contador, do administrador e do marketing**. Os mesmos especialistas existem como subagentes do Claude Code em `.claude/agents/`.
 
 ## Como rodar (no computador da loja)
@@ -52,8 +53,8 @@ As chaves das IAs podem ser coladas no próprio app, em **Configurações → In
 | Para quê | Variável | Onde obter |
 | --- | --- | --- |
 | Análise das peças, nomes, legendas, parecer | `ANTHROPIC_API_KEY` | console.anthropic.com |
-| Fotos com modelo (opção 1) | `GEMINI_API_KEY` | aistudio.google.com |
-| Fotos com modelo (opção 2) | `OPENAI_API_KEY` | platform.openai.com |
+| Fotos com modelo (recomendado) | `GEMINI_API_KEY` | aistudio.google.com |
+| Fotos com modelo (alternativa) | `OPENAI_API_KEY` | platform.openai.com |
 | Senha de acesso ao app (se estiver na internet) | `APP_SENHA` | você escolhe |
 
 Sem as chaves o app continua funcionando:

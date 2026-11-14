@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { getCenarios, getComponentesCusto } from "@/lib/config";
 import { produtosDoPedido, recalcularPedido, resumoPedido } from "@/lib/servicos";
+import { fotosModeloPorProduto } from "@/lib/fotos";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -14,9 +15,11 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     if (!resumo.pedido) return erro("Pedido não encontrado", 404);
     const db = await getDb();
     const paginas = await db.select().from(schema.paginas).where(eq(schema.paginas.pedidoId, id));
+    const produtos = await produtosDoPedido(id);
     return ok({
       ...resumo,
-      produtos: await produtosDoPedido(id),
+      produtos,
+      fotosModelo: await fotosModeloPorProduto(produtos.map((p) => p.id)),
       paginasPendentes: paginas.filter((p) => !p.processada).length,
       componentesCusto: await getComponentesCusto(),
       cenarios: await getCenarios(),
@@ -26,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   }
 }
 
-const CAMPOS = ["numero", "fornecedor", "dataCompra", "moeda", "cotacao", "cotacaoFonte", "cenario", "custos", "rateio", "totalDocumento", "observacoes", "status"] as const;
+const CAMPOS = ["numero", "fornecedor", "dataCompra", "moeda", "cotacao", "cotacaoFonte", "cenario", "custos", "rateio", "fator", "totalDocumento", "observacoes", "status"] as const;
 
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
