@@ -6,20 +6,23 @@ import type { Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Modal, Selo, useAviso } from "@/components/ui";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img } from "@/lib/cliente";
+import { BotaoFotoIa } from "@/components/BotaoFotoIa";
+
+type ProdutoCatalogo = Produto & { fotoIa: { id: string; aprovada: boolean | null; nota: number | null } | null };
 
 function ProdutosConteudo() {
   const params = useSearchParams();
   const avisar = useAviso();
   const { config } = useConfig();
   const tax = config?.taxonomia;
-  const [lista, setLista] = useState<Produto[] | null>(null);
+  const [lista, setLista] = useState<ProdutoCatalogo[] | null>(null);
   const [filtros, setFiltros] = useState({ q: "", tipo: "", material: "", cor: "", status: "" });
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [novo, setNovo] = useState(params.get("novo") === "1");
 
   const carregar = useCallback(() => {
     const qs = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v));
-    return api<Produto[]>(`/api/produtos?${qs}`).then(setLista);
+    return api<ProdutoCatalogo[]>(`/api/produtos?${qs}`).then(setLista);
   }, [filtros]);
   useEffect(() => {
     const t = setTimeout(() => carregar().catch((e) => avisar(e.message, "erro")), 250);
@@ -147,9 +150,15 @@ function ProdutosConteudo() {
                   })
                 }
               />
-              <Link href={`/produtos/${p.id}`}>
+              <Link href={`/produtos/${p.id}`} className="relative block">
+                {/* Foto criada pela IA à frente; a do fornecedor só aparece se ainda não houver. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.imagemId ? <img src={img(p.imagemId, 400)!} alt="" className="aspect-square w-full object-cover" /> : <div className="aspect-square w-full bg-rose-claro" />}
+                {p.fotoIa || p.imagemId ? <img src={img(p.fotoIa?.id ?? p.imagemId, 400)!} alt="" className="aspect-square w-full object-cover" /> : <div className="aspect-square w-full bg-rose-claro" />}
+                {p.fotoIa && (
+                  <span className={`absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold text-white ${p.fotoIa.aprovada ? "bg-emerald-600" : p.fotoIa.aprovada === false ? "bg-amber-600" : "bg-stone-500"}`}>
+                    {p.fotoIa.aprovada ? "✓ aprovada" : p.fotoIa.aprovada === false ? "não aprovada" : "IA"} {p.fotoIa.nota != null ? p.fotoIa.nota.toFixed(1) : ""}
+                  </span>
+                )}
                 <div className="p-3">
                   <div className="line-clamp-2 text-xs font-medium uppercase leading-snug">{p.nome ?? p.traducao ?? "Sem nome"}</div>
                   {p.nomeComercial && <div className="truncate font-script text-base text-rose-escuro">{p.nomeComercial}</div>}
@@ -166,6 +175,9 @@ function ProdutosConteudo() {
                   </div>
                 </div>
               </Link>
+              <div className="px-3 pb-3">
+                <BotaoFotoIa produtoId={p.id} aoTerminar={() => carregar()} />
+              </div>
             </div>
           ))}
         </div>

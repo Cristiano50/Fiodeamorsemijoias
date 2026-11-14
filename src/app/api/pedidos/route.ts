@@ -43,6 +43,7 @@ interface MetaPedido {
   moeda?: string;
   cotacao?: number;
   fator?: number | null;
+  frete?: number | null; // frete do pedido em R$ (rateado pelo valor de cada peça)
   cotacaoSugerida?: { valor: number; data: string; fonte: string };
   cabecalho?: string;
   colunas?: string;
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
       cotacaoData,
       cenario,
       fator: meta.fator && meta.fator > 0 ? meta.fator : null,
+      custos: meta.frete && meta.frete > 0 ? { frete_internacional: meta.frete } : null,
       totalDocumento: meta.totalDocumento ?? null,
       cabecalho: meta.cabecalho || null,
       colunas: meta.colunas || null,

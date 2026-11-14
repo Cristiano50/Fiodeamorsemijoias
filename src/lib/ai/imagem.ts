@@ -25,15 +25,16 @@ const TONS_PELE = ["fair", "light olive", "medium tan", "deep brown"];
  */
 export function montarPromptFoto(
   marca: Marca,
-  opts: { tipo?: string | null; subtipo?: string | null; banho?: string | null; tamanho?: string | null; cenarioId?: string; extra?: string; descricaoPeca?: string },
+  opts: { tipo?: string | null; subtipo?: string | null; banho?: string | null; tamanho?: string | null; cenarioId?: string; extra?: string; descricaoPeca?: string; comReferencia?: boolean },
 ): string {
   const p = (marca.prompts_ia_foto ?? {}) as NonNullable<Marca["prompts_ia_foto"]> & {
+    instrucao_referencia_estilo?: string;
     aliases?: Record<string, string>;
     por_subtipo?: Record<string, string>;
     still_life?: string;
     cenario_padrao?: string;
   };
-  const cen = p.cenarios?.find((c) => c.id === (opts.cenarioId || p.cenario_padrao)) ?? p.cenarios?.[0];
+  const cen = p.cenarios?.find((c) => c.id === cenarioDoTipo(marca, opts.tipo, opts.cenarioId)) ?? p.cenarios?.[0];
   const comModelo = cen?.modelo !== false;
   const tipo = (opts.tipo && (p.por_tipo?.[opts.tipo] ? opts.tipo : p.aliases?.[opts.tipo])) || "default";
   const subtipoChaves = Object.keys(p.por_subtipo ?? {}).filter((k) => {
@@ -46,7 +47,12 @@ export function montarPromptFoto(
   const cenario = cen?.prompt ?? "";
   const usaPlaceholderCena = [p.base, ...corpo].some((t) => t?.includes("{scene}"));
   const negativo = Array.isArray(p.negativo) && p.negativo.length ? `Avoid: ${p.negativo.join(", ")}.` : "";
+  const instrucaoRef =
+    opts.comReferencia &&
+    (p.instrucao_referencia_estilo ??
+      "Image 1 is the real product: copy the jewelry ONLY from image 1. Image 2 is a style reference only: reproduce its display prop, materials, colors, background, light and framing, but never copy the jewelry shown in image 2.");
   const texto = [
+    instrucaoRef || "",
     p.base ??
       "Use the reference photo as the exact jewelry piece. Keep its shape, color, stones and plating identical. Remove supplier cards, tags and QR codes.",
     ...corpo,
@@ -64,12 +70,22 @@ export function montarPromptFoto(
     .replaceAll("{skin_tone}", TONS_PELE[Math.floor(Math.random() * TONS_PELE.length)]);
 }
 
+/** Cenário a usar: o escolhido; ou, em "auto", o expositor definido pelo marketing para o tipo da peça. */
+export function cenarioDoTipo(marca: Marca, tipo?: string | null, escolhido?: string): string | undefined {
+  const p = (marca.prompts_ia_foto ?? {}) as { cenario_padrao?: string; cenario_por_tipo?: Record<string, string>; aliases?: Record<string, string> };
+  if (escolhido && escolhido !== "auto") return escolhido;
+  if (p.cenario_padrao && p.cenario_padrao !== "auto" && !p.cenario_por_tipo) return p.cenario_padrao;
+  const mapa = p.cenario_por_tipo ?? {};
+  return (tipo && (mapa[tipo] ?? (p.aliases?.[tipo] ? mapa[p.aliases[tipo]] : undefined))) || mapa.default || (p.cenario_padrao !== "auto" ? p.cenario_padrao : undefined);
+}
+
 export async function gerarFotoIA(opts: {
   imagem: Buffer;
   mime: string;
   prompt: string;
   proporcao: Proporcao;
   provedor?: "gemini" | "openai";
+  estilo?: { dados: Buffer; mime: string } | null; // foto de referência de estilo (expositor, luz, fundo)
 }): Promise<{ dados: Buffer; mime: string; provedor: string; modelo: string }> {
   const sistema = await getConfig("sistema");
   const provedor = opts.provedor ?? (sistema.imagemProvedor === "nenhum" ? undefined : sistema.imagemProvedor);
@@ -84,7 +100,15 @@ export async function gerarFotoIA(opts: {
       contents: [
         {
           role: "user",
-          parts: [{ inlineData: { mimeType: opts.mime, data: opts.imagem.toString("base64") } }, { text: opts.prompt }],
+          parts: opts.estilo
+            ? [
+                { text: "Image 1 — the real product (copy the jewelry only from here):" },
+                { inlineData: { mimeType: opts.mime, data: opts.imagem.toString("base64") } },
+                { text: "Image 2 — style reference only (display, materials, light, background, framing):" },
+                { inlineData: { mimeType: opts.estilo.mime, data: opts.estilo.dados.toString("base64") } },
+                { text: opts.prompt },
+              ]
+            : [{ inlineData: { mimeType: opts.mime, data: opts.imagem.toString("base64") } }, { text: opts.prompt }],
         },
       ],
       config: {
@@ -115,7 +139,9 @@ export async function gerarFotoIA(opts: {
   const editar = async (size: string) =>
     client.images.edit({
       model: sistema.openaiModelo,
-      image: await toFile(opts.imagem, "peca.jpg", { type: opts.mime }),
+      image: opts.estilo
+        ? [await toFile(opts.imagem, "1-peca.jpg", { type: opts.mime }), await toFile(opts.estilo.dados, "2-estilo.jpg", { type: opts.estilo.mime })]
+        : await toFile(opts.imagem, "peca.jpg", { type: opts.mime }),
       prompt: opts.prompt,
       size,
       quality: "high",

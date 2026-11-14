@@ -37,7 +37,18 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     const body = await req.json();
     const set: Record<string, unknown> = {};
     for (const c of CAMPOS) if (c in body) set[c] = body[c];
-    if ("cenario" in body && !("custos" in body)) set.custos = null;
+    const db0 = await getDb();
+    if ("cenario" in body && !("custos" in body)) {
+      // Troca de cenário: volta aos valores do cenário, mas mantém o frete digitado.
+      const [atual] = await db0.select({ custos: schema.pedidos.custos }).from(schema.pedidos).where(eq(schema.pedidos.id, id));
+      const frete = atual?.custos?.frete_internacional;
+      set.custos = frete ? { frete_internacional: frete } : null;
+    }
+    if ("frete" in body) {
+      const [atual] = await db0.select({ custos: schema.pedidos.custos }).from(schema.pedidos).where(eq(schema.pedidos.id, id));
+      const frete = Number(body.frete) > 0 ? Number(body.frete) : 0;
+      set.custos = { ...(atual?.custos ?? {}), frete_internacional: frete };
+    }
     if ("cotacao" in body && !("cotacaoFonte" in body)) {
       set.cotacaoFonte = "Informada manualmente";
       set.cotacaoData = body.dataCompra ?? null;

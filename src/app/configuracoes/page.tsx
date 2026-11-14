@@ -1,12 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "@/components/ui";
 import { useConfig, type ConfigCliente } from "@/components/hooks";
-import { api, brl } from "@/lib/cliente";
+import { api, brl, img } from "@/lib/cliente";
 import { montarEan13, montarReferencia } from "@/lib/codigos";
 import { calcularPreco, type PoliticaPreco } from "@/lib/precos";
 
-type Aba = "integracoes" | "precificacao" | "codigos" | "custos" | "avancado";
+type Aba = "integracoes" | "referencias" | "precificacao" | "codigos" | "custos" | "avancado";
 
 export default function ConfiguracoesPage() {
   const { config, recarregar } = useConfig();
@@ -19,6 +19,7 @@ export default function ConfiguracoesPage() {
         {(
           [
             ["integracoes", "Integrações e IA"],
+            ["referencias", "Fotos de referência (estilo)"],
             ["precificacao", "Precificação (fator)"],
             ["custos", "Câmbio e custos"],
             ["codigos", "Referência e código de barras"],
@@ -31,6 +32,7 @@ export default function ConfiguracoesPage() {
         ))}
       </div>
       {aba === "integracoes" && <Integracoes config={config} recarregar={recarregar} />}
+      {aba === "referencias" && <Referencias config={config} />}
       {aba === "precificacao" && <Precificacao config={config} recarregar={recarregar} />}
       {aba === "custos" && <Custos config={config} recarregar={recarregar} />}
       {aba === "codigos" && <Codigos config={config} recarregar={recarregar} />}
@@ -400,5 +402,140 @@ function EditorJson({ chave, setChave, config, recarregar }: Props & { chave: "t
       {erro && <p className="mb-2 text-sm text-red-700">{erro}</p>}
       <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={28} className="font-mono text-xs" spellCheck={false} />
     </Cartao>
+  );
+}
+
+type Referencia = { id: string; meta: { tipos?: string[]; nome?: string } | null };
+
+/** Fotos de exemplo do jeito que a loja gosta (expositor de veludo, fundo creme…), por tipo de peça. */
+function Referencias({ config }: { config: ConfigCliente }) {
+  const avisar = useAviso();
+  const [lista, setLista] = useState<Referencia[] | null>(null);
+  const [tipos, setTipos] = useState<string[]>([]);
+  const [arquivos, setArquivos] = useState<File[]>([]);
+  const [enviando, setEnviando] = useState(false);
+  const tiposTax = config.taxonomia.tipos;
+  const carregar = useCallback(() => api<Referencia[]>("/api/referencias").then(setLista), []);
+  useEffect(() => {
+    carregar().catch(() => setLista([]));
+  }, [carregar]);
+  const alternar = (lista: string[], t: string) => (lista.includes(t) ? lista.filter((x) => x !== t) : [...lista, t]);
+
+  async function enviar() {
+    if (!arquivos.length || !tipos.length) return avisar("Escolha as fotos e pelo menos um tipo de peça.", "erro");
+    setEnviando(true);
+    try {
+      for (const f of arquivos) {
+        const form = new FormData();
+        form.set("arquivo", f);
+        form.set("tipos", JSON.stringify(tipos));
+        form.set("nome", f.name);
+        await api("/api/referencias", { method: "POST", body: form });
+      }
+      avisar(`${arquivos.length} foto(s) de referência salvas.`);
+      setArquivos([]);
+      carregar();
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), "erro");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Cartao titulo="Fotos de referência de estilo">
+        <p className="mb-3 text-sm text-[#6b5560]">
+          Envie fotos no estilo que a loja usa (peça em expositor de veludo rosé, caixinha de anel, busto, suporte de brinco, fundo creme…). Ao criar a foto de um
+          produto, a IA recebe a foto real da peça <b>e</b> uma referência do mesmo tipo, e reproduz o cenário, a luz e o expositor com a peça verdadeira. O
+          marketing confere se a joia da referência não foi copiada.
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_2fr]">
+          <Campo rotulo="Fotos">
+            <input type="file" accept="image/*" multiple onChange={(e) => setArquivos(Array.from(e.target.files ?? []))} />
+          </Campo>
+          <div>
+            <span className="rotulo">Usar para os tipos</span>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {tiposTax.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTipos((x) => alternar(x, t.id))}
+                  className={`rounded-full border px-2 py-0.5 text-xs ${tipos.includes(t.id) ? "border-rose-escuro bg-rose-claro font-medium" : "border-borda text-[#8a6d78]"}`}
+                >
+                  {t.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Botao onClick={enviar} carregando={enviando}>
+            Salvar referências
+          </Botao>
+        </div>
+      </Cartao>
+      <Cartao titulo={`Referências cadastradas (${lista?.length ?? 0})`}>
+        {!lista ? (
+          <Carregando />
+        ) : lista.length === 0 ? (
+          <p className="text-sm text-[#8a6d78]">Nenhuma ainda. Sem referência, a IA segue só a descrição do cenário definida pelo marketing.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            {lista.map((r) => (
+              <div key={r.id} className="overflow-hidden rounded-xl border border-borda">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img(r.id, 400)!} alt="" className="aspect-[4/5] w-full object-cover" />
+                <div className="flex flex-wrap gap-1 p-2">
+                  {tiposTax.map((t) => {
+                    const ativo = (r.meta?.tipos ?? []).includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={async () => {
+                          await api("/api/referencias", { method: "PATCH", json: { id: r.id, tipos: alternar(r.meta?.tipos ?? [], t.id) } });
+                          carregar();
+                        }}
+                        className={`rounded-full px-1.5 text-[0.65rem] ${ativo ? "bg-rose-escuro text-white" : "hidden bg-stone-100 text-stone-500"}`}
+                      >
+                        {t.nome}
+                      </button>
+                    );
+                  })}
+                  <details className="w-full text-xs">
+                    <summary className="cursor-pointer text-[#9a8089]">editar tipos</summary>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {tiposTax.map((t) => (
+                        <label key={t.id} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={(r.meta?.tipos ?? []).includes(t.id)}
+                            onChange={async () => {
+                              await api("/api/referencias", { method: "PATCH", json: { id: r.id, tipos: alternar(r.meta?.tipos ?? [], t.id) } });
+                              carregar();
+                            }}
+                          />
+                          {t.nome}
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                  <button
+                    className="text-xs text-red-700 underline"
+                    onClick={async () => {
+                      if (!confirm("Remover esta referência?")) return;
+                      await api(`/api/imagens/${r.id}`, { method: "DELETE" });
+                      carregar();
+                    }}
+                  >
+                    remover
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Cartao>
+    </div>
   );
 }

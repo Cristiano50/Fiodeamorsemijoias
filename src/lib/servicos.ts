@@ -28,7 +28,7 @@ export async function proximaSequencia(nome: string): Promise<number> {
 /** Normaliza qualquer imagem recebida para JPEG (máx. 1600px) e grava no banco. */
 export async function salvarImagem(opts: {
   dados: Buffer;
-  origem: "catalogo" | "pagina" | "arte" | "ia" | "upload";
+  origem: "catalogo" | "pagina" | "arte" | "ia" | "upload" | "referencia";
   produtoId?: string | null;
   pedidoId?: string | null;
   manterPng?: boolean;
@@ -165,9 +165,10 @@ export async function recalcularPedido(pedidoId: string) {
 /** Valores dos componentes de custo do pedido (salvos, ou os do cenário escolhido). */
 export async function custosDoPedido(pedido: { cenario: string | null; custos: Record<string, number> | null }) {
   const componentes = await getComponentesCusto();
-  if (pedido.custos && Object.keys(pedido.custos).length) return { ...valoresDoCenario(componentes, null), ...pedido.custos };
   const { padrao, cenarios } = await getCenarios();
-  return valoresDoCenario(componentes, cenarios[pedido.cenario ?? padrao] ?? cenarios[padrao]);
+  // Base = valores do cenário; por cima, o que foi digitado no pedido (ex.: o frete).
+  const base = valoresDoCenario(componentes, cenarios[pedido.cenario ?? padrao] ?? cenarios[padrao]);
+  return { ...base, ...(pedido.custos ?? {}) };
 }
 
 /** Recalcula um produto (dentro do pedido, recalcula o pedido inteiro por causa do rateio). */

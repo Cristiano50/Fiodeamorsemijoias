@@ -89,7 +89,7 @@ export const SISTEMA_PADRAO: Sistema = {
   unidade: "UN",
   ncmPadrao: "71171900",
   tipoCotacao: "venda",
-  cenarioCustoPadrao: "somente_mercadoria", // como o cliente pediu: custo = preço × cotação; troque em Configurações
+  cenarioCustoPadrao: "mercadoria_frete", // regra da loja: custo = preço × cotação × (1 + frete ÷ mercadoria em R$)
   claudeModelo: "claude-opus-5-5",
   claudeEsforco: "medium",
   imagemProvedor: "gemini",
@@ -224,12 +224,13 @@ export async function getCenarios(): Promise<{ padrao: string; cenarios: Record<
   const [fiscal, sistema, componentes] = await Promise.all([getConfig("fiscal"), getConfig("sistema"), getComponentesCusto()]);
   const zerado = Object.fromEntries(componentes.map((c) => [c.id, 0]));
   const cenarios: Record<string, Cenario> = {
-    ...(fiscal.custo_aquisicao?.cenarios_importacao ?? {}),
-    somente_mercadoria: {
-      nome: "Somente mercadoria × cotação (sem custos adicionais)",
-      aplica_quando: "Para comparar com o custo que hoje vai para o UP Vendas (preço em yuan × cotação).",
+    mercadoria_frete: {
+      nome: "Mercadoria + frete (regra da loja)",
+      aplica_quando:
+        "Compras da China: frete ÷ valor da mercadoria em R$ = % do frete; cada peça recebe esse % sobre o seu valor em R$. Informe o frete no campo Frete do pedido.",
       valores: zerado,
     },
+    ...(fiscal.custo_aquisicao?.cenarios_importacao ?? {}),
   };
   const padrao = sistema.cenarioCustoPadrao || fiscal.custo_aquisicao?.cenario_padrao || Object.keys(cenarios)[0];
   return { padrao, cenarios };

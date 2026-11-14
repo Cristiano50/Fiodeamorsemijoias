@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import { getConfig, getSegredo } from "./config";
 import { avaliarFotoMarketing, type AvaliacaoFoto } from "./ai/claude";
-import { gerarFotoIA, montarPromptFoto, type Proporcao } from "./ai/imagem";
+import { cenarioDoTipo, gerarFotoIA, montarPromptFoto, type Proporcao } from "./ai/imagem";
 import { lerImagem, salvarImagem } from "./servicos";
 
 export interface Tentativa {
@@ -31,10 +31,11 @@ export async function gerarFotoModelo(
   const base = await lerImagem(opts.imagemId ?? p.imagemId ?? "");
   if (!base) throw new Error("O produto não tem foto de referência.");
   const [marca, sistema] = await Promise.all([getConfig("marca"), getConfig("sistema")]);
-  const pf = (marca.prompts_ia_foto ?? {}) as { cenario_padrao?: string };
-  const cenarioId = opts.cenarioId || pf.cenario_padrao;
+  const cenarioId = cenarioDoTipo(marca, p.tipo, opts.cenarioId);
+  const estilo = await referenciaDeEstilo(p.tipo);
   const avaliar = !!(await getSegredo("ANTHROPIC_API_KEY"));
   const maxTentativas = Math.min(Math.max(opts.tentativas ?? sistema.fotoTentativas ?? 3, 1), 5);
+  const estiloB64 = estilo ? (await sharp(estilo.dados).resize({ width: 640, height: 640, fit: "inside" }).jpeg({ quality: 80 }).toBuffer()).toString("base64") : null;
   const referenciaB64 = (await sharp(base.dados).resize({ width: 768, height: 768, fit: "inside" }).jpeg({ quality: 85 }).toBuffer()).toString("base64");
   const produtoInfo = {
     nome: p.nome,
@@ -59,12 +60,13 @@ export async function gerarFotoModelo(
       cenarioId,
       extra: [opts.extra, ajuste && `Fix from previous attempt: ${ajuste}`].filter(Boolean).join("\n"),
       descricaoPeca: [p.traducao, p.avaliacao].filter(Boolean).join(" — "),
+      comReferencia: !!estilo,
     });
-    const foto = await gerarFotoIA({ imagem: base.dados, mime: base.mime, prompt, proporcao: opts.proporcao ?? "4:5", provedor: opts.provedor });
+    const foto = await gerarFotoIA({ imagem: base.dados, mime: base.mime, prompt, proporcao: opts.proporcao ?? "4:5", provedor: opts.provedor, estilo });
     let avaliacao: AvaliacaoFoto | null = null;
     if (avaliar) {
       const geradaB64 = (await sharp(foto.dados).resize({ width: 1024, height: 1024, fit: "inside" }).jpeg({ quality: 88 }).toBuffer()).toString("base64");
-      avaliacao = await avaliarFotoMarketing({ referenciaBase64: referenciaB64, geradaBase64: geradaB64, geradaMime: "image/jpeg", produto: produtoInfo });
+      avaliacao = await avaliarFotoMarketing({ referenciaBase64: referenciaB64, geradaBase64: geradaB64, geradaMime: "image/jpeg", estiloBase64: estiloB64, produto: produtoInfo });
     }
     tentativas.push({ numero: n, aprovada: avaliacao ? avaliacao.aprovada : null, nota: avaliacao?.nota ?? null, problemas: avaliacao?.problemas ?? [] });
     if (!melhor || (avaliacao?.nota ?? 0) > (melhor.avaliacao?.nota ?? -1)) melhor = { ...foto, prompt, avaliacao };
@@ -83,6 +85,7 @@ export async function gerarFotoModelo(
       provedor: melhor!.provedor,
       modelo: melhor!.modelo,
       cenario: cenarioId,
+      referenciaEstilo: estilo?.id ?? null,
       prompt: melhor!.prompt,
       aprovada,
       avaliacao: melhor!.avaliacao,
@@ -90,6 +93,17 @@ export async function gerarFotoModelo(
     },
   });
   return { imagemId, aprovada, avaliacao: melhor!.avaliacao, tentativas, provedor: melhor!.provedor, modelo: melhor!.modelo };
+}
+
+/** Foto de referência de estilo cadastrada para o tipo da peça (uma ao acaso, se houver várias). */
+export async function referenciaDeEstilo(tipo: string | null) {
+  if (!tipo) return null;
+  const db = await getDb();
+  const refs = await db.select().from(schema.imagens).where(eq(schema.imagens.origem, "referencia"));
+  const doTipo = refs.filter((r) => ((r.meta as { tipos?: string[] } | null)?.tipos ?? []).includes(tipo));
+  if (!doTipo.length) return null;
+  const r = doTipo[Math.floor(Math.random() * doTipo.length)];
+  return { id: r.id, dados: r.dados, mime: r.mime };
 }
 
 /** Última foto com modelo de cada produto (para a tabela do pedido e o estúdio). */

@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { getConfig } from "@/lib/config";
 import { gerarCodigos, novoId, recalcularProduto, salvarImagem } from "@/lib/servicos";
+import { fotosModeloPorProduto } from "@/lib/fotos";
 
 /** GET /api/produtos?q=&tipo=&material=&cor=&status=&pedido=&up= */
 export async function GET(req: NextRequest) {
@@ -42,7 +43,9 @@ export async function GET(req: NextRequest) {
       .where(filtros.length ? and(...filtros) : undefined)
       .orderBy(desc(schema.produtos.criadoEm), schema.produtos.linha)
       .limit(Number(p.get("limite") ?? 500));
-    return ok(lista);
+    // Foto criada pela IA (mais recente aprovada) de cada produto — mostrada à frente no catálogo.
+    const fotos = await fotosModeloPorProduto(lista.map((x) => x.id));
+    return ok(lista.map((x) => ({ ...x, fotoIa: fotos[x.id] ?? null })));
   } catch (e) {
     return erro(e);
   }

@@ -7,6 +7,7 @@ import { Botao, Campo, Carregando, Cartao, Numero, Selo, useAviso } from "@/comp
 import { Markdown } from "@/components/Markdown";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
+import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 
 interface Cenario {
   nome: string;
@@ -194,7 +195,7 @@ export default function PedidoPage() {
             </Botao>
           )}
           <Botao variante="secundario" onClick={() => gerarFotos(sel.size ? [...sel] : pendentesFoto)} disabled={!!fotos?.rodando}>
-            📷 Fotos com modelo {sel.size ? `(${sel.size})` : pendentesFoto.length ? `(${pendentesFoto.length})` : ""}
+            ✦ Fotos com IA {sel.size ? `(${sel.size})` : pendentesFoto.length ? `(${pendentesFoto.length})` : ""}
           </Botao>
           <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
             Gerar referências e EAN {d.semCodigo ? `(${d.semCodigo})` : ""}
@@ -219,7 +220,7 @@ export default function PedidoPage() {
         <div className="rounded-xl border border-rose bg-white px-4 py-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
-              <b>Fotos com modelo (IA)</b> — {fotos.feitas}/{fotos.total} · {fotos.aprovadas} aprovada(s) pelo marketing · {fotos.msg}
+              <b>Fotos com IA</b> — {fotos.feitas}/{fotos.total} · {fotos.aprovadas} aprovada(s) pelo marketing · {fotos.msg}
             </span>
             {fotos.rodando ? (
               <Botao variante="perigo" onClick={() => (parar.current = true)}>
@@ -270,9 +271,30 @@ export default function PedidoPage() {
             className="mt-1 w-40 border-rose font-titulo text-3xl font-semibold text-rose-escuro"
           />
         </div>
-        <p className="max-w-xl text-sm text-[#6b5560]">
-          Digite o fator escolhido para este pedido (ex.: 10, 11, 12). <b>Preço = custo da peça × fator</b>, terminando em ,99. Vale para todas as peças; para uma
-          peça específica, use a coluna <b>Fator</b> da tabela (em branco = fator do pedido).
+        <div className="min-w-[200px]">
+          <div className="rotulo">Frete do pedido (R$)</div>
+          <input
+            key={`frete-${d.valoresCusto.frete_internacional ?? ""}`}
+            inputMode="decimal"
+            placeholder="ex.: 850,00"
+            defaultValue={d.valoresCusto.frete_internacional || ""}
+            onBlur={(e) => {
+              const v = e.target.value.trim().replace(/\./g, "").replace(",", ".");
+              const novo = v ? Number(v) : 0;
+              if (novo !== (d.valoresCusto.frete_internacional ?? 0) && novo >= 0) salvarPedido({ frete: novo });
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="mt-1 w-40 border-rose font-titulo text-3xl font-semibold text-rose-escuro"
+          />
+          <div className="mt-1 text-xs text-[#8a6d78]">
+            {d.valoresCusto.frete_internacional && d.detalheCustos?.mercadoriaBrl
+              ? `= ${num((d.valoresCusto.frete_internacional / d.detalheCustos.mercadoriaBrl) * 100, 2)}% sobre o valor de cada peça`
+              : "frete ÷ mercadoria × valor da peça"}
+          </div>
+        </div>
+        <p className="max-w-md text-sm text-[#6b5560]">
+          <b>Custo da peça</b> = valor em R$ × (1 + frete ÷ mercadoria). <b>Preço</b> = custo × fator, terminando em ,99. O fator vale para todas as peças; para uma
+          peça específica, use a coluna <b>Fator</b> (em branco = fator do pedido).
         </p>
         <div className="ml-auto text-right">
           <div className="rotulo">Venda potencial</div>
@@ -491,6 +513,9 @@ export default function PedidoPage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {p.imagemId ? <img src={img(p.imagemId, 160)!} alt="" className="h-16 w-16 rounded-lg object-cover" /> : <div className="h-16 w-16 rounded-lg bg-rose-claro" />}
                     </Link>
+                    <div className="mt-1">
+                      <BotaoFotoIa produtoId={p.id} compacto aoTerminar={() => carregar()} />
+                    </div>
                     {d.fotosModelo[p.id] && (
                       <Link href={`/produtos/${p.id}/estudio`} className="relative mt-1 block w-16" title={d.fotosModelo[p.id].aprovada ? "Foto com modelo aprovada pelo marketing" : "Foto com modelo (não aprovada)"}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}

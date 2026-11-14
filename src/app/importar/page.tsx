@@ -31,6 +31,7 @@ export default function ImportarPage() {
   const [cotacaoManual, setCotacaoManual] = useState(false);
   const [analisarIa, setAnalisarIa] = useState(true);
   const [fator, setFator] = useState("");
+  const [frete, setFrete] = useState("");
   const [fotosModelo, setFotosModelo] = useState(true);
 
   async function selecionar(lista: FileList | File[]) {
@@ -146,6 +147,7 @@ export default function ImportarPage() {
           cotacao: cotacaoManual && cotacao ? cotacao : undefined,
           cotacaoSugerida: !cotacaoManual && cotacao && cotacaoInfo?.data ? { valor: cotacao, data: cotacaoInfo.data, fonte: cotacaoInfo.fonte } : undefined,
           fator: fator ? Number(fator.replace(",", ".")) : null,
+          frete: frete ? Number(frete.replace(/\./g, "").replace(",", ".")) : null,
           cabecalho: extracao?.cabecalho,
           colunas: extracao?.colunas,
           totalDocumento: extracao?.totalDocumento ?? null,
@@ -233,7 +235,7 @@ export default function ImportarPage() {
 
       {(extracao || fotos.length > 0) && (
         <Cartao titulo="Dados do pedido">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-8">
             <Campo rotulo="Fornecedor" className="lg:col-span-2">
               <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" />
             </Campo>
@@ -272,6 +274,9 @@ export default function ImportarPage() {
                 disabled={moeda === "BRL"}
               />
             </Campo>
+            <Campo rotulo="Frete (R$)" dica="Rateado: frete ÷ mercadoria × valor de cada peça">
+              <input inputMode="decimal" placeholder="ex.: 850,00" value={frete} onChange={(e) => setFrete(e.target.value)} className="border-rose font-titulo text-xl font-semibold text-rose-escuro" />
+            </Campo>
             <Campo rotulo="Fator multiplicador" dica="Preço = custo × fator. Em branco = padrão da loja.">
               <input inputMode="decimal" placeholder="ex.: 10" value={fator} onChange={(e) => setFator(e.target.value)} className="border-rose font-titulo text-xl font-semibold text-rose-escuro" />
             </Campo>
@@ -301,7 +306,7 @@ export default function ImportarPage() {
                   <input type="checkbox" checked={analisarIa} onChange={(e) => setAnalisarIa(e.target.checked)} /> Analisar com IA (classificar, traduzir, nomes)
                 </label>
                 <label className="flex items-center gap-2" title="Gemini 3 Pro Image ≈ US$ 0,13–0,24 por imagem gerada; o marketing pode pedir até 3 tentativas por peça">
-                  <input type="checkbox" checked={analisarIa && fotosModelo} disabled={!analisarIa} onChange={(e) => setFotosModelo(e.target.checked)} /> Fotos com modelo (IA) aprovadas pelo marketing
+                  <input type="checkbox" checked={analisarIa && fotosModelo} disabled={!analisarIa} onChange={(e) => setFotosModelo(e.target.checked)} /> Criar fotos com IA (expositor) aprovadas pelo marketing
                 </label>
               </div>
               <Botao onClick={criarPedido} carregando={enviando} disabled={lendo}>

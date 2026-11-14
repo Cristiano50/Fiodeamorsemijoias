@@ -267,6 +267,7 @@ export async function avaliarFotoMarketing(opts: {
   referenciaBase64: string;
   geradaBase64: string;
   geradaMime: string;
+  estiloBase64?: string | null; // foto de referência de estilo usada (se houver)
   produto: Record<string, unknown>;
 }): Promise<AvaliacaoFoto> {
   const marca = await getConfig("marca");
@@ -295,6 +296,12 @@ Escreva problemas e pontos fortes em português; o ajuste_prompt em inglês, cur
     conteudo: [
       { type: "text", text: "FOTO DE REFERÊNCIA (a peça real, foto do fornecedor):" },
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: opts.referenciaBase64 } },
+      ...(opts.estiloBase64
+        ? ([
+            { type: "text", text: "FOTO DE ESTILO (só referência de cenário/expositor; a joia dela NÃO pode aparecer na foto gerada):" },
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: opts.estiloBase64 } },
+          ] as Anthropic.Beta.Messages.BetaContentBlockParam[])
+        : []),
       { type: "text", text: "FOTO GERADA POR IA para avaliação:" },
       {
         type: "image",

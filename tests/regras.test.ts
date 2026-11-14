@@ -77,6 +77,24 @@ test("Somente mercadoria: custo = preço × cotação", () => {
   assert.equal(m.get("a")!.custoTotalBrl, 2.75);
 });
 
+test("Frete da loja: frete ÷ mercadoria × valor da peça (China)", () => {
+  // Mercadoria: 100 peças × ¥10 × 1,00 = R$ 1.000; frete R$ 200 → 20% sobre cada peça.
+  const itens = [
+    { id: "a", precoOrigem: 10, quantidade: 60 },
+    { id: "b", precoOrigem: 10, quantidade: 40 },
+    { id: "c", precoOrigem: 25, quantidade: 0 },
+  ];
+  const zerado = Object.fromEntries(componentes.map((c) => [c.id, 0]));
+  const m = calcularCustos(itens, { cotacao: 1, custos: { ...zerado, frete_internacional: 200 }, rateio: "valor" }, componentes);
+  assert.equal(m.get("a")!.custoProdutoBrl, 10);
+  assert.equal(m.get("a")!.custoAdicionalBrl, 2);
+  assert.equal(m.get("a")!.custoTotalBrl, 12);
+  assert.equal(m.get("c")!.custoTotalBrl, 30);
+  // Pedido de exemplo: ¥8.225,90 × 0,7745 = R$ 6.370,96; frete R$ 850 → +13,34% por peça.
+  const ex = calcularCustos([{ id: "x", precoOrigem: 3.5, quantidade: 858 }], { cotacao: 0.7745, custos: { ...zerado, frete_internacional: 3.5 * 0.7745 * 858 * 0.1334 } }, componentes);
+  assert.equal(ex.get("x")!.custoTotalBrl, Math.round(3.5 * 0.7745 * 1.1334 * 100) / 100);
+});
+
 test("Cenário do contador reproduz o parecer (fator de custo 2,458 no pedido de exemplo)", () => {
   const cen = fiscal.custo_aquisicao.cenarios_importacao.rts_courier_cnpj;
   const valores = valoresDoCenario(componentes, cen);

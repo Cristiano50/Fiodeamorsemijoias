@@ -375,18 +375,20 @@ export default function EstudioPage() {
         </Cartao>
 
         <div className="flex flex-col gap-4">
-          <Cartao titulo="Foto com modelo (padrão)">
+          <Cartao titulo="Foto com IA (padrão)">
             <p className="mb-3 text-sm text-[#6b5560]">
-              A IA coloca a peça numa modelo, com foto realista de campanha. Em seguida, o <b>especialista de marketing</b> compara com a peça real e só aprova se ela estiver
+              A IA cria a foto da peça real no expositor de veludo da loja (seguindo as fotos de referência de estilo) ou numa modelo. Em seguida, o{" "}
+              <b>especialista de marketing</b> compara com a peça real e só aprova se ela estiver
               idêntica e a foto tiver padrão comercial. Se reprovar, gera de novo com os ajustes (até {config.sistema.fotoTentativas ?? 3} tentativas).
             </p>
             <div className="flex flex-col gap-3">
               <Campo rotulo="Cenário">
-                <select value={ia.cenarioId || cenarioPadrao} onChange={(e) => setIa((x) => ({ ...x, cenarioId: e.target.value }))}>
+                <select value={ia.cenarioId || "auto"} onChange={(e) => setIa((x) => ({ ...x, cenarioId: e.target.value }))}>
+                  <option value="auto">Automático: expositor do tipo da peça (padrão)</option>
                   {cenarios.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.nome}
-                      {c.id === cenarioPadrao && !/padr[ãa]o/i.test(c.nome) ? " (padrão)" : ""}
+                      {c.id === cenarioPadrao && cenarioPadrao !== "auto" && !/padr[ãa]o/i.test(c.nome) ? " (padrão)" : ""}
                     </option>
                   ))}
                 </select>
@@ -411,7 +413,7 @@ export default function EstudioPage() {
                 <input placeholder="ex.: modelo de cabelo cacheado, luz de fim de tarde" value={ia.extra} onChange={(e) => setIa((x) => ({ ...x, extra: e.target.value }))} />
               </Campo>
               <Botao onClick={gerarIa} carregando={gerando}>
-                📷 Gerar foto com modelo
+                ✦ Criar foto com IA
               </Botao>
               {gerando && <p className="text-xs text-[#9a8089]">Gerando e avaliando… pode levar até 2 minutos.</p>}
             </div>

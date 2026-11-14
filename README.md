@@ -5,7 +5,7 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
 1. **Importa o pedido ou catálogo** (PDF do fornecedor ou fotos). O app recorta a foto de cada peça e lê código, descrição, preço e quantidade. No pedido de exemplo, leu 72 de 72 linhas e o total bateu com o documento.
 2. **Converte a moeda pela cotação do dia da compra.** Usa a PTAX de venda do boletim de fechamento do Banco Central, que inclui o **yuan (CNY)**; em fim de semana ou feriado, usa o último dia útil. Exemplo: pedido de 26/09/2026 (sábado) → PTAX de 25/09/2026, R$ 0,7745 por yuan.
 3. **Calcula custo e preço:**
-   - custo = preço × cotação (ou o custo real de importação, se você escolher um cenário do contador);
+   - custo da peça = preço × cotação × (1 + **frete ÷ valor da mercadoria em R$**). O frete do pedido (campo "Frete") é rateado pelo valor de cada peça. Ex.: frete de R$ 850 sobre R$ 6.370,96 de mercadoria = +13,34% em cada peça. Também há os cenários de importação do contador, com impostos;
    - preço = custo × **fator multiplicador**, com arredondamento para ,99;
    - o **funcionário digita o fator** num campo em branco no pedido (vale para todas as peças) ou numa peça específica; em branco, vale o padrão da loja (×10). Fator abaixo de 10 gera alerta;
    - tabelas Consignado, Varejo, Atacado e Liquidação.
@@ -15,8 +15,10 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
    - **EAN-13 interno** `91…`, com dígito verificador;
    - variações da mesma peça compartilham a referência.
 6. **Imprime etiquetas:** rabicho térmico 95×12 mm, folha A4 Pimaco (6180 e 6187) e cartela de brinco.
-7. **Fotos com modelo (padrão):**
-   - a IA (Google **Gemini 3 Pro Image** ou OpenAI **gpt-image-2**) gera a peça usada por uma modelo, com foto realista de campanha, a partir da foto do catálogo;
+7. **Fotos com IA (padrão: peça em expositor):**
+   - botão **"Criar foto com IA"** em cada produto do catálogo, em cada linha do pedido e na ficha do produto;
+   - a IA (Google **Gemini 3 Pro Image** ou OpenAI **gpt-image-2**) cria a foto da peça real no **expositor de veludo da loja**: bandeja, caixinha de anel, busto ou suporte de brinco, de acordo com o tipo. Também pode ser numa modelo;
+   - em **Configurações → Fotos de referência**, cadastre fotos no estilo da loja por tipo de peça. A IA recebe a foto da peça e a referência do mesmo tipo e reproduz o cenário;
    - o **especialista de marketing** (IA com visão) compara com a peça real e aprova pela rubrica da marca (fidelidade, realismo, apelo comercial, identidade e limpeza). Se reprovar, gera de novo com os ajustes, em até 3 tentativas;
    - pode gerar para o pedido inteiro de uma vez. As artes (feed, stories, quadrado, catálogo) usam a foto aprovada como base; também há legenda e hashtags.
 8. **Envia para o UP Vendas:** por **planilha** com os campos da tela "Cadastro de Produtos Simplificado", que funciona hoje, ou por API. O conector da API está pronto, mas falta a documentação do UP; veja [docs/upvendas-suporte.md](docs/upvendas-suporte.md), que traz uma mensagem pronta para o suporte.

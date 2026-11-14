@@ -6,6 +6,7 @@ import type { Pedido, Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "@/components/ui";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
+import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 
 type ImagemInfo = { id: string; origem: string; largura: number; altura: number; meta: Record<string, unknown> | null; criadoEm: string };
 const ORIGEM: Record<string, string> = { catalogo: "Catálogo", pagina: "Página", arte: "Arte da marca", ia: "Foto IA", upload: "Enviada" };
@@ -84,9 +85,12 @@ export default function ProdutoPage() {
           <h1 className="text-3xl font-semibold uppercase">{p.nome ?? "Produto sem nome"}</h1>
           {p.nomeComercial && <p className="font-script text-2xl text-rose-escuro">{p.nomeComercial}</p>}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-44">
+            <BotaoFotoIa produtoId={id} aoTerminar={() => carregar()} />
+          </div>
           <Link href={`/produtos/${id}/estudio`}>
-            <Botao>✦ Estúdio de fotos</Botao>
+            <Botao variante="secundario">Estúdio de fotos</Botao>
           </Link>
           <Link href={`/etiquetas?ids=${id}`}>
             <Botao variante="secundario">Etiqueta</Botao>
@@ -284,7 +288,7 @@ export default function ProdutoPage() {
                 <div className="mt-2">{brl(p.custoProdutoBrl)}</div>
               </div>
               <div>
-                <span className="rotulo">Custos adicionais</span>
+                <span className="rotulo">Frete rateado e custos</span>
                 <div className="mt-2">{brl(p.custoAdicionalBrl)}</div>
               </div>
               <div>
