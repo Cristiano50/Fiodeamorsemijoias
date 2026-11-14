@@ -24,6 +24,8 @@ export const pedidos = sqliteTable("pedidos", {
   status: text("status").notNull().default("extraido"), // extraido | analisado | concluido
   parecer: text("parecer", { mode: "json" }).$type<Record<string, unknown>>(),
   arquivoNome: text("arquivo_nome"),
+  // Id do cadastro feito na skill do Claude (o app não importa o mesmo cadastro duas vezes).
+  cadastroId: text("cadastro_id").unique(),
   criadoEm: text("criado_em").notNull().default(agora),
 });
 

@@ -43,6 +43,10 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
     A mesma planilha pode ser importada de novo sem duplicar as vendas, e a gestora pode desfazer uma importação.
 18. **Maleta inteligente:** escolha a revendedora e o valor e a quantidade de peças da maleta. O app sugere o mix pelo que ela mais vende, pelo giro da loja e pelas novidades, e explica o motivo de cada peça. Dá para trocar, remover, imprimir ou exportar o romaneio em CSV.
 
+## Cadastro pelo Claude (skill)
+
+O cadastro também pode ser feito **direto no Claude**, com a skill `fiodeamor-cadastro`, que fica em `skill/`. Você anexa o PDF do fornecedor e escreve "cadastra esse pedido; frete R$ 850". A skill entrega a planilha do UP Vendas e o cadastro completo, com fotos, nomes, referências e preços. Esse cadastro vai para o app sozinho, se a skill estiver conectada, ou como arquivo, em **Importar pedido → Cadastro feito no Claude**. Para instalar, use **Configurações → Skill do Claude** no app. O passo a passo está em [docs/skill.md](docs/skill.md).
+
 ## Como rodar (no computador da loja)
 
 Requisitos: [Node.js 20 ou mais novo](https://nodejs.org).

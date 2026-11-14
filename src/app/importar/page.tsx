@@ -5,6 +5,7 @@ import { Botao, Campo, Cartao, Selo, useAviso } from "@/components/ui";
 import { api, brl, moedaSimbolo, num } from "@/lib/cliente";
 import { lerCabecalho, lerLinha } from "@/lib/extracao";
 import { extrairPdf, prepararFoto, type Extracao } from "@/lib/pdf-cliente";
+import { ImportarCadastroClaude } from "@/components/ImportarCadastroClaude";
 
 type Cotacao = { valor: number; data: string; fonte: string };
 
@@ -216,6 +217,8 @@ export default function ImportarPage() {
           quantidade, converte pela cotação do dia da compra e a IA classifica e sugere nomes.
         </p>
       </div>
+
+      <ImportarCadastroClaude />
 
       <label
         onDragOver={(e) => {

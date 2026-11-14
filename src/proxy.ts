@@ -9,7 +9,8 @@ import { COOKIE_SESSAO, lerToken } from "@/lib/sessao";
  * O modo vem de /api/sessao (consulta o banco) e fica em cache por 15 s.
  */
 
-const PUBLICO = [/^\/entrar$/, /^\/api\/login$/, /^\/api\/sessao$/, /^\/api\/feed\//];
+// /api/skill/contexto e /api/skill/cadastro conferem sozinhas a chave da skill (ou a sessão).
+const PUBLICO = [/^\/entrar$/, /^\/api\/login$/, /^\/api\/sessao$/, /^\/api\/feed\//, /^\/api\/skill\/(contexto|cadastro)$/];
 
 /** Áreas exclusivas da gestora (método "*" = qualquer). */
 const SO_GESTORA: { caminho: RegExp; metodos: string[] }[] = [
@@ -20,6 +21,7 @@ const SO_GESTORA: { caminho: RegExp; metodos: string[] }[] = [
   { caminho: /^\/api\/gastos/, metodos: ["*"] },
   { caminho: /^\/api\/usuarios/, metodos: ["*"] },
   { caminho: /^\/api\/backup/, metodos: ["*"] },
+  { caminho: /^\/api\/skill\/(info|baixar)/, metodos: ["*"] },
   { caminho: /^\/api\/config$/, metodos: ["PUT", "DELETE", "POST", "PATCH"] },
   { caminho: /^\/api\/referencias/, metodos: ["POST", "PATCH", "DELETE"] },
   { caminho: /^\/api\/pedidos\/[^/]+$/, metodos: ["DELETE"] },

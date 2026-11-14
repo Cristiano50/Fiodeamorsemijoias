@@ -19,5 +19,9 @@ export const MIGRACOES: { tag: string; sql: string }[] = [
   {
     "tag": "0004_codigo_barras_do_up",
     "sql": "ALTER TABLE `produtos` ADD `codigo_barras_origem` text;--> statement-breakpoint\n-- Os códigos que já existiam foram gerados pelo app (EAN interno 91…).\nUPDATE `produtos` SET `codigo_barras_origem` = 'app' WHERE `codigo_barras` IS NOT NULL;\n"
+  },
+  {
+    "tag": "0005_cadastro_da_skill",
+    "sql": "ALTER TABLE `pedidos` ADD `cadastro_id` text;--> statement-breakpoint\nCREATE UNIQUE INDEX `pedidos_cadastro_id_unique` ON `pedidos` (`cadastro_id`);"
   }
 ];

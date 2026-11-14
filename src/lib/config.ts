@@ -84,6 +84,7 @@ export interface Sistema {
   whatsappNumero: string; // com DDI e DDD, só números (ex.: 5511999999999)
   linkProdutoModelo: string; // link do produto no catálogo Meta; marcadores {whatsapp} {referencia} {nome}
   feedChave: string; // chave do link público do feed do catálogo (gerada automaticamente)
+  skillChave: string; // chave que a skill do Claude usa para consultar e enviar cadastros (gerada em Configurações)
   prazoReposicaoDias: number; // China → prateleira
   diasEstoqueParado: number;
   maletaValorAlvo: number; // R$ em etiqueta por maleta
@@ -119,6 +120,7 @@ export const SISTEMA_PADRAO: Sistema = {
   whatsappNumero: "",
   linkProdutoModelo: "https://wa.me/{whatsapp}?text=Ol%C3%A1!%20Tenho%20interesse%20na%20pe%C3%A7a%20{referencia}",
   feedChave: "",
+  skillChave: "",
   prazoReposicaoDias: 45,
   diasEstoqueParado: 120,
   maletaValorAlvo: 4000,

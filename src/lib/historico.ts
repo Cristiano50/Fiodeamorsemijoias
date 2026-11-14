@@ -6,9 +6,10 @@ import { usuarioDaRequisicao } from "./auth";
 export async function registrar(
   req: Request | null,
   dados: { acao: string; entidade?: string; entidadeId?: string | null; resumo: string; dados?: Record<string, unknown> },
+  quem?: { u: string | null; n: string },
 ) {
   try {
-    const u = req ? await usuarioDaRequisicao(req) : null;
+    const u = quem ?? (req ? await usuarioDaRequisicao(req) : null);
     const db = await getDb();
     await db.insert(schema.historico).values({
       usuarioId: u?.u ?? null,

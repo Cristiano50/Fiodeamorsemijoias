@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // Na nuvem (Vercel), leva junto os pareceres lidos do disco por /api/especialistas.
   outputFileTracingIncludes: {
     "/api/especialistas": ["./docs/especialistas/*.md"],
+    // O ZIP da skill do Claude é montado a partir desta pasta.
+    "/api/skill/baixar": ["./skill/fiodeamor-cadastro/**/*"],
   },
   turbopack: {
     rules: {
