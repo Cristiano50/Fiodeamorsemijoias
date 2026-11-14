@@ -7,6 +7,7 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pastaDados } from "./pastas";
 
 export const COOKIE_SESSAO = "fda_sessao";
 export type Papel = "gestora" | "funcionario";
@@ -23,7 +24,7 @@ export function segredoSessao(): string {
   if (segredoCache) return segredoCache;
   const env = process.env.APP_SEGREDO || process.env.APP_SENHA;
   if (env) return (segredoCache = env);
-  const arq = path.resolve(process.cwd(), "dados", ".segredo-sessao");
+  const arq = path.join(pastaDados(), ".segredo-sessao");
   try {
     segredoCache = fs.readFileSync(arq, "utf8").trim();
   } catch {

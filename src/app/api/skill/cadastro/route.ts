@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { erro, ok } from "@/lib/api";
 import { autorizarSkill, importarCadastro, type PacoteCadastro } from "@/lib/cadastro-skill";
+import { urlDoApp } from "@/lib/url";
 
 export const maxDuration = 300;
 
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
       return erro("O corpo não é um JSON válido.", 400);
     }
     const r = await importarCadastro(pacote, req, quem);
-    return ok({ ...r, url: `${req.nextUrl.origin}/pedidos/${r.pedidoId}` });
+    return ok({ ...r, url: `${urlDoApp(req)}/pedidos/${r.pedidoId}` });
   } catch (e) {
     return erro(e, 400);
   }

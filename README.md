@@ -47,7 +47,11 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
 
 O cadastro também pode ser feito **direto no Claude**, com a skill `fiodeamor-cadastro`, que fica em `skill/`. Você anexa o PDF do fornecedor e escreve "cadastra esse pedido; frete R$ 850". A skill entrega a planilha do UP Vendas e o cadastro completo, com fotos, nomes, referências e preços. Esse cadastro vai para o app sozinho, se a skill estiver conectada, ou como arquivo, em **Importar pedido → Cadastro feito no Claude**. Para instalar, use **Configurações → Skill do Claude** no app. O passo a passo está em [docs/skill.md](docs/skill.md).
 
-## Como rodar (no computador da loja)
+## Instalar no Windows da loja (e usar no celular)
+
+Para a loja, use o **instalador** `FioDeAmor-Instalador-<versão>.exe`, que não precisa de programação nem de outros programas. Ele instala o app em **um computador Windows**, o **servidor**, que inicia o app sozinho junto com o Windows. Os outros computadores e os celulares **Android e iPhone** do mesmo Wi-Fi abrem o app pelo navegador, pelo menu **Celular e outros PCs**, que mostra o endereço e um QR code, e podem criar um atalho na tela inicial. O passo a passo está em [docs/instalar-windows.md](docs/instalar-windows.md).
+
+## Como rodar a partir do código (desenvolvimento)
 
 Requisitos: [Node.js 20 ou mais novo](https://nodejs.org).
 

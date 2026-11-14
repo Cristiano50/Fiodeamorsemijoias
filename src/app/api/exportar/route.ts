@@ -4,6 +4,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro } from "@/lib/api";
 import { contextoUp, linhaUp, type LinhaUp } from "@/lib/upvendas";
+import { urlDoApp } from "@/lib/url";
 
 /** Colunas na ordem da tela "Cadastro de Produtos Simplificado" do UP Vendas + extras. */
 const COLUNAS: [keyof LinhaUp, string, number?][] = [
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
       .from(schema.produtos)
       .where(ids?.length ? inArray(schema.produtos.id, ids) : pedido ? eq(schema.produtos.pedidoId, pedido) : undefined)
       .orderBy(asc(schema.produtos.linha));
-    const ctx = await contextoUp(req.nextUrl.origin, produtos.map((x) => x.id));
+    const ctx = await contextoUp(urlDoApp(req), produtos.map((x) => x.id));
     const linhas = produtos.map((x) => linhaUp(x, ctx));
     const nome = `fiodeamor-produtos-${new Date().toISOString().slice(0, 10)}`;
 

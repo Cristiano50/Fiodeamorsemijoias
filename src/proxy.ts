@@ -59,6 +59,17 @@ async function modoDeAcesso(req: NextRequest): Promise<string> {
   return process.env.APP_SENHA ? "senha" : "usuarios";
 }
 
+/**
+ * Redireciona para um caminho do app no MESMO endereço que o aparelho usou (ex.: http://192.168.0.10:3000).
+ * O endereço interno do servidor (127.0.0.1) não serve para o celular: lá ele aponta para o próprio celular.
+ */
+function redirecionar(req: NextRequest, caminho: string) {
+  const host = req.headers.get("x-forwarded-host")?.split(",")[0].trim() || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim() || req.nextUrl.protocol.replace(":", "");
+  const base = host && /^[a-z0-9.\-[\]:]+$/i.test(host) ? `${proto === "https" ? "https" : "http"}://${host}` : req.nextUrl.origin;
+  return NextResponse.redirect(new URL(caminho, base));
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (PUBLICO.some((r) => r.test(pathname))) return NextResponse.next();
@@ -72,19 +83,17 @@ export async function proxy(req: NextRequest) {
   const api = pathname.startsWith("/api/");
   if (!sessao) {
     if (api) return NextResponse.json({ erro: "Faça login para continuar." }, { status: 401 });
-    const url = req.nextUrl.clone();
-    url.pathname = "/entrar";
-    url.searchParams.set("voltar", pathname);
-    return NextResponse.redirect(url);
+    return redirecionar(req, `/entrar?voltar=${encodeURIComponent(pathname)}`);
   }
   const exigeGestora = SO_GESTORA.some((r) => r.caminho.test(pathname) && (r.metodos.includes("*") || r.metodos.includes(req.method)));
   if (exigeGestora && sessao.p !== "gestora") {
     if (api) return NextResponse.json({ erro: "Somente a gestora pode fazer isso." }, { status: 403 });
-    return NextResponse.redirect(new URL("/", req.url));
+    return redirecionar(req, "/");
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|marca/|pdf.worker.min.mjs).*)"],
+  // Ícones e manifest ficam fora do login: o celular busca sem o cookie da sessão para criar o atalho.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|marca/|icones/|manifest.webmanifest|pdf.worker.min.mjs).*)"],
 };

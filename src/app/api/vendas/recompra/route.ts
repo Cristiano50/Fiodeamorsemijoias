@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { erro } from "@/lib/api";
 import { exigirPapel } from "@/lib/auth";
 import { analiseVendas, csvRecompra, hojeLocal, itensRecompra, xlsxRecompra } from "@/lib/vendas";
+import { urlDoApp } from "@/lib/url";
 
 export const maxDuration = 120;
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     const analise = await analiseVendas({ inicio: p.get("inicio"), fim: p.get("fim") });
     const itens = itensRecompra(analise);
     const nome = `fiodeamor-recompra-${hojeLocal()}`;
-    const origem = req.nextUrl.origin;
+    const origem = urlDoApp(req);
     if (formato === "csv") {
       return new NextResponse(csvRecompra(itens, origem), {
         headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${nome}.csv"` },

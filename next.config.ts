@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Instalador do Windows (instalador/empacotar.mjs): servidor autônomo, sem precisar do npm no computador da loja.
+  output: process.env.FDA_STANDALONE ? "standalone" : undefined,
   // Pacotes nativos/pesados que devem rodar apenas no servidor Node.
   experimental: {
     // O proxy (senha do app) lê o corpo das requisições; os lotes de fotos ficam bem abaixo disso.

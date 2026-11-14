@@ -52,3 +52,7 @@ next-env.d.ts
 # Python (scripts da skill do Claude)
 __pycache__/
 *.pyc
+
+# Instalador do Windows (gerado por instalador/empacotar.mjs)
+/dist/
+/instalador/.cache/

@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+/**
+ * Monta o instalador do Windows do app Fio de Amor (computador-servidor da loja).
+ *
+ *   node instalador/empacotar.mjs                 # compila, monta e gera dist/FioDeAmor-Instalador-<versão>.exe
+ *   node instalador/empacotar.mjs --sem-build     # reaproveita o .next/standalone já compilado
+ *   node instalador/empacotar.mjs --linux         # monta a mesma estrutura para teste no Linux (sem .exe)
+ *
+ * Precisa de: Node 22, npm (baixa do registro npm o Node.js para Windows e os módulos nativos win32) e makensis (NSIS).
+ * O pacote leva SÓ o que o app precisa (lista fechada). Pastas com dados reais — amostras/, dados/ — nunca entram.
+ */
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const args = new Set(process.argv.slice(2));
+const linux = args.has("--linux");
+const pkg = JSON.parse(fs.readFileSync(path.join(raiz, "package.json"), "utf8"));
+const versao = pkg.version;
+const VERSAO_NODE = "22.23.4"; // Node.js para Windows (pacote npm node-win-x64)
+const cache = path.join(raiz, "instalador", ".cache");
+const dist = path.join(raiz, "dist");
+const stage = path.join(dist, linux ? "linux" : "windows", "FioDeAmor");
+const app = path.join(stage, "app");
+const standalone = path.join(raiz, ".next", "standalone");
+
+const log = (m) => console.log(`» ${m}`);
+const sh = (cmd, a, opts = {}) => execFileSync(cmd, a, { stdio: "inherit", cwd: raiz, ...opts });
+const copiar = (de, para) => fs.cpSync(de, para, { recursive: true, dereference: true });
+
+// 1. Compilação autônoma (servidor Node sem precisar do npm no computador da loja)
+if (!args.has("--sem-build")) {
+  log("Compilando o app (modo autônomo)…");
+  sh("npx", ["next", "build"], { env: { ...process.env, FDA_STANDALONE: "1", NEXT_TELEMETRY_DISABLED: "1" } });
+}
+if (!fs.existsSync(path.join(standalone, "server.js"))) throw new Error("Falta .next/standalone/server.js: rode sem --sem-build.");
+
+// 2. Lista fechada do que vai no pacote
+log(`Montando ${path.relative(raiz, stage)}…`);
+fs.rmSync(stage, { recursive: true, force: true });
+fs.mkdirSync(app, { recursive: true });
+for (const item of ["server.js", "package.json", ".next", "node_modules"]) copiar(path.join(standalone, item), path.join(app, item));
+copiar(path.join(raiz, ".next", "static"), path.join(app, ".next", "static"));
+copiar(path.join(raiz, "public"), path.join(app, "public"));
+copiar(path.join(raiz, "docs", "especialistas"), path.join(app, "docs", "especialistas"));
+fs.cpSync(path.join(raiz, "skill", "fiodeamor-cadastro"), path.join(app, "skill", "fiodeamor-cadastro"), {
+  recursive: true,
+  filter: (f) => !/(__pycache__|[\\/]testes([\\/]|$)|\.pyc$)/.test(f),
+});
+fs.rmSync(path.join(app, ".next", "cache"), { recursive: true, force: true });
+
+// 3. Módulos nativos do Windows no lugar dos do Linux
+if (!linux) {
+  const nm = path.join(app, "node_modules");
+  for (const escopo of ["@img", "@libsql"]) {
+    const dir = path.join(nm, escopo);
+    for (const n of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+      if (/linux|musl|wasm32|darwin/.test(n)) fs.rmSync(path.join(dir, n), { recursive: true, force: true });
+    }
+  }
+  const versaoDe = (p) => JSON.parse(fs.readFileSync(path.join(raiz, "node_modules", p, "package.json"), "utf8")).version;
+  const nativos = [
+    ["@libsql/win32-x64-msvc", versaoDe("libsql")],
+    ["@img/sharp-win32-x64", versaoDe("sharp")],
+    ["node-win-x64", VERSAO_NODE],
+  ];
+  fs.mkdirSync(cache, { recursive: true });
+  for (const [nome, v] of nativos) {
+    const arquivo = path.join(cache, `${nome.replace("@", "").replace("/", "-")}-${v}.tgz`);
+    if (!fs.existsSync(arquivo)) {
+      log(`Baixando ${nome}@${v} do registro npm…`);
+      const saida = execFileSync("npm", ["pack", `${nome}@${v}`, "--pack-destination", cache, "--silent"], { cwd: cache }).toString().trim().split("\n").pop();
+      fs.renameSync(path.join(cache, saida), arquivo);
+    }
+    const destino = nome === "node-win-x64" ? path.join(stage, ".node-pkg") : path.join(nm, nome);
+    fs.mkdirSync(destino, { recursive: true });
+    sh("tar", ["xzf", arquivo, "-C", destino, "--strip-components=1"]);
+  }
+  fs.mkdirSync(path.join(stage, "node"), { recursive: true });
+  fs.renameSync(path.join(stage, ".node-pkg", "bin", "node.exe"), path.join(stage, "node", "node.exe"));
+  for (const f of ["LICENSE", "LICENSE.md", "README.md"]) {
+    const de = path.join(stage, ".node-pkg", f);
+    if (fs.existsSync(de)) fs.copyFileSync(de, path.join(stage, "node", f));
+  }
+  fs.rmSync(path.join(stage, ".node-pkg"), { recursive: true, force: true });
+}
+
+// 4. Arquivos do Windows (inicialização, atalho, tarefa agendada)
+for (const f of ["servidor.cmd", "abrir.ps1", "LEIA-ME.txt", "fiodeamor.ico"]) fs.copyFileSync(path.join(raiz, "instalador", f), path.join(stage, f));
+// O Agendador de Tarefas do Windows lê o XML em UTF-16 com BOM.
+const xml = fs.readFileSync(path.join(raiz, "instalador", "tarefa.xml"), "utf8");
+fs.writeFileSync(path.join(stage, "tarefa.xml"), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(xml.replace(/\r?\n/g, "\r\n"), "utf16le")]));
+for (const f of ["servidor.cmd", "LEIA-ME.txt", "abrir.ps1"]) {
+  const p = path.join(stage, f);
+  const texto = fs.readFileSync(p, "utf8").replace(/\r?\n/g, "\r\n"); // fim de linha do Windows
+  // O PowerShell 5 do Windows só lê acentos de .ps1 em UTF-8 com BOM.
+  fs.writeFileSync(p, f.endsWith(".ps1") ? "\ufeff" + texto : texto);
+}
+
+// 5. Conferência de segurança: nada de dados reais no pacote
+const proibidos = [];
+const varrer = (dir) => {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    const rel = path.relative(stage, p);
+    if (/(^|[\\/])(amostras|dados(-[^\\/]*)?|\.env[^\\/]*)([\\/]|$)/.test(rel) || /\.db$/.test(e.name)) proibidos.push(rel);
+    else if (e.isDirectory()) varrer(p);
+  }
+};
+varrer(stage);
+if (proibidos.length) throw new Error(`Pacote com arquivos que não podem sair do computador: ${proibidos.slice(0, 10).join(", ")}`);
+
+const tamanho = (dir) => fs.readdirSync(dir, { withFileTypes: true }).reduce((s, e) => s + (e.isDirectory() ? tamanho(path.join(dir, e.name)) : fs.statSync(path.join(dir, e.name)).size), 0);
+log(`Pasta do programa: ${(tamanho(stage) / 1e6).toFixed(0)} MB`);
+
+// 6. Instalador .exe (NSIS)
+if (!linux) {
+  const saida = path.join(dist, `FioDeAmor-Instalador-${versao}.exe`);
+  log("Gerando o instalador com o NSIS…");
+  sh("makensis", ["-V2", `-DVERSAO=${versao}`, `-DORIGEM=${stage}`, `-DSAIDA=${saida}`, `-DICONE=${path.join(raiz, "instalador", "fiodeamor.ico")}`, path.join(raiz, "instalador", "fiodeamor.nsi")]);
+  log(`Pronto: ${path.relative(raiz, saida)} (${(fs.statSync(saida).size / 1e6).toFixed(0)} MB)`);
+}

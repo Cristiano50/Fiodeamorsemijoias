@@ -14,6 +14,7 @@ const MENU: { href: string; rotulo: string; icone: string; gestora?: boolean }[]
   { href: "/vendas", rotulo: "Vendas e recompra", icone: "↗" },
   { href: "/maleta", rotulo: "Maleta inteligente", icone: "◫" },
   { href: "/up-vendas", rotulo: "UP Vendas", icone: "⇄" },
+  { href: "/aparelhos", rotulo: "Celular e outros PCs", icone: "▯" },
   { href: "/gastos", rotulo: "Gastos com IA", icone: "$", gestora: true },
   { href: "/historico", rotulo: "Histórico", icone: "⟲", gestora: true },
   { href: "/especialistas", rotulo: "Especialistas", icone: "♡" },

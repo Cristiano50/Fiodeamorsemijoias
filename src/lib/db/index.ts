@@ -6,10 +6,11 @@ import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 import { MIGRACOES } from "./migracoes";
 import { backupDiarioSeNecessario } from "../backup";
+import { pastaDados, urlArquivo } from "../pastas";
 
 /**
  * Banco de dados:
- *  - Local (padrão): arquivo SQLite em ./dados/fiodeamor.db
+ *  - Local (padrão): arquivo SQLite em ./dados/fiodeamor.db (ou na pasta FDA_DADOS, no instalador do Windows)
  *  - Nuvem: defina DATABASE_URL=libsql://... e DATABASE_AUTH_TOKEN (Turso) — o mesmo código funciona.
  */
 type Global = { __fda_db?: LibSQLDatabase<typeof schema>; __fda_client?: Client; __fda_pronto?: Promise<void> };
@@ -18,9 +19,9 @@ const g = globalThis as unknown as Global;
 function criarCliente(): Client {
   let url = process.env.DATABASE_URL;
   if (!url) {
-    const pasta = path.resolve(process.cwd(), "dados");
+    const pasta = pastaDados();
     fs.mkdirSync(pasta, { recursive: true });
-    url = `file:${path.join(pasta, "fiodeamor.db")}`;
+    url = urlArquivo(path.join(pasta, "fiodeamor.db"));
   }
   return createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
 }

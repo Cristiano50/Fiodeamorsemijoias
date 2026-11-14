@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { createClient } from "@libsql/client";
+import { pastaDados, urlArquivo } from "./pastas";
 
 /**
  * Backup do banco local (dados/fiodeamor.db):
@@ -34,7 +35,7 @@ export interface InfoBackup {
 /** Caminho do arquivo do banco quando ele é local; null quando é Turso/libSQL remoto. */
 export function bancoLocal(): string | null {
   const url = process.env.DATABASE_URL?.trim();
-  if (!url) return path.resolve(process.cwd(), "dados", "fiodeamor.db");
+  if (!url) return path.join(pastaDados(), "fiodeamor.db");
   if (!url.startsWith("file:")) return null;
   let caminho = url.slice("file:".length).split("?")[0];
   if (caminho.startsWith("//")) caminho = caminho.slice(2); // file:///caminho/absoluto
@@ -47,7 +48,7 @@ export function bancoLocal(): string | null {
 }
 
 /** Pasta dos backups: "backups" ao lado do arquivo do banco (padrão: dados/backups). */
-export const pastaBackups = () => path.join(path.dirname(bancoLocal() ?? path.resolve(process.cwd(), "dados", "fiodeamor.db")), "backups");
+export const pastaBackups = () => path.join(path.dirname(bancoLocal() ?? path.join(pastaDados(), "fiodeamor.db")), "backups");
 
 const dois = (n: number) => String(n).padStart(2, "0");
 const diaLocal = (d: Date) => `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
@@ -96,7 +97,7 @@ const path = require("node:path");
     return;
   }
   try {
-    const c = createClient({ url: "file:" + workerData.origem });
+    const c = createClient({ url: "file:" + workerData.origem.split(String.fromCharCode(92)).join("/") });
     try {
       await c.execute("PRAGMA busy_timeout = 15000");
       await c.execute({ sql: "VACUUM INTO ?", args: [workerData.destino] });
@@ -140,7 +141,7 @@ function vacuumNoWorker(origem: string, destino: string): Promise<void> {
 
 /** Plano B (sem worker): roda na thread principal; trava o app só durante a cópia. */
 async function vacuumDireto(origem: string, destino: string) {
-  const c = createClient({ url: `file:${origem}` });
+  const c = createClient({ url: urlArquivo(origem) });
   try {
     await c.execute("PRAGMA busy_timeout = 15000");
     await c.execute({ sql: "VACUUM INTO ?", args: [destino] });

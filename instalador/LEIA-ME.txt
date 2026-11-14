@@ -1,0 +1,30 @@
+FIO DE AMOR SEMIJOIAS - APP DE CADASTRO
+=======================================
+
+Este computador e o SERVIDOR da loja. O app inicia sozinho junto com o Windows.
+
+ABRIR O APP
+  - Neste computador: atalho "Fio de Amor" na area de trabalho (abre http://localhost:3000).
+  - Outros computadores e celulares (mesmo Wi-Fi): no app, menu "Celular e outros PCs"
+    mostra o endereco (ex.: http://192.168.0.10:3000) e um QR code.
+    Android: Chrome > menu > "Adicionar a tela inicial".
+    iPhone: Safari > Compartilhar > "Adicionar a Tela de Inicio".
+
+PRIMEIRO ACESSO
+  Configuracoes > Usuarios: crie a conta da gestora (a partir dai o app pede login).
+  Configuracoes > Integracoes e IA: cole a chave do Claude e clique em "Testar chave do Claude".
+
+ONDE FICAM OS DADOS
+  C:\FioDeAmor\dados          banco de dados (produtos, pedidos, fotos)
+  C:\FioDeAmor\dados\backups  um backup automatico por dia (os 14 mais recentes)
+  C:\FioDeAmor\dados\logs     registro do servidor
+  De vez em quando, copie um backup para fora do computador (pen drive ou nuvem).
+  Atualizar ou desinstalar o app NAO apaga essa pasta.
+
+SE OS OUTROS APARELHOS NAO ABRIREM
+  - Este computador precisa estar ligado e no mesmo Wi-Fi/rede.
+  - A rede do Windows deve estar como "Privada" (Configuracoes > Rede e Internet).
+  - O instalador ja liberou a porta 3000 no firewall para redes privadas.
+
+ATUALIZAR
+  Rode o instalador novo por cima. Os dados sao mantidos.
