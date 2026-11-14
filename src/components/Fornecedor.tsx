@@ -67,7 +67,7 @@ export function RenomearFornecedor({ nome, apelido, aoSalvar }: { nome: string |
           autoFocus
           value={valor}
           maxLength={80}
-          placeholder="Ex.: Ningyuhua (Guangzhou)"
+          placeholder="Ex.: Fornecedor Guangzhou (brincos)"
           onChange={(e) => setValor(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") salvar(valor);

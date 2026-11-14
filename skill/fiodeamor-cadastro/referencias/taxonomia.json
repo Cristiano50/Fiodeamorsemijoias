@@ -1,0 +1,798 @@
+{
+  "materiais": [
+    {
+      "id": "semijoia",
+      "nome": "Semijoia (folheado)",
+      "sigla": "SJ",
+      "descricao_grade": "SEMIJOIA BANHADA A OURO 18K",
+      "descricao_grade_modelo": "SEMIJOIA BANHADA A {BANHO}",
+      "base": "Latão/cobre com banho galvânico (padrão dos fornecedores de Guangzhou)",
+      "ncm_sugerido": "71171900",
+      "observacao": "Peças chinesas vêm com banho de fábrica sem laudo de milésimos. Só informar milésimos no UP quando houver laudo/nota do fornecedor ou rebanho no Brasil. O cadastro atual usa NCM 71179000; para metal comum dourado a posição mais específica costuma ser 7117.19.00 — confirmar com o contador."
+    },
+    {
+      "id": "prata",
+      "nome": "Prata 925",
+      "sigla": "PR",
+      "descricao_grade": "PRATA 925",
+      "descricao_grade_modelo": "PRATA 925 BANHADA A {BANHO}",
+      "base": "Prata de lei 925 (92,5% Ag), maciça",
+      "ncm_sugerido": "71131100",
+      "observacao": "Exigir marcação 925 na peça e/ou declaração do fornecedor (925银). Sem banho: descricao_grade = 'PRATA 925'. Com banho de ouro/ródio usar o modelo."
+    },
+    {
+      "id": "aco",
+      "nome": "Aço inoxidável",
+      "sigla": "AC",
+      "descricao_grade": "AÇO INOXIDÁVEL",
+      "descricao_grade_modelo": "AÇO INOXIDÁVEL COM BANHO {BANHO}",
+      "base": "Aço inox 304/316L (不锈钢 / 钛钢)",
+      "ncm_sugerido": "71171900",
+      "observacao": "Fornecedor chinês chama de 钛钢 ('aço titânio'), mas normalmente é aço inox 316L, não titânio. Dourado em aço costuma ser PVD (banho pvd_dourado)."
+    },
+    {
+      "id": "bijuteria",
+      "nome": "Bijuteria (latão/liga/acrílico)",
+      "sigla": "BJ",
+      "descricao_grade": "BIJUTERIA",
+      "descricao_grade_modelo": "BIJUTERIA COM ACABAMENTO {BANHO}",
+      "base": "Liga metálica (zamac/合金), latão com banho flash, acrílico, resina, tecido",
+      "ncm_sugerido": "71171900 (metal) / 71179000 (não metálico)",
+      "observacao": "Usar quando a peça não suporta o posicionamento de semijoia (banho muito fino, liga zamac, peça majoritariamente de acrílico/resina/tecido)."
+    },
+    {
+      "id": "joia_ouro",
+      "nome": "Joia em ouro 18k (750)",
+      "sigla": "OU",
+      "descricao_grade": "JOIA EM OURO 18K 750",
+      "descricao_grade_modelo": "JOIA EM OURO 18K 750 {BANHO}",
+      "base": "Ouro 750",
+      "ncm_sugerido": "71131900",
+      "observacao": "Só com nota/laudo. Controle de estoque reforçado (cofre, inventário semanal)."
+    },
+    {
+      "id": "titanio",
+      "nome": "Titânio (piercing)",
+      "sigla": "TT",
+      "descricao_grade": "TITÂNIO",
+      "descricao_grade_modelo": "TITÂNIO {BANHO}",
+      "base": "Titânio grau implante (ASTM F136)",
+      "ncm_sugerido": "71171900",
+      "observacao": "Usar apenas para piercing com declaração de titânio grau implante; caso contrário é aço inox."
+    },
+    {
+      "id": "acessorio",
+      "nome": "Acessório de moda (materiais diversos)",
+      "sigla": "AM",
+      "descricao_grade": "ACESSÓRIO",
+      "descricao_grade_modelo": "ACESSÓRIO {BANHO}",
+      "base": "Acetato/policarbonato (óculos), caixa metálica (relógio), plástico/metal (cabelo, chaveiro)",
+      "ncm_sugerido": "por tipo: ver tipos[].ncm_sugerido",
+      "observacao": "Óculos, relógios, acessórios de cabelo e chaveiros. Óculos de sol exigem informação de proteção UV na etiqueta."
+    }
+  ],
+  "tipos": [
+    {
+      "id": "brinco",
+      "nome": "Brinco",
+      "prefixo": "BR",
+      "categoria_vitrine": "Brincos",
+      "unidade_venda": "par",
+      "subtipos": [
+        "Brinco pequeno",
+        "Brinco médio",
+        "Brinco grande",
+        "Argola",
+        "Argolinha (huggie)",
+        "Ear cuff",
+        "Ear hook",
+        "Ear climber (escalador)",
+        "Brinco pendurado",
+        "Brinco de pressão (sem furo)",
+        "Kit de brincos",
+        "Brinco infantil"
+      ],
+      "regra_subtipo": "Formato especial (argola, argolinha, ear cuff, ear hook, ear climber, pressão, kit, infantil) prevalece. Senão, pelo maior lado: pequeno até 15 mm; médio 16 a 30 mm; grande acima de 30 mm.",
+      "tamanhos": ["Único"]
+    },
+    {
+      "id": "colar",
+      "nome": "Colar",
+      "prefixo": "CL",
+      "categoria_vitrine": "Colares",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Colar com pingente",
+        "Colar riviera",
+        "Colar corrente",
+        "Colar de pérolas",
+        "Colar gravatinha",
+        "Colar letra / nome",
+        "Colar religioso",
+        "Colar longo",
+        "Colar camadas (mix)"
+      ],
+      "tamanhos": ["40 cm", "42 cm", "43 cm", "45 cm", "50 cm", "55 cm", "60 cm", "70 cm", "80 cm", "90 cm", "Ajustável (com extensor)"]
+    },
+    {
+      "id": "gargantilha",
+      "nome": "Gargantilha",
+      "prefixo": "GA",
+      "categoria_vitrine": "Gargantilhas",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Gargantilha riviera",
+        "Gargantilha com pingente",
+        "Gargantilha corrente",
+        "Gargantilha de pérolas"
+      ],
+      "tamanhos": ["35 cm", "38 cm", "40 cm", "42 cm", "45 cm", "Ajustável (com extensor)"]
+    },
+    {
+      "id": "choker",
+      "nome": "Choker",
+      "prefixo": "CK",
+      "categoria_vitrine": "Chokers",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Choker rígido",
+        "Choker corrente",
+        "Choker de pérolas",
+        "Choker tecido / veludo"
+      ],
+      "tamanhos": ["30 cm", "32 cm", "35 cm", "38 cm", "Ajustável (com extensor)"]
+    },
+    {
+      "id": "pingente",
+      "nome": "Pingente",
+      "prefixo": "PG",
+      "categoria_vitrine": "Pingentes",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Pingente liso",
+        "Pingente cravejado",
+        "Pingente religioso",
+        "Medalha",
+        "Pingente com pérola",
+        "Pingente com madrepérola / esmalte",
+        "Letra / inicial",
+        "Pingente infantil"
+      ],
+      "tamanhos": ["Único"],
+      "observacao": "Pingente vem SEM corrente. Registrar a medida (altura x largura em mm) na descrição."
+    },
+    {
+      "id": "pulseira",
+      "nome": "Pulseira",
+      "prefixo": "PU",
+      "categoria_vitrine": "Pulseiras",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Pulseira corrente",
+        "Pulseira riviera",
+        "Pulseira com pingente / berloque",
+        "Pulseira de pérolas",
+        "Pulseira de bolinhas",
+        "Pulseira gravatinha (ajustável)",
+        "Pulseira infantil"
+      ],
+      "tamanhos": ["Único", "Ajustável (com extensor)", "16 cm", "17 cm", "18 cm", "19 cm", "20 cm"]
+    },
+    {
+      "id": "bracelete",
+      "nome": "Bracelete",
+      "prefixo": "BC",
+      "categoria_vitrine": "Braceletes",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Rígido fino",
+        "Rígido largo",
+        "Com dobradiça / trava",
+        "Aberto (cuff)",
+        "Algema",
+        "Escrava (braço)"
+      ],
+      "tamanhos": ["Único"],
+      "observacao": "Peça rígida (手环/手镯). Registrar diâmetro interno na descrição (padrão ~5,8 a 6,0 cm)."
+    },
+    {
+      "id": "tornozeleira",
+      "nome": "Tornozeleira",
+      "prefixo": "TZ",
+      "categoria_vitrine": "Tornozeleiras",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Tornozeleira corrente",
+        "Tornozeleira com pingentes",
+        "Tornozeleira de bolinhas"
+      ],
+      "tamanhos": ["Único", "Ajustável (com extensor)", "22 cm", "24 cm", "26 cm"]
+    },
+    {
+      "id": "anel",
+      "nome": "Anel",
+      "prefixo": "AN",
+      "categoria_vitrine": "Anéis",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Solitário",
+        "Aparador",
+        "Meia aliança",
+        "Aliança",
+        "Anel largo / statement",
+        "Anel de falange",
+        "Anel aberto (ajustável)",
+        "Anel com pedra",
+        "Anel infantil"
+      ],
+      "tamanhos": ["10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "Ajustável"],
+      "observacao": "Numeração brasileira (aro). A numeração chinesa '#' (港码) é aproximadamente igual à brasileira (ambas ≈ circunferência interna em mm − 40), mas sempre conferir no anelômetro. Cada aro = uma variação na grade (EAN próprio)."
+    },
+    {
+      "id": "conjunto",
+      "nome": "Conjunto",
+      "prefixo": "CJ",
+      "categoria_vitrine": "Conjuntos",
+      "unidade_venda": "conjunto",
+      "subtipos": [
+        "Colar + brinco",
+        "Colar + pulseira",
+        "Colar + pulseira + brinco",
+        "Bracelete + anel",
+        "Pulseira + anel",
+        "Colar + brinco + bracelete + anel",
+        "Mãe e filha",
+        "Outros"
+      ],
+      "tamanhos": ["Único"],
+      "observacao": "Componentes e medidas vão na descrição e no campo componentes. Ver regras.conjuntos."
+    },
+    {
+      "id": "piercing",
+      "nome": "Piercing",
+      "prefixo": "PC",
+      "categoria_vitrine": "Piercings",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Nariz (argola)",
+        "Nariz (pino)",
+        "Orelha (tragus / hélix)",
+        "Umbigo",
+        "Piercing fake (pressão)"
+      ],
+      "tamanhos": ["Único", "6 mm", "8 mm", "10 mm"]
+    },
+    {
+      "id": "oculos",
+      "nome": "Óculos",
+      "prefixo": "OC",
+      "categoria_vitrine": "Óculos",
+      "unidade_venda": "peça",
+      "subtipos": ["Óculos de sol", "Armação de grau", "Óculos infantil", "Cordão para óculos"],
+      "tamanhos": ["Único"],
+      "ncm_sugerido": "90041000 (óculos de sol) — confirmar com contador"
+    },
+    {
+      "id": "relogio",
+      "nome": "Relógio",
+      "prefixo": "RL",
+      "categoria_vitrine": "Relógios",
+      "unidade_venda": "peça",
+      "subtipos": ["Relógio feminino", "Relógio masculino", "Relógio infantil", "Relógio bracelete / joia"],
+      "tamanhos": ["Único"],
+      "ncm_sugerido": "9102 (relógio de pulso) — confirmar com contador"
+    },
+    {
+      "id": "acessorio_cabelo",
+      "nome": "Tiara / acessório de cabelo",
+      "prefixo": "TI",
+      "categoria_vitrine": "Acessórios de cabelo",
+      "unidade_venda": "peça",
+      "subtipos": ["Tiara", "Presilha / piranha", "Grampo / bico de pato", "Elástico / scrunchie", "Faixa", "Pente"],
+      "tamanhos": ["Único"],
+      "ncm_sugerido": "961511 / 961519 — confirmar com contador"
+    },
+    {
+      "id": "chaveiro",
+      "nome": "Chaveiro",
+      "prefixo": "CH",
+      "categoria_vitrine": "Chaveiros",
+      "unidade_venda": "peça",
+      "subtipos": ["Chaveiro metal", "Chaveiro com pingente", "Chaveiro personalizado"],
+      "tamanhos": ["Único"]
+    },
+    {
+      "id": "corrente",
+      "nome": "Corrente",
+      "prefixo": "CR",
+      "categoria_vitrine": "Correntes",
+      "unidade_venda": "peça",
+      "subtipos": [
+        "Veneziana",
+        "Cartier / elo português",
+        "Grumet",
+        "Rabo de rato",
+        "Singapura",
+        "Cordão baiano",
+        "Bolinhas",
+        "Piastrine / naval",
+        "Malha"
+      ],
+      "tamanhos": ["40 cm", "45 cm", "50 cm", "60 cm", "70 cm", "80 cm", "Ajustável (com extensor)"],
+      "observacao": "Corrente vendida sem pingente. Se vier com pingente fixo, é colar."
+    },
+    {
+      "id": "broche",
+      "nome": "Broche",
+      "prefixo": "BH",
+      "categoria_vitrine": "Broches",
+      "unidade_venda": "peça",
+      "subtipos": ["Broche", "Prendedor"],
+      "tamanhos": ["Único"]
+    },
+    {
+      "id": "berloque",
+      "nome": "Berloque",
+      "prefixo": "BQ",
+      "categoria_vitrine": "Berloques",
+      "unidade_venda": "peça",
+      "subtipos": ["Berloque", "Separador", "Trava"],
+      "tamanhos": ["Único"]
+    },
+    {
+      "id": "escapulario",
+      "nome": "Escapulário",
+      "prefixo": "ES",
+      "categoria_vitrine": "Escapulários",
+      "unidade_venda": "peça",
+      "subtipos": ["Escapulário corrente", "Escapulário com medalha"],
+      "tamanhos": ["Único", "50 cm", "60 cm", "70 cm"]
+    },
+    {
+      "id": "terco",
+      "nome": "Terço",
+      "prefixo": "TC",
+      "categoria_vitrine": "Terços",
+      "unidade_venda": "peça",
+      "subtipos": ["Terço de mão", "Terço de pescoço", "Dezena"],
+      "tamanhos": ["Único"]
+    }
+  ],
+  "banhos": [
+    {
+      "id": "ouro_18k",
+      "nome": "Ouro 18k (amarelo)",
+      "campo_up": "ouro",
+      "descricao": "BANHADA A OURO 18K",
+      "observacao": "Padrão de mercado no Brasil. Tom amarelo intenso."
+    },
+    {
+      "id": "ouro_14k",
+      "nome": "Ouro tom 14k (amarelo claro / champanhe)",
+      "campo_up": "ouro",
+      "descricao": "BANHADA A OURO",
+      "observacao": "Na China '14K' indica TOM de cor (mais claro), não teor. Para a cliente final, descrever como 'banhada a ouro' (sem quilate) ou 'ouro 18k' só se confirmado. Decisão comercial: confirmar com cliente."
+    },
+    {
+      "id": "ouro_rose",
+      "nome": "Ouro rosé",
+      "campo_up": "ouro",
+      "descricao": "BANHADA A OURO ROSÉ"
+    },
+    {
+      "id": "rodio_branco",
+      "nome": "Ródio branco (ouro branco)",
+      "campo_up": "rodio",
+      "descricao": "BANHADA A RÓDIO BRANCO",
+      "observacao": "Cor prateada brilhante. Em pedidos chineses aparece como 白金, 白K, 铂金色 ou 'S/W'."
+    },
+    {
+      "id": "rodio_negro",
+      "nome": "Ródio negro",
+      "campo_up": "rodio",
+      "descricao": "BANHADA A RÓDIO NEGRO",
+      "observacao": "Chinês: 黑金 / 枪黑 / 枪色 (grafite)."
+    },
+    {
+      "id": "prata",
+      "nome": "Banho de prata",
+      "campo_up": "prata",
+      "descricao": "BANHADA A PRATA",
+      "observacao": "Escurece mais rápido que ródio. Chinês: 银色 / 镀银."
+    },
+    {
+      "id": "bicolor",
+      "nome": "Bicolor (ouro + ródio)",
+      "campo_up": "ouro",
+      "campos_up_adicionais": ["rodio"],
+      "descricao": "BANHADA A OURO 18K E RÓDIO BRANCO",
+      "observacao": "Chinês: 双色 / 间色. Preencher Banho Ouro e Banho Ródio no UP quando houver custo de banho."
+    },
+    {
+      "id": "verniz",
+      "nome": "Verniz protetor (e-coating)",
+      "campo_up": "verniz",
+      "descricao": "COM VERNIZ PROTETOR",
+      "observacao": "Camada adicional sobre outro banho, não substitui. Chinês: 保护漆 / 电泳 / 防氧化."
+    },
+    {
+      "id": "pvd_dourado",
+      "nome": "Dourado PVD (aço)",
+      "campo_up": null,
+      "descricao": "DOURADO PVD",
+      "observacao": "Usado em aço inox (真空电镀 / IP金). Não é banho de ouro galvânico."
+    },
+    {
+      "id": "sem_banho",
+      "nome": "Sem banho (metal natural)",
+      "campo_up": null,
+      "descricao": "SEM BANHO"
+    },
+    {
+      "id": "a_definir",
+      "nome": "A definir na conferência",
+      "campo_up": null,
+      "descricao": "",
+      "observacao": "Usado quando o código do fornecedor não define a cor (ex.: MR = 默认/padrão da foto, ou especificação vazia). Bloqueia o cadastro até alguém confirmar pela foto ou pela peça física."
+    }
+  ],
+  "cores_pedra": [
+    { "id": "sem_pedra", "nome": "Sem pedra", "hex": "#E5E5E5" },
+    { "id": "cristal", "nome": "Cristal / transparente (strass, vidro)", "hex": "#F2F6FA" },
+    { "id": "zirconia_branca", "nome": "Zircônia branca", "hex": "#FAFAFF" },
+    { "id": "multicolor", "nome": "Colorida / multicolor", "hex": "#9B59B6" },
+    { "id": "azul", "nome": "Azul", "hex": "#1F5FBF" },
+    { "id": "azul_claro", "nome": "Azul claro / turquesa", "hex": "#3FB8C4" },
+    { "id": "verde", "nome": "Verde", "hex": "#2E8B57" },
+    { "id": "rosa", "nome": "Rosa", "hex": "#F4A7B9" },
+    { "id": "vermelho", "nome": "Vermelho", "hex": "#C0392B" },
+    { "id": "roxo", "nome": "Roxo / lilás", "hex": "#8E44AD" },
+    { "id": "amarelo", "nome": "Amarelo / citrino", "hex": "#F1C40F" },
+    { "id": "champanhe", "nome": "Champanhe / morganita", "hex": "#E6C9A8" },
+    { "id": "preto", "nome": "Preto", "hex": "#111111" },
+    { "id": "perola", "nome": "Pérola (sintética / shell pearl)", "hex": "#F3EBDD" },
+    { "id": "madreperola", "nome": "Madrepérola", "hex": "#EDE6F0" },
+    { "id": "esmalte_branco", "nome": "Esmalte branco / branco perolado", "hex": "#F7F3EA" },
+    { "id": "esmalte_nude", "nome": "Esmalte nude / bege", "hex": "#E8D3C0" },
+    { "id": "esmalte_rosa", "nome": "Esmalte rosa", "hex": "#F2A1B5" },
+    { "id": "esmalte_azul", "nome": "Esmalte azul / turquesa", "hex": "#2A9DB5" },
+    { "id": "esmalte_verde", "nome": "Esmalte verde", "hex": "#4CAF7A" },
+    { "id": "esmalte_vermelho", "nome": "Esmalte vermelho", "hex": "#C8323C" },
+    { "id": "esmalte_preto", "nome": "Esmalte preto", "hex": "#1A1A1A" },
+    { "id": "esmalte_marrom", "nome": "Esmalte marrom / café", "hex": "#4E3524" },
+    { "id": "esmalte_amarelo", "nome": "Esmalte amarelo / creme", "hex": "#F3E3A6" },
+    { "id": "esmalte_colorido", "nome": "Esmalte colorido (várias cores)", "hex": "#E58FB0" },
+    { "id": "resina", "nome": "Resina", "hex": "#E8C8A0" },
+    { "id": "acrilico", "nome": "Acrílico", "hex": "#DDEEFF" },
+    { "id": "pedra_natural", "nome": "Pedra natural (especificar)", "hex": "#8D7B68" }
+  ],
+  "codigos_fornecedor": {
+    "G": {
+      "banho": "ouro_18k",
+      "observacao": "G = Gold (金色), dourado amarelo. Confirmado pelas fotos do pedido X260926017 (todas douradas)."
+    },
+    "MR": {
+      "banho": "a_definir",
+      "banho_provavel": "ouro_18k",
+      "observacao": "Hipótese: MR = 默认 (mò rèn, 'padrão'), ou seja, a cor que aparece na foto do catálogo. Indício: das 30 linhas MR (incluindo MR白油/蓝油/粉油), 29 são douradas na foto e HT881A é prateada. Além disso, onde a especificação NÃO é MR, a foto às vezes mostra outra cor (XM1998T 14K com foto prateada; XM2027C 白金 com foto dourada). A especificação parece ser a variante escolhida e a foto, o padrão do catálogo. Definir o banho pela foto/peça física. Confirmar com cliente/fornecedor. Não confundir com o prefixo 'MR' de códigos de produto (MR1833A, MR336A...)."
+    },
+    "14K": {
+      "banho": "ouro_14k",
+      "observacao": "Tom ouro 14K (amarelo mais claro/champanhe que o 18K). Indica cor, não teor de ouro."
+    },
+    "14k": {
+      "banho": "ouro_14k",
+      "observacao": "Mesmo que '14K' (diferença só de digitação)."
+    },
+    "14KF": {
+      "banho": "ouro_14k",
+      "observacao": "Tom 14K + sufixo 'F' de significado incerto: pode ser 'filled' (包金, camada mais espessa) ou tratamento antioxidante (防氧化). Pelo preço (¥11–13 o bracelete) é improvável que seja gold-filled de verdade. Confirmar com cliente/fornecedor antes de anunciar qualquer diferencial."
+    },
+    "se": {
+      "banho": "bicolor",
+      "observacao": "Provável 色 (sè = cor): aparece só em itens descritos como 双色 (duas cores), SH4842A e HS177A. As fotos mostram só dourado, então as peças podem vir em ouro + ródio ou em outra combinação. Confirmar na conferência física."
+    },
+    "G达": {
+      "banho": "ouro_18k",
+      "observacao": "G = dourado. '达' provavelmente é abreviação interna (galvânica, fábrica ou padrão de cor da linha DGYH de braceletes esmaltados). Tratar como dourado e confirmar com cliente."
+    },
+    "白金": {
+      "banho": "rodio_branco",
+      "observacao": "白金 = ouro branco/platina (cor prateada), o que no Brasil vira ródio branco. ATENÇÃO: a foto de XM2027C (único item com esta especificação) é dourada. Ou o fornecedor manda a variante prateada (a foto seria só o padrão do catálogo), ou o '白' indica as zircônias brancas. Confirmar com cliente."
+    },
+    "": {
+      "banho": "a_definir",
+      "observacao": "Especificação vazia (ex.: MR336A 'MR混款'). Definir pela foto/peça."
+    },
+    "18K": {
+      "banho": "ouro_18k",
+      "observacao": "Não aparece neste pedido; comum em outros fornecedores."
+    },
+    "S": {
+      "banho": "rodio_branco",
+      "observacao": "Silver (银色). Não aparece neste pedido. Pode ser ródio ou prata: confirmar."
+    },
+    "RG": {
+      "banho": "ouro_rose",
+      "observacao": "Rose gold (玫瑰金). Não aparece neste pedido."
+    },
+    "玫瑰金": {
+      "banho": "ouro_rose",
+      "observacao": "Ouro rosé. Não aparece neste pedido."
+    },
+    "黑金": {
+      "banho": "rodio_negro",
+      "observacao": "Preto/grafite. Não aparece neste pedido."
+    },
+    "白油": {
+      "banho": null,
+      "cor_pedra": "esmalte_branco",
+      "observacao": "Sufixo de cor: esmalte (油) branco. Combina com o código de banho que vem antes (ex.: 'MR白油' = MR + esmalte branco)."
+    },
+    "蓝油": {
+      "banho": null,
+      "cor_pedra": "esmalte_azul",
+      "observacao": "Sufixo de cor: esmalte azul. Em SH5122A a foto mostra azul-turquesa."
+    },
+    "粉油": {
+      "banho": null,
+      "cor_pedra": "esmalte_rosa",
+      "observacao": "Sufixo de cor: esmalte rosa."
+    },
+    "黑油": {
+      "banho": null,
+      "cor_pedra": "esmalte_preto",
+      "observacao": "Sufixo de cor: esmalte preto. Não aparece neste pedido."
+    },
+    "红油": {
+      "banho": null,
+      "cor_pedra": "esmalte_vermelho",
+      "observacao": "Sufixo de cor: esmalte vermelho. Não aparece neste pedido."
+    },
+    "绿油": {
+      "banho": null,
+      "cor_pedra": "esmalte_verde",
+      "observacao": "Sufixo de cor: esmalte verde. Não aparece neste pedido."
+    }
+  },
+  "glossario_chines": {
+    "耳钉": "brinco de pino (stud, com tarraxa)",
+    "耳环": "brinco em geral (argola ou pendurado). Fornecedores usam de forma solta, então conferir pela foto",
+    "耳坠": "brinco pendurado",
+    "耳圈": "argola",
+    "耳夹": "brinco de pressão (sem furo)",
+    "耳骨夹": "ear cuff",
+    "耳线": "brinco corrente / threader",
+    "耳针": "pino do brinco",
+    "耳堵": "tarraxa",
+    "银针": "pino de prata (antialérgico)",
+    "eaiing": "erro de digitação de 'earring' (brinco)",
+    "吊坠": "pingente (vem sem corrente)",
+    "挂件": "pingente / pendente",
+    "手环": "bracelete (rígido)",
+    "手镯": "bracelete rígido",
+    "开口手镯": "bracelete aberto (cuff)",
+    "手链": "pulseira (corrente/flexível)",
+    "戒指": "anel",
+    "开口戒": "anel aberto (ajustável)",
+    "活口": "ajustável (abertura regulável)",
+    "尾戒": "anel de falange/mindinho",
+    "对戒": "par de alianças",
+    "项链": "colar",
+    "锁骨链": "gargantilha curta / choker (corrente na altura da clavícula)",
+    "毛衣链": "colar longo ('corrente de suéter')",
+    "套链": "colar de conjunto",
+    "脚链": "tornozeleira",
+    "胸针": "broche",
+    "发夹": "presilha / grampo de cabelo",
+    "发箍": "tiara",
+    "发圈": "elástico de cabelo",
+    "抓夹": "piranha (presilha de garra)",
+    "眼镜": "óculos",
+    "太阳镜": "óculos de sol",
+    "手表": "relógio de pulso",
+    "钥匙扣": "chaveiro",
+    "鼻钉": "piercing de nariz",
+    "肚脐钉": "piercing de umbigo",
+    "身体链": "body chain",
+    "两件套": "conjunto de 2 peças",
+    "三件套": "conjunto de 3 peças",
+    "四件套": "conjunto de 4 peças",
+    "套装": "conjunto / kit",
+    "延长扣": "extensor (correntinha de regulagem do fecho)",
+    "延长链": "extensor",
+    "珠": "conta / pérola / esfera (ex.: 8MM珠 = pérola ou bola de 8 mm). Ver foto",
+    "珍珠": "pérola (geralmente sintética / shell pearl)",
+    "贝壳": "concha / madrepérola",
+    "贝母": "madrepérola",
+    "锆石": "zircônia (cúbica)",
+    "锆": "zircônia",
+    "白锆": "zircônia branca",
+    "彩锆": "zircônias coloridas (multicolor)",
+    "水钻": "strass (cristal/vidro)",
+    "玻璃": "vidro",
+    "树脂": "resina",
+    "亚克力": "acrílico",
+    "珐琅": "esmalte vitrificado",
+    "油": "esmalte ('óleo'), em 白油/粉油/蓝油",
+    "滴油": "esmalte a frio ('gota de óleo', resina epóxi colorida)",
+    "滴油款": "modelo com esmalte",
+    "滴白油": "esmalte branco",
+    "滴粉油": "esmalte rosa",
+    "白油": "esmalte branco",
+    "蓝油": "esmalte azul",
+    "粉油": "esmalte rosa",
+    "画油": "esmalte pintado à mão",
+    "分左右": "par diferenciado esquerdo/direito (espelhado). Conferir se veio 1 E + 1 D",
+    "单对": "um par (preço/unidade por par)",
+    "一对": "um par",
+    "单个": "unitário (preço por peça; bracelete não vem em par)",
+    "一个": "uma peça",
+    "一套": "um conjunto",
+    "双色": "duas cores (bicolor)",
+    "间色": "bicolor intercalado",
+    "混打": "sortido / misturado no mesmo lote (ex.: 三个尺寸混打 = três tamanhos juntos na cartela)",
+    "混款": "modelos sortidos (o fornecedor escolhe a mistura)",
+    "三个尺寸": "três tamanhos",
+    "三个尺寸混打": "três tamanhos sortidos na mesma cartela (kit de 3 pares de argolas, ex.: 8+10+12 mm)",
+    "达": "sufixo em 'G达' (significado incerto: abreviação interna de galvânica, fábrica ou padrão de cor). Confirmar com cliente",
+    "尺寸": "tamanho / medida",
+    "款": "modelo",
+    "白": "branco (geralmente zircônia branca ou esmalte branco)",
+    "白金": "ouro branco / platina (cor prateada), equivale a ródio branco. Ver codigos_fornecedor",
+    "#": "número de medida. Em brinco provavelmente mm (21# ≈ 21 mm); em anel é a numeração do aro (港码). Confirmar",
+    "MM": "milímetros",
+    "CM": "centímetros",
+    "*": "separador de dimensões (15*30 = 15 x 30 mm)",
+    "+": "soma de componentes ou medidas (43CM+17CM = colar 43 cm + pulseira 17 cm)",
+    "珍珠白": "branco perolado",
+    "珍珠粉": "rosa perolado",
+    "深咖色": "marrom café escuro",
+    "咖啡色": "marrom / café",
+    "米白": "off-white",
+    "香槟": "champanhe",
+    "金色": "dourado",
+    "银色": "prateado",
+    "玫瑰金": "ouro rosé",
+    "黑金": "preto / grafite (ródio negro)",
+    "枪黑": "grafite (gunmetal)",
+    "红": "vermelho",
+    "绿": "verde",
+    "蓝": "azul",
+    "粉": "rosa",
+    "紫": "roxo",
+    "黄": "amarelo",
+    "黑": "preto",
+    "⭐️": "marcação manual do vendedor (destaque/atenção). Significado não informado; confirmar com cliente",
+    "不锈钢": "aço inoxidável",
+    "钛钢": "aço inox ('aço titânio', normalmente 316L, não é titânio puro)",
+    "钛": "titânio",
+    "925银": "prata 925",
+    "纯银": "prata pura/de lei (exigir marcação 925)",
+    "铜": "cobre / latão (base da maioria das semijoias chinesas)",
+    "黄铜": "latão",
+    "合金": "liga metálica (zamac); qualidade inferior ao latão",
+    "镀金": "banhado a ouro",
+    "真金电镀": "galvanoplastia com ouro real",
+    "包金": "gold filled / folheado de camada espessa",
+    "18K金": "ouro 18k (no contexto de bijuteria indica cor/banho, não teor)",
+    "14K金": "tom ouro 14k (cor mais clara)",
+    "K金": "ouro (genérico de quilate)",
+    "电镀": "galvanoplastia / banho",
+    "保色": "banho que 'segura a cor' (maior durabilidade, sem norma)",
+    "防过敏": "antialérgico",
+    "防氧化": "antioxidante (verniz/proteção)",
+    "不掉色": "não descasca / não perde a cor (alegação comercial)",
+    "货名": "nome/descrição do item",
+    "货号": "código do produto do fornecedor",
+    "条码": "código de barras / código",
+    "图片": "foto",
+    "多规格": "especificação / variação (banho, cor)",
+    "规格": "especificação",
+    "单价": "preço unitário",
+    "数量": "quantidade",
+    "金额": "valor total da linha",
+    "合计": "total",
+    "订单优惠": "desconto do pedido",
+    "应收": "valor a receber (total devido)",
+    "实收": "valor recebido (pago). '0' = pagamento não registrado no documento",
+    "单据备注": "observações do documento",
+    "客户": "cliente",
+    "下单时间": "data do pedido",
+    "单号": "número do pedido",
+    "序": "número da linha",
+    "首饰": "joias / bijuterias",
+    "有限公司": "Ltda.",
+    "雅宝": "Yabao, shopping atacadista de bijuterias em Liuhua (流花路), Guangzhou",
+    "起订量": "quantidade mínima",
+    "现货": "pronta entrega",
+    "欠货": "item em falta (vai depois)",
+    "缺货": "sem estoque",
+    "补货": "reposição",
+    "退货": "devolução",
+    "换货": "troca",
+    "次品": "peça com defeito",
+    "包装": "embalagem",
+    "卡": "cartela",
+    "吊卡": "cartela de pendurar",
+    "OPP袋": "saquinho plástico transparente",
+    "批发": "atacado",
+    "档口": "box/loja do atacadista",
+    "运费": "frete",
+    "快递": "transportadora/courier",
+    "货款": "pagamento da mercadoria"
+  },
+  "regras": {
+    "referencia": {
+      "formato": "{PREFIXO}_{AA}{MM}{SSS}",
+      "exemplo": "BR_2611001",
+      "descricao": "PREFIXO = tipos[].prefixo (2 letras); AA = ano e MM = mês do PRIMEIRO cadastro do modelo; SSS = sequência de 001 a 999 por prefixo dentro do mês. Uma referência por MODELO (produto pai). As variações (cor, banho, aro) ficam dentro da grade com a mesma referência.",
+      "justificativa": [
+        "Mantém o padrão atual da cliente: prefixo, underline e 7 dígitos (BR_2202909). Etiquetas, relatórios e buscas do UP continuam iguais.",
+        "Se BR_2202909 seguiu a lógica 22/02 + 909, o formato é idêntico. Confirmar com a cliente como esse número foi gerado.",
+        "AAMM mostra a idade do modelo na etiqueta. Em semijoia isso importa (oxidação, moda) e ajuda a decidir promoção ou rebanho sem consultar o sistema.",
+        "999 modelos por tipo por mês é muito acima do volume atual (este pedido tem 45 modelos de brinco)."
+      ],
+      "regras": [
+        "Antes de criar, buscar no UP pelo Código Externo (código do fornecedor). Se o modelo já existe (recompra), REUTILIZAR a referência e só somar estoque. Não criar referência nova para recompra.",
+        "A chave de unicidade do modelo é fornecedor + código do fornecedor sem o sufixo de cor. Códigos chineses só são únicos dentro do mesmo fornecedor.",
+        "O contador SSS fica no banco do app e só avança. Ao migrar, iniciar pelo maior SSS existente no UP para o mesmo PREFIXO_AAMM, mais 1.",
+        "Uma referência nunca é reaproveitada, mesmo se o produto for excluído.",
+        "Conjuntos usam CJ e kits de brincos usam BR."
+      ],
+      "alternativa": "{PREFIXO}_{SEQ7}: sequência pura por prefixo (BR_0000001). Mais simples, mas perde a informação de idade e não se parece com o padrão atual. O parecer do administrador usa 'BR-000123' como exemplo. Recomendo manter o underline e os 7 dígitos que a cliente já usa no UP (BR_2202909), para não haver dois padrões convivendo."
+    },
+    "codigo_barras": {
+      "padrao": "EAN-13 de circulação interna",
+      "estrutura": "91 + SEQ10 + DV",
+      "exemplo": "9100000000015",
+      "prefixo": "91",
+      "sequencia": "SEQ10 = contador global de 10 dígitos com zeros à esquerda, um por SKU (cada variação da grade: cor, banho, aro). Na prática, SEQ10 = '00' + SEQ8. O código não carrega significado. Toda informação fica na referência e no cadastro.",
+      "compatibilidade_code128": "O parecer do administrador (docs/especialistas/administrador.md) propõe imprimir um código interno de 8 dígitos em Code128-C, porque cabe com folga na face de 12x30 mm da etiqueta rabicho 95x12. As duas propostas usam o MESMO contador SEQ8: EAN-13 = '9100' + SEQ8 + DV; Code128-C = SEQ8. A simbologia impressa (e gravada no campo código de barras do UP) é decisão pendente, a tomar depois do teste de leitura no caixa. O contador não muda.",
+      "digito_verificador": "Pesos 1 e 3 alternados da esquerda para a direita nos 12 primeiros dígitos. DV = (10 - (soma mod 10)) mod 10. Exemplo de validação: 9000023019929 (UP) dá soma 61 e DV 9.",
+      "evitar": [
+        "Prefixo 2 (20 a 29): muitos PDVs no Brasil leem como etiqueta de balança (código + peso/preço) e o caixa registra preço errado.",
+        "789 e 790 (GS1 Brasil): pertencem a empresas associadas. Só usar se a Fio de Amor contratar a GS1.",
+        "690 a 699 (China): podem vir de fábrica em óculos/relógios e colidiriam.",
+        "9000…: faixa que o próprio UP Vendas gera (ex.: 9000023019929, aparentemente 9 + ID interno com zeros). O prefixo 91 fica fora dela.",
+        "977 a 979 (ISSN/ISBN) e 98x/99x (cupons)."
+      ],
+      "regras": [
+        "Gerar o EAN no app, antes de imprimir etiquetas. Na sincronização, gravar no campo de código de barras da variação no UP e não deixar o UP gerar outro.",
+        "Antes de gravar, consultar o UP pelo código. Se já existir, pular para o próximo número da sequência e registrar o conflito.",
+        "Um EAN impresso nunca muda nem é reutilizado. Produto descontinuado mantém o código.",
+        "Recompra do mesmo modelo/variação usa o MESMO EAN.",
+        "Peças com EAN de fábrica (relógio, óculos) podem manter o original como código adicional, mas a etiqueta da loja usa o 91.",
+        "Etiqueta rabicho 95x12 (face útil de 12x30 mm): o EAN-13 com módulo de 0,25 mm (2 pontos a 203 dpi) ocupa ~28,3 mm com as zonas de silêncio. Cabe, mas fica abaixo do mínimo GS1 (80% = 29,8 mm) e sem margem. Funciona em circuito fechado com leitor de imagem, mas é obrigatório testar no leitor do caixa com 20 etiquetas. Se falhar, imprimir Code128-C do SEQ8 (ver compatibilidade_code128).",
+        "Para marketplace (Mercado Livre, Shopee), usar 'sem GTIN / produto próprio', já que o 91 não é GTIN registrado."
+      ]
+    },
+    "variacoes": {
+      "definicao": "Variação = mesmo modelo físico (mesmo formato, preço e tipo/subtipo) que muda apenas cor do esmalte/pedra, banho ou aro. Fica em uma única referência com grade. Cada variação tem EAN próprio, saldo próprio e foto própria.",
+      "agrupamento": [
+        "Mesmo código do fornecedor com especificações diferentes. Ex.: SH5122A em MR白油, MR蓝油 e MR粉油 vira um produto com 3 variações (esmalte branco, azul e rosa).",
+        "Mesmo código-raiz com letra final diferente E mesmo preço E mesma forma na foto. Ex.: SH5395C/SH5395E, SH5185A/SH5185B, DGYH3018B/DGYH3018D, DGYH2220A/DGYH2220F. A letra final do fornecedor costuma indicar a cor. Confirmar pela foto antes de agrupar, porque nem sempre é cor.",
+        "Preço de custo diferente, ou tipo/subtipo diferente: produto separado."
+      ],
+      "codigo_externo": "Produto: código-raiz do fornecedor (ex.: 'SH5122A' ou 'SH5395'). Variação: código completo + especificação (ex.: 'SH5395C MR'). Se o UP só aceitar Código Externo no produto, colocar o código completo na descrição da variação.",
+      "descricao_variacao": "{materiais[].descricao_grade montada com o banho} - {COR}. Ex.: 'SEMIJOIA BANHADA A OURO 18K - ESMALTE ROSA'.",
+      "fotos": "Cada variação precisa de foto própria. Neste pedido as 3 linhas de SH5122A têm a MESMA foto, então é preciso fotografar na chegada.",
+      "aneis": "Para anéis com aro fixo, cada aro é uma variação (tamanhos de tipos.anel). Anel aberto: uma única variação 'Ajustável'."
+    },
+    "conjuntos": {
+      "padrao": "两件套/三件套/四件套 entram como UM produto (tipo conjunto, prefixo CJ), com um EAN e saldo em conjuntos. É assim que o fornecedor vende e precifica, e assim a cliente vende na maleta/vitrine.",
+      "componentes": "Listar os componentes com medidas na descrição e no campo componentes. Quando a linha traz dois códigos (ex.: 'YS449A/XJST37C', 'YL576A/LHH1154AS'), cada código é um componente e o Código Externo do conjunto fica com os dois separados por '/'.",
+      "etiquetagem": "Etiqueta com EAN na embalagem do conjunto. Etiqueta pequena sem código de barras em cada componente com a referência + '/1', '/2'… para remontar se separarem na vitrine.",
+      "desmembrar_quando": [
+        "Componente danificado ou perdido (vende-se o restante separado).",
+        "Conjunto parado há mais de 120 dias enquanto os tipos avulsos giram bem.",
+        "Decisão comercial de vender avulso desde a entrada (registrar antes do cadastro)."
+      ],
+      "como_desmembrar": "Baixa de 1 conjunto (movimento 'desmembramento', não venda) e entrada de cada componente com referência própria do seu tipo (CL, PU, BR, BC, AN). O custo é rateado pelo peso aproximado de cada peça ou, na falta dele, pelo critério fixo colar 55% / pulseira ou bracelete 30% / brinco 10% / anel 5%, ajustado ao número de peças. A soma dos custos dos componentes tem que fechar com o custo do conjunto.",
+      "kits_de_brincos": "Cartelas com vários pares (三个尺寸混打, linha 'MR' da Delicate) são tipo brinco, subtipo 'Kit de brincos', vendidas por cartela. Não desmembrar: os pares não têm etiqueta própria e a cartela é o produto."
+    },
+    "parse_especificacao": "Separar a coluna 多规格 em prefixo latino (G, MR, 14K, 14KF, se) e sufixo chinês (白油, 蓝油, 粉油, 达). O prefixo vai em codigos_fornecedor para achar o banho e o sufixo de cor define a cor do esmalte. Normalizar caixa (14k = 14K). Código desconhecido: banho 'a_definir' e revisão manual.",
+    "nome_produto": "{TIPO} ({SIGLA}) {DESCRIÇÃO CURTA}, em maiúsculas, até 60 caracteres, sem nome de marcas de terceiros. Ex.: 'BRINCO (SJ) FLOR ESMALTADA BRANCA COM ZIRCÔNIA', 'CONJUNTO (SJ) COLAR E PULSEIRA RIVIERA ZIRCÔNIA'.",
+    "categoria_vitrine": "'{tipos[].categoria_vitrine} - {subtipo}'. Ex.: 'Brincos - Brinco pequeno'."
+  }
+}

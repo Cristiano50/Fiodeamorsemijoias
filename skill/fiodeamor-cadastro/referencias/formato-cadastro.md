@@ -16,7 +16,7 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
 
   "pedido": {
     "numero": "X260926017",
-    "fornecedor": "广州宁裕铧首饰有限公司",   // nome ORIGINAL do documento (é o que a recompra usa)
+    "fornecedor": "广州某某饰品有限公司",   // nome ORIGINAL do documento (é o que a recompra usa)
     "dataCompra": "2026-09-26",              // AAAA-MM-DD
     "moeda": "CNY",                          // CNY | BRL | USD
     "cotacao": 0.7745,                       // R$ por 1 unidade da moeda (BRL = 1)
@@ -66,7 +66,7 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
       // preço (scripts/calcular.py preenche)
       "fator": null,                        // fator só desta peça (vence o do pedido)
       "precoManual": null,                  // preço fixado à mão (vence o fator)
-      "custoProdutoBrl": 7.75, "custoAdicionalBrl": 1.03, "custoTotalBrl": 8.78,
+      "custoProdutoBrl": 7.74, "custoAdicionalBrl": 1.04, "custoTotalBrl": 8.78,
       "fatorAplicado": 10, "precoVenda": 87.99,
       "precos": { "consignado": 87.99, "atacado": 52.99 },
       "ncm": "71171900",

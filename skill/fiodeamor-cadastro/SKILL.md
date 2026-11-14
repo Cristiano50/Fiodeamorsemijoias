@@ -52,12 +52,13 @@ preencha os itens você mesmo (recorte com Pillow e salve em `fotos/linha-NNN.jp
 
 ### 3. Cotação
 ```
-python3 scripts/ptax.py AAAA-MM-DD --moeda CNY
+python3 scripts/ptax.py AAAA-MM-DD --moeda CNY > /tmp/cadastro/ptax.json
 ```
 PTAX de venda do boletim de fechamento do Banco Central na data da compra (fim de semana/feriado = último dia útil).
+Guarde a saída (JSON) em `/tmp/cadastro/ptax.json`: ela entra no passo 6.
 Se a rede bloquear (código 2), abra com a ferramenta de busca da web a URL que o script mostrar
-(`https://www4.bcb.gov.br/Download/fechamento/AAAAMMDD.csv`, linha do CNY, coluna de venda) ou peça a cotação à pessoa.
-Grave em `pedido.cotacao`, `pedido.cotacaoData` e `pedido.cotacaoFonte`. Grave também `pedido.frete` e `pedido.fator`.
+(`https://www4.bcb.gov.br/Download/fechamento/AAAAMMDD.csv`) e passe o arquivo baixado com `--csv arquivo.csv`,
+ou peça a cotação à pessoa e use `--cotacao` no passo 6.
 
 ### 4. Classificar e dar nome (você)
 Para cada item, olhando a **foto** e a linha do documento, preencha no `cadastro.json`:
@@ -75,19 +76,21 @@ do fornecedor) dividem a referência. As novas seguem `BR_2611001` (prefixo do t
 
 ### 6. Preço
 ```
-python3 scripts/calcular.py /tmp/cadastro/cadastro.json
+python3 scripts/calcular.py /tmp/cadastro/cadastro.json --ptax /tmp/cadastro/ptax.json --frete 850 [--fator 10] [--contexto /tmp/cadastro/contexto.json]
 ```
+(`--cotacao 0,7745` no lugar de `--ptax` quando a cotação veio da pessoa; `--contexto` quando o app respondeu no passo 1.)
 Custo da peça = preço × cotação × (1 + frete ÷ mercadoria em R$). Preço = custo × fator (padrão ×10), arredondado para
 cima terminando em ,99. Preço digitado pela loja vai em `precoManual`; fator só de uma peça vai em `fator`.
 Mostre os alertas (ex.: fator abaixo do mínimo).
 
 ### 7. Saídas
 ```
-python3 scripts/gerar_saidas.py /tmp/cadastro/cadastro.json --saida /tmp/cadastro/saida
+python3 scripts/gerar_saidas.py /tmp/cadastro/cadastro.json --saida /tmp/cadastro/saida [--contexto /tmp/cadastro/contexto.json]
 ```
 Gera `planilha-up-<pedido>.xlsx` e `.csv`, `cadastro-<pedido>.json` e `resumo-<pedido>.md`.
 **Código de barras:** peça nova vai **sem código** — o UP Vendas cria no cadastro (é o código que a loja usa).
-Recompra vai com o código do UP da peça original.
+Recompra vai com o código do UP da peça original. A planilha da skill vai sem o link da foto (as fotos ficam no app);
+com o app na internet, a planilha baixada pelo app (pedido → Planilha UP) leva o link para o UP baixar a foto.
 
 ### 8. Enviar ao app
 ```

@@ -3,8 +3,8 @@ import { desc, sql } from "drizzle-orm";
 import { getDb, schema } from "./db";
 
 /**
- * Fornecedores: o nome original do documento (ex.: 广州宁裕铧首饰有限公司) fica guardado nos pedidos e é ele
- * que a recompra usa. A loja pode dar um apelido (ex.: "Ningyuhua (Guangzhou)") só para exibição.
+ * Fornecedores: o nome original do documento (ex.: 广州某某饰品有限公司) fica guardado nos pedidos e é ele
+ * que a recompra usa. A loja pode dar um apelido (ex.: "Fornecedor Guangzhou") só para exibição.
  */
 
 /** Chave do fornecedor: o nome original sem espaços e em minúsculas (a mesma regra da recompra). */

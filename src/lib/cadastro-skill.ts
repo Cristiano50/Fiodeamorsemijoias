@@ -398,7 +398,8 @@ export async function importarCadastro(p: PacoteCadastro, req: NextRequest | nul
       banho: t(it.banho, 60),
       corPedra: lista(it.corPedra),
       tamanho: t(it.tamanho, 80),
-      variacao: t(it.variacao, 120) ?? t(it.especificacao, 40),
+      // A especificação do fornecedor (G, MR…) fica na linha original; a variação é a da classificação (ex.: "esmalte rosa").
+      variacao: t(it.variacao, 120),
       grupo: t(it.grupo, 80),
       ehConjunto: !!it.ehConjunto,
       componentes: lista(it.componentes),
