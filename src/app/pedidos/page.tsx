@@ -3,8 +3,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Botao, Carregando, Cartao, Selo } from "@/components/ui";
 import { api, brl, moedaSimbolo, num } from "@/lib/cliente";
+import { NomeFornecedor } from "@/components/Fornecedor";
 
-type PedidoLista = { id: string; numero: string | null; fornecedor: string | null; dataCompra: string | null; moeda: string; cotacao: number; status: string; linhas: number; pecas: number; custo: number; venda: number; criadoEm: string };
+type PedidoLista = { id: string; numero: string | null; fornecedor: string | null; fornecedorApelido: string | null; dataCompra: string | null; moeda: string; cotacao: number; status: string; linhas: number; pecas: number; custo: number; venda: number; criadoEm: string };
 
 export default function PedidosPage() {
   const [lista, setLista] = useState<PedidoLista[] | null>(null);
@@ -45,7 +46,9 @@ export default function PedidosPage() {
                       {x.numero ?? "sem número"}
                     </Link>
                   </td>
-                  <td className="max-w-xs truncate">{x.fornecedor}</td>
+                  <td className="max-w-xs truncate">
+                    <NomeFornecedor nome={x.fornecedor} apelido={x.fornecedorApelido} vazio="—" />
+                  </td>
                   <td>{x.dataCompra?.split("-").reverse().join("/")}</td>
                   <td>
                     {moedaSimbolo(x.moeda)} 1 = R$ {num(x.cotacao, 4)}

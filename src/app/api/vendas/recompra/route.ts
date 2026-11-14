@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
     await exigirPapel(req);
     const p = req.nextUrl.searchParams;
     const formato = p.get("formato") === "csv" ? "csv" : "xlsx";
-    const itens = itensRecompra(await analiseVendas({ inicio: p.get("inicio"), fim: p.get("fim") }));
+    const analise = await analiseVendas({ inicio: p.get("inicio"), fim: p.get("fim") });
+    const itens = itensRecompra(analise);
     const nome = `fiodeamor-recompra-${hojeLocal()}`;
     const origem = req.nextUrl.origin;
     if (formato === "csv") {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
         headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${nome}.csv"` },
       });
     }
-    return new NextResponse(await xlsxRecompra(itens, origem), {
+    return new NextResponse(await xlsxRecompra(itens, origem, analise.apelidosFornecedor), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${nome}.xlsx"`,

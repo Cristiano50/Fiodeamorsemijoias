@@ -9,6 +9,7 @@ import { chaveSequenciaReferencia, montarEan13, montarReferencia } from "./codig
 import type { ItemAnalisado } from "./ai/claude";
 import { lerLinha } from "./extracao";
 import type { Produto } from "./db/schema";
+import { chaveFornecedor } from "./fornecedores";
 
 export const novoId = () => randomUUID();
 
@@ -235,7 +236,8 @@ const normCodigo = (s: string | null | undefined) => (s ?? "").toUpperCase().rep
 /** Especificação do fornecedor (G, MR, 14K, MR粉油…) lida da linha original do documento — estável, a IA não altera. */
 const especificacao = (p: { textoOriginal: string | null; variacao: string | null }) =>
   (p.textoOriginal ? (lerLinha(p.textoOriginal).especificacao ?? "") : (p.variacao ?? "")).trim().toUpperCase();
-const normFornecedor = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, "").toLowerCase();
+// O nome original do fornecedor (não o apelido) identifica o fornecedor na recompra.
+const normFornecedor = chaveFornecedor;
 
 /**
  * Recompra: a linha cujo código do fornecedor (+ especificação/cor) já foi cadastrado em pedido anterior

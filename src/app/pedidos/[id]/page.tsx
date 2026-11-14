@@ -8,6 +8,7 @@ import { Markdown } from "@/components/Markdown";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
 import { BotaoFotoIa } from "@/components/BotaoFotoIa";
+import { RenomearFornecedor } from "@/components/Fornecedor";
 
 interface Cenario {
   nome: string;
@@ -16,7 +17,7 @@ interface Cenario {
   valores: Record<string, number>;
 }
 interface Dados {
-  pedido: Pedido;
+  pedido: Pedido & { fornecedorApelido: string | null };
   produtos: Produto[];
   linhas: number;
   pecas: number;
@@ -184,9 +185,12 @@ export default function PedidoPage() {
             ← Pedidos
           </Link>
           <h1 className="text-4xl font-semibold">Pedido {pedido.numero ?? "sem número"}</h1>
-          <p className="text-sm text-[#8a6d78]">
-            {pedido.fornecedor ?? "Fornecedor não informado"} · compra em {pedido.dataCompra?.split("-").reverse().join("/")} · {pedido.arquivoNome}
-          </p>
+          <div className="text-sm text-[#8a6d78]">
+            <RenomearFornecedor nome={pedido.fornecedor} apelido={pedido.fornecedorApelido} aoSalvar={carregar} />
+            <span className="block">
+              compra em {pedido.dataCompra?.split("-").reverse().join("/")} · {pedido.arquivoNome}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {(d.semAnalise > 0 || d.paginasPendentes > 0) && (

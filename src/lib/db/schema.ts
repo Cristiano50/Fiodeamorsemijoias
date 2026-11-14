@@ -228,6 +228,18 @@ export const lotesVendas = sqliteTable("lotes_vendas", {
   criadoEm: text("criado_em").notNull().default(agora),
 });
 
+/**
+ * Apelido do fornecedor (nome de exibição escolhido pela loja).
+ * O nome original do documento (ex.: em chinês) continua em pedidos.fornecedor e é ele que a recompra usa.
+ * chave = nome original sem espaços e em minúsculas (a mesma regra da recompra).
+ */
+export const fornecedores = sqliteTable("fornecedores", {
+  chave: text("chave").primaryKey(),
+  nomeOriginal: text("nome_original").notNull(),
+  apelido: text("apelido"),
+  atualizadoEm: text("atualizado_em").notNull().default(agora),
+});
+
 export type Pedido = typeof pedidos.$inferSelect;
 export type Produto = typeof produtos.$inferSelect;
 export type NovoProduto = typeof produtos.$inferInsert;

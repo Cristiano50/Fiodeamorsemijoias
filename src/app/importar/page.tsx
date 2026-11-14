@@ -21,6 +21,15 @@ export default function ImportarPage() {
   const [arrastando, setArrastando] = useState(false);
 
   const [fornecedor, setFornecedor] = useState("");
+  // Fornecedores já cadastrados: o nome original (o que a recompra usa) e o apelido da loja.
+  const [fornecedores, setFornecedores] = useState<{ nome: string; apelido: string | null }[]>([]);
+  useEffect(() => {
+    api<{ nome: string; apelido: string | null }[]>("/api/fornecedores")
+      .then(setFornecedores)
+      .catch(() => {});
+  }, []);
+  const chaveForn = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+  const fornecedorConhecido = fornecedor.trim() ? fornecedores.find((f) => chaveForn(f.nome) === chaveForn(fornecedor)) : undefined;
   const [numero, setNumero] = useState("");
   const [dataCompra, setDataCompra] = useState(new Date().toISOString().slice(0, 10));
   const [moeda, setMoeda] = useState("CNY");
@@ -238,7 +247,19 @@ export default function ImportarPage() {
         <Cartao titulo="Dados do pedido">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-8">
             <Campo rotulo="Fornecedor" className="lg:col-span-2">
-              <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" />
+              <input value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} placeholder="Nome do fornecedor" list="fornecedores-conhecidos" />
+              <datalist id="fornecedores-conhecidos">
+                {fornecedores.map((f) => (
+                  <option key={f.nome} value={f.nome}>
+                    {f.apelido ?? f.nome}
+                  </option>
+                ))}
+              </datalist>
+              {fornecedorConhecido ? (
+                <span className="text-xs text-[#6b8f71]">✓ Fornecedor já cadastrado{fornecedorConhecido.apelido ? `: ${fornecedorConhecido.apelido}` : ""}. A recompra vai achar as peças que já vieram dele.</span>
+              ) : (
+                fornecedores.length > 0 && <span className="text-xs text-[#9a8089]">Use o nome original (ex.: em chinês) para a recompra reconhecer o fornecedor.</span>
+              )}
             </Campo>
             <Campo rotulo="Nº do pedido">
               <input value={numero} onChange={(e) => setNumero(e.target.value)} />

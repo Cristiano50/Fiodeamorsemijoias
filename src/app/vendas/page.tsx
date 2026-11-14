@@ -67,7 +67,7 @@ export default function VendasPage() {
   const { config } = useConfig();
   const tax = config?.taxonomia;
   const [periodo, setPeriodo] = useState({ inicio: "", fim: "" });
-  const [analise, setAnalise] = useState<AnaliseVendas | null>(null);
+  const [analise, setAnalise] = useState<(AnaliseVendas & { apelidosFornecedor?: Record<string, string> }) | null>(null);
   const [lotes, setLotes] = useState<Lote[] | null>(null);
   const [aba, setAba] = useState<Aba>("repor");
   const [importar, setImportar] = useState(false);
@@ -236,7 +236,7 @@ export default function VendasPage() {
             {aba === "parados" && <AbaParados lista={parados} tax={tax} dias={analise.parametros.diasEstoqueParado} />}
             {aba === "abc" && <AbaAbc analise={analise} tax={tax} />}
             {aba === "tipo" && <TabelaResumo lista={analise.porTipo} titulo="Tipo" nome={(k) => (k ? nomeDe(tax?.tipos, k) : "Sem tipo")} />}
-            {aba === "fornecedor" && <TabelaResumo lista={analise.porFornecedor} titulo="Fornecedor" nome={(k) => k || "Sem fornecedor"} />}
+            {aba === "fornecedor" && <TabelaResumo lista={analise.porFornecedor} titulo="Fornecedor" nome={(k) => (k ? (analise.apelidosFornecedor?.[k] ? `${analise.apelidosFornecedor[k]} · ${k}` : k) : "Sem fornecedor")} />}
             {aba === "revendedoras" && <AbaRevendedoras analise={analise} tax={tax} />}
           </Cartao>
 
@@ -605,7 +605,7 @@ function Peca({ s, tax }: { s: SkuAnalise; tax?: TaxonomiaCliente }) {
           {s.referencia ?? "—"} · {s.codigoBarras ?? "sem EAN"}
         </div>
         <div className="text-[0.7rem] text-[#9a8089]">
-          {nomeDe(tax?.tipos, s.tipo)} · {s.fornecedor ?? "sem fornecedor"}
+          {nomeDe(tax?.tipos, s.tipo)} · <span title={s.fornecedor ?? undefined}>{s.fornecedorApelido ?? s.fornecedor ?? "sem fornecedor"}</span>
           {s.codigoFornecedor ? ` · ${s.codigoFornecedor}` : ""}
         </div>
       </div>

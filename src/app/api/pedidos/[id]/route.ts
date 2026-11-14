@@ -8,6 +8,7 @@ import { exigirPapel } from "@/lib/auth";
 import { registrar } from "@/lib/historico";
 import { checarFator } from "@/lib/permissoes";
 import { fotosModeloPorProduto } from "@/lib/fotos";
+import { apelidoDe, apelidosFornecedores } from "@/lib/fornecedores";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     const produtos = await produtosDoPedido(id);
     return ok({
       ...resumo,
+      pedido: { ...resumo.pedido, fornecedorApelido: apelidoDe(await apelidosFornecedores(), resumo.pedido.fornecedor) },
       produtos,
       fotosModelo: await fotosModeloPorProduto(produtos.map((p) => p.id)),
       paginasPendentes: paginas.filter((p) => !p.processada).length,

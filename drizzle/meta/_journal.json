@@ -22,6 +22,13 @@
       "when": 1794619379357,
       "tag": "0002_usuarios_historico_gastos_vendas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794662197767,
+      "tag": "0003_fornecedores_apelido",
+      "breakpoints": true
     }
   ]
 }

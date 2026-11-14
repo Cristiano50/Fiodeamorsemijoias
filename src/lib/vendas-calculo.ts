@@ -619,6 +619,8 @@ export interface SkuAnalise {
   nome: string;
   tipo: string | null;
   fornecedor: string | null;
+  /** Apelido do fornecedor dado pela loja (só exibição; preenchido pelo servidor). */
+  fornecedorApelido?: string | null;
   imagemId: string | null;
   destaque: boolean;
   precoVenda: number | null;

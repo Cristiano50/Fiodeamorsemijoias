@@ -5,6 +5,7 @@ import { erro, ok } from "@/lib/api";
 import { buscarCotacao } from "@/lib/cambio";
 import { getCenarios, getConfig } from "@/lib/config";
 import { adicionarItens } from "@/lib/importacao";
+import { apelidoDe, apelidosFornecedores } from "@/lib/fornecedores";
 import { agruparVariacoesAutomaticas, detectarRecompras, novoId, recalcularPedido } from "@/lib/servicos";
 
 export const maxDuration = 300;
@@ -30,7 +31,8 @@ export async function GET() {
       })
       .from(schema.pedidos)
       .orderBy(desc(schema.pedidos.criadoEm));
-    return ok(lista);
+    const apelidos = await apelidosFornecedores();
+    return ok(lista.map((p) => ({ ...p, fornecedorApelido: apelidoDe(apelidos, p.fornecedor) })));
   } catch (e) {
     return erro(e);
   }

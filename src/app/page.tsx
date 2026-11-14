@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { Botao, Carregando, Cartao, Numero, Selo } from "@/components/ui";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, moedaSimbolo, num } from "@/lib/cliente";
+import { NomeFornecedor } from "@/components/Fornecedor";
 
 type Painel = { produtos: number; pecas: number; custo: number; venda: number; pedidos: number; aprovados: number; semCodigo: number; noUp: number; comFotoIa: number; fotosPendentes: number; gastoIaMes: number; porTipo: { tipo: string; pecas: number; venda: number }[] };
-type PedidoLista = { id: string; numero: string | null; fornecedor: string | null; dataCompra: string | null; moeda: string; status: string; linhas: number; pecas: number; custo: number; venda: number };
+type PedidoLista = { id: string; numero: string | null; fornecedor: string | null; fornecedorApelido: string | null; dataCompra: string | null; moeda: string; status: string; linhas: number; pecas: number; custo: number; venda: number };
 
 export default function Painel() {
   const [p, setP] = useState<Painel | null>(null);
@@ -79,7 +80,9 @@ export default function Painel() {
                       <Link href={`/pedidos/${x.id}`} className="font-medium text-rose-escuro">
                         {x.numero ?? "sem número"}
                       </Link>
-                      <div className="text-xs text-[#9a8089]">{x.fornecedor}</div>
+                      <div className="text-xs text-[#9a8089]">
+                        <NomeFornecedor nome={x.fornecedor} apelido={x.fornecedorApelido} vazio="" />
+                      </div>
                     </td>
                     <td>{x.dataCompra?.split("-").reverse().join("/")}</td>
                     <td>

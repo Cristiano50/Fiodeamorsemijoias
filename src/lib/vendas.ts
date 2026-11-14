@@ -27,6 +27,7 @@ import {
   type VendaBase,
 } from "./vendas-calculo";
 import { sugerirMaleta, type PedidoMaleta } from "./maleta-calculo";
+import { apelidoDe, apelidosFornecedores } from "./fornecedores";
 
 /**
  * Vendas do UP Vendas (servidor): leitura da planilha exportada, gravação em lotes, análise e maleta.
@@ -287,17 +288,26 @@ export async function excluirLote(id: string) {
 
 /* ------------------------------------------------------------ análise */
 
-export async function analiseVendas(periodo: { inicio?: string | null; fim?: string | null } = {}): Promise<AnaliseVendas> {
+export async function analiseVendas(periodo: { inicio?: string | null; fim?: string | null } = {}): Promise<AnaliseVendas & { apelidosFornecedor: Record<string, string> }> {
   const inicio = dataValida(periodo.inicio);
   const fim = dataValida(periodo.fim);
-  const [produtos, vendas, sistema] = await Promise.all([carregarProdutos(), carregarVendas(fim), getConfig("sistema")]);
-  return analisarVendas(produtos, vendas, {
+  const [produtos, vendas, sistema, apelidos] = await Promise.all([carregarProdutos(), carregarVendas(fim), getConfig("sistema"), apelidosFornecedores()]);
+  const analise = analisarVendas(produtos, vendas, {
     hoje: hojeLocal(),
     inicio,
     fim,
     prazoReposicaoDias: Number(sistema.prazoReposicaoDias) || 45,
     diasEstoqueParado: Number(sistema.diasEstoqueParado) || 120,
   });
+  // Apelido de cada fornecedor (nome original → apelido), só para exibição; a análise agrupa pelo nome original.
+  const apelidosFornecedor: Record<string, string> = {};
+  for (const p of produtos) {
+    const nome = p.fornecedor?.trim();
+    const apelido = apelidoDe(apelidos, nome);
+    if (nome && apelido) apelidosFornecedor[nome] = apelido;
+  }
+  for (const s of analise.skus) s.fornecedorApelido = s.fornecedor ? (apelidosFornecedor[s.fornecedor.trim()] ?? null) : null;
+  return { ...analise, apelidosFornecedor };
 }
 
 /* ------------------------------------------------------ lista de recompra */
@@ -315,7 +325,10 @@ const COLUNAS_RECOMPRA = [
   { chave: "link", titulo: "Link da foto", largura: 22 },
 ] as const;
 
-/** Itens a recomprar: status "repor" ou "esgotado" que venderam, agrupados por fornecedor. */
+/**
+ * Itens a recomprar: status "repor" ou "esgotado" que venderam, agrupados por fornecedor.
+ * A coluna "Fornecedor" leva o nome original (em chinês, como ele se reconhece); a aba usa o apelido da loja, se houver.
+ */
 export function itensRecompra(analise: AnaliseVendas): SkuAnalise[] {
   return analise.skus
     .filter((s) => (s.status === "repor" || s.status === "esgotado") && s.quantidadeSugerida > 0)
@@ -341,7 +354,7 @@ export function csvRecompra(itens: SkuAnalise[], origem: string): string {
 }
 
 /** XLSX com uma aba por fornecedor e a miniatura da foto na primeira coluna (para mandar à China). */
-export async function xlsxRecompra(itens: SkuAnalise[], origem: string): Promise<Uint8Array<ArrayBuffer>> {
+export async function xlsxRecompra(itens: SkuAnalise[], origem: string, apelidos: Record<string, string> = {}): Promise<Uint8Array<ArrayBuffer>> {
   const db = await getDb();
   const wb = new ExcelJS.Workbook();
   wb.creator = "Fio de Amor Semijoias";
@@ -363,7 +376,7 @@ export async function xlsxRecompra(itens: SkuAnalise[], origem: string): Promise
   if (!grupos.size) grupos.set("Recompra", []);
   const usados = new Set<string>();
   for (const [fornecedor, lista] of grupos) {
-    let nomeAba = fornecedor.replace(/[[\]:*?/\\]/g, " ").slice(0, 28).trim() || "Fornecedor";
+    let nomeAba = (apelidos[fornecedor] ?? fornecedor).replace(/[[\]:*?/\\]/g, " ").slice(0, 28).trim() || "Fornecedor";
     for (let n = 2; usados.has(nomeAba.toLowerCase()); n++) nomeAba = `${nomeAba.slice(0, 26)} ${n}`;
     usados.add(nomeAba.toLowerCase());
     const ws = wb.addWorksheet(nomeAba, { views: [{ state: "frozen", ySplit: 1 }] });
