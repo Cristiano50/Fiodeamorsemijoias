@@ -3,10 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "@/components/ui";
 import { useConfig, type ConfigCliente } from "@/components/hooks";
 import { api, brl, img } from "@/lib/cliente";
+import { ConfigUsuarios } from "@/components/ConfigUsuarios";
+import { ConfigCanais } from "@/components/ConfigCanais";
 import { montarEan13, montarReferencia } from "@/lib/codigos";
 import { calcularPreco, type PoliticaPreco } from "@/lib/precos";
 
-type Aba = "integracoes" | "referencias" | "precificacao" | "codigos" | "custos" | "avancado";
+type Aba = "integracoes" | "canais" | "usuarios" | "referencias" | "precificacao" | "codigos" | "custos" | "avancado";
 
 export default function ConfiguracoesPage() {
   const { config, recarregar } = useConfig();
@@ -19,6 +21,8 @@ export default function ConfiguracoesPage() {
         {(
           [
             ["integracoes", "Integrações e IA"],
+            ["canais", "WhatsApp, catálogo Meta e backup"],
+            ["usuarios", "Usuários"],
             ["referencias", "Fotos de referência (estilo)"],
             ["precificacao", "Precificação (fator)"],
             ["custos", "Câmbio e custos"],
@@ -32,6 +36,8 @@ export default function ConfiguracoesPage() {
         ))}
       </div>
       {aba === "integracoes" && <Integracoes config={config} recarregar={recarregar} />}
+      {aba === "canais" && <ConfigCanais />}
+      {aba === "usuarios" && <ConfigUsuarios />}
       {aba === "referencias" && <Referencias config={config} />}
       {aba === "precificacao" && <Precificacao config={config} recarregar={recarregar} />}
       {aba === "custos" && <Custos config={config} recarregar={recarregar} />}

@@ -5,6 +5,7 @@ import { createClient, type Client } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 import { MIGRACOES } from "./migracoes";
+import { backupDiarioSeNecessario } from "../backup";
 
 /**
  * Banco de dados:
@@ -46,6 +47,7 @@ export async function getDb(): Promise<LibSQLDatabase<typeof schema>> {
     g.__fda_pronto = aplicarMigracoes(g.__fda_client);
   }
   await g.__fda_pronto;
+  void backupDiarioSeNecessario(); // não bloqueante: no máximo 1 vez por dia, em segundo plano, nunca lança erro
   return g.__fda_db!;
 }
 

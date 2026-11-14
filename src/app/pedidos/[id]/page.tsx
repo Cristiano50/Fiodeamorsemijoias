@@ -203,6 +203,9 @@ export default function PedidoPage() {
           <Botao variante="secundario" onClick={() => acao("parecer", () => api(`/api/pedidos/${id}/parecer`, { method: "POST" }), "Parecer dos especialistas pronto.")} carregando={ocupado === "parecer"}>
             ♡ Parecer dos especialistas
           </Botao>
+          <Link href={`/fotos?pedido=${id}`}>
+            <Botao variante="secundario">Aprovar fotos</Botao>
+          </Link>
           <Link href={`/etiquetas?pedido=${id}`}>
             <Botao variante="secundario">Etiquetas</Botao>
           </Link>
@@ -236,6 +239,11 @@ export default function PedidoPage() {
             <div className="h-2 rounded-full bg-rose-escuro transition-all" style={{ width: `${(fotos.feitas / Math.max(1, fotos.total)) * 100}%` }} />
           </div>
           {fotos.rodando && <p className="mt-1 text-xs text-[#9a8089]">Cada foto leva de 30 s a 2 min (gera, o marketing avalia e, se reprovar, gera de novo). Deixe esta página aberta.</p>}
+          {fotos.feitas > 0 && (
+            <Link href={`/fotos?pedido=${id}`} className="mt-1 inline-block text-sm text-rose-escuro underline">
+              Revisar e aprovar as fotos deste pedido →
+            </Link>
+          )}
         </div>
       )}
 
@@ -426,6 +434,9 @@ export default function PedidoPage() {
             <Botao variante="secundario" onClick={() => lote("desagrupar", undefined, "Variações separadas.")}>
               Desagrupar
             </Botao>
+            <Botao variante="secundario" title="A peça é nova, não é recompra: ganha referência e EAN próprios" onClick={() => lote("naoRecompra", undefined, "Marcadas como peças novas.")}>
+              Não é recompra
+            </Botao>
             <select
               className="w-44"
               value=""
@@ -471,7 +482,90 @@ export default function PedidoPage() {
             </Botao>
           </div>
         )}
-        <div className="max-h-[75vh] overflow-auto">
+        {/* Celular: cartões */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {produtos.map((p) => (
+            <div key={p.id} className={`rounded-2xl border p-3 ${sel.has(p.id) ? "border-rose-escuro bg-rose-claro/40" : "border-borda"}`}>
+              <div className="flex gap-3">
+                <div className="flex shrink-0 flex-col items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={sel.has(p.id)}
+                    onChange={() =>
+                      setSel((s) => {
+                        const n = new Set(s);
+                        if (n.has(p.id)) n.delete(p.id);
+                        else n.add(p.id);
+                        return n;
+                      })
+                    }
+                  />
+                  <Link href={`/produtos/${p.id}`}>
+                    {d.fotosModelo[p.id] || p.imagemId ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={img(d.fotosModelo[p.id]?.id ?? p.imagemId, 200)!} alt="" className="h-20 w-20 rounded-lg object-cover" />
+                    ) : (
+                      <div className="h-20 w-20 rounded-lg bg-rose-claro" />
+                    )}
+                  </Link>
+                  <BotaoFotoIa produtoId={p.id} compacto aoTerminar={() => carregar()} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-[#9a8089]">
+                    #{p.linha} · <span className="font-mono">{p.codigoFornecedor}</span>
+                  </div>
+                  <Link href={`/produtos/${p.id}`} className="block text-sm font-medium uppercase leading-snug">
+                    {p.nome ?? p.traducao ?? "Aguardando IA"}
+                  </Link>
+                  <div className="text-xs text-[#6b5560]">
+                    {nomeDe(tax?.tipos, p.tipo)} · {nomeDe(tax?.banhos, p.banho)}
+                  </div>
+                  <div className="mt-1 font-titulo text-xl font-semibold text-rose-escuro">{brl(p.precoVenda)}</div>
+                  <div className="text-xs text-[#9a8089]">
+                    custo {brl(p.custoTotalBrl)} · ×{num(p.fatorAplicado ?? 0, 1)}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <label className="text-xs">
+                  <span className="rotulo">Qtd</span>
+                  <input type="number" defaultValue={p.quantidade} key={`mq${p.quantidade}`} onBlur={(e) => Number(e.target.value) !== p.quantidade && editar(p, { quantidade: Number(e.target.value) })} />
+                </label>
+                <label className="text-xs">
+                  <span className="rotulo">Preço {moedaSimbolo(pedido.moeda)}</span>
+                  <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={`mp${p.precoOrigem}`} onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
+                </label>
+                <label className="text-xs">
+                  <span className="rotulo">Fator</span>
+                  <input
+                    inputMode="decimal"
+                    key={`mf-${p.fator ?? ""}-${p.fatorAplicado}`}
+                    defaultValue={p.fator ?? ""}
+                    placeholder={`×${num(p.fatorAplicado ?? 0, 1)}`}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim().replace(",", ".");
+                      const novo = v ? Number(v) : null;
+                      if (novo !== p.fator) editar(p, { fator: novo });
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {p.referencia && <Selo cor="cinza">{p.referencia}</Selo>}
+                {p.recompraDe && <Selo cor="verde">↻ recompra</Selo>}
+                {p.destaque && <Selo cor="dourado">★ destaque</Selo>}
+                {(p.alertas ?? []).slice(0, 2).map((a, i) => (
+                  <Selo key={i} cor="amarelo">
+                    ⚠ {a.length > 40 ? a.slice(0, 38) + "…" : a}
+                  </Selo>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Computador: tabela */}
+        <div className="hidden max-h-[75vh] overflow-auto md:block">
           <table className="tabela w-full min-w-[1100px]">
             <thead>
               <tr>
@@ -546,6 +640,11 @@ export default function PedidoPage() {
                     {p.nomeComercial && <div className="font-script text-base text-rose-escuro">{p.nomeComercial}</div>}
                     <div className="mt-1 flex flex-wrap gap-1">
                       {p.destaque && <Selo cor="dourado">★ destaque</Selo>}
+                      {p.recompraDe && (
+                        <Link href={`/produtos/${p.recompraDe}`} title="Mesmo SKU de um pedido anterior: usa a referência e o EAN do original">
+                          <Selo cor="verde">↻ recompra</Selo>
+                        </Link>
+                      )}
                       {p.grupo && <Selo cor="cinza">variação {p.grupo}</Selo>}
                       {p.status === "aprovado" && <Selo cor="verde">aprovado</Selo>}
                       {(p.alertas ?? []).map((a, i) => (

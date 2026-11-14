@@ -3,6 +3,9 @@ import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { recalcularProduto } from "@/lib/servicos";
+import { exigirPapel } from "@/lib/auth";
+import { registrar } from "@/lib/historico";
+import { checarFator, checarPrecoManual } from "@/lib/permissoes";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -36,14 +39,32 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const body = await req.json();
+    const db = await getDb();
+    const [antes] = await db.select().from(schema.produtos).where(eq(schema.produtos.id, id));
+    if (!antes) return erro("Produto não encontrado", 404);
+    if ("fator" in body) await checarFator(req, body.fator);
+    if ("precoVenda" in body) await checarPrecoManual(req, Number(body.precoVenda), antes.custoTotalBrl);
+    // O EAN só pode se repetir entre o produto original e as suas recompras.
+    if (body.codigoBarras && body.codigoBarras !== antes.codigoBarras) {
+      const usados = await db.select({ id: schema.produtos.id, recompraDe: schema.produtos.recompraDe }).from(schema.produtos).where(eq(schema.produtos.codigoBarras, body.codigoBarras));
+      const raiz = antes.recompraDe ?? antes.id;
+      if (usados.some((u) => u.id !== id && (u.recompraDe ?? u.id) !== raiz)) return erro("Esse código de barras já é de outro produto.", 409);
+    }
     const set: Record<string, unknown> = { atualizadoEm: new Date().toISOString() };
     for (const c of EDITAVEIS) if (c in body) set[c] = body[c];
     if ("precoVenda" in body) set.precoManual = Number(body.precoVenda) > 0 ? Number(body.precoVenda) : null;
-    const db = await getDb();
     await db.update(schema.produtos).set(set).where(eq(schema.produtos.id, id));
     const mexeuPreco = ["precoOrigem", "quantidade", "fator", "tipo"].some((c) => c in body) || "precoVenda" in body;
     if (mexeuPreco) await recalcularProduto(id);
     const [produto] = await db.select().from(schema.produtos).where(eq(schema.produtos.id, id));
+    const mudou: string[] = [];
+    if ("precoVenda" in body) mudou.push(`preço R$ ${antes.precoVenda} → R$ ${produto.precoVenda}${produto.precoManual ? " (manual)" : ""}`);
+    else if (produto.precoVenda !== antes.precoVenda) mudou.push(`preço R$ ${antes.precoVenda} → R$ ${produto.precoVenda}`);
+    if ("fator" in body && body.fator !== antes.fator) mudou.push(`fator ${antes.fator ?? "do pedido"} → ${body.fator ?? "do pedido"}`);
+    for (const c of ["nome", "referencia", "codigoBarras", "status", "quantidade", "tipo"] as const)
+      if (c in body && body[c] !== antes[c]) mudou.push(`${c}: ${antes[c] ?? "—"} → ${body[c] ?? "—"}`);
+    if (mudou.length)
+      await registrar(req, { acao: "produto.alterar", entidade: "produto", entidadeId: id, resumo: `${antes.referencia ?? antes.nome ?? id.slice(0, 8)}: ${mudou.join("; ")}` });
     return ok({ produto });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
@@ -52,10 +73,13 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+export async function DELETE(req: NextRequest, { params }: Ctx) {
   try {
+    await exigirPapel(req, "gestora");
     const { id } = await params;
     const db = await getDb();
+    const [p] = await db.select({ referencia: schema.produtos.referencia, nome: schema.produtos.nome }).from(schema.produtos).where(eq(schema.produtos.id, id));
+    await registrar(req, { acao: "produto.excluir", entidade: "produto", entidadeId: id, resumo: `Produto ${p?.referencia ?? ""} ${p?.nome ?? ""} excluído` });
     await db.delete(schema.imagens).where(eq(schema.imagens.produtoId, id));
     await db.delete(schema.produtos).where(eq(schema.produtos.id, id));
     return ok();

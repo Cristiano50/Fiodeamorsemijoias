@@ -39,6 +39,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         colunas: pedido.colunas,
         moeda: pedido.moeda,
         fornecedor: pedido.fornecedor,
+        pedidoId: id,
       });
       for (const r of resultado) {
         const p = alvo.find((a) => a.id === r.id);

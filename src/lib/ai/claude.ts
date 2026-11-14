@@ -4,6 +4,7 @@ import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { getConfig, getSegredo, type Marca, type Taxonomia } from "../config";
 import { PERSONAS } from "./personas";
+import { checarLimiteIa, registrarGasto, type ContextoGasto, type Finalidade } from "../gastos";
 
 export class IaIndisponivel extends Error {}
 
@@ -22,8 +23,11 @@ async function chamar<T extends z.ZodType>(opts: {
   conteudo: Anthropic.Beta.Messages.BetaContentBlockParam[];
   schema: T;
   maxTokens?: number;
+  finalidade: Finalidade;
+  ctx?: ContextoGasto;
 }): Promise<z.infer<T>> {
   const client = await cliente();
+  await checarLimiteIa();
   const sistema = await getConfig("sistema");
   const resposta = await client.beta.messages.parse({
     model: sistema.claudeModelo,
@@ -33,6 +37,15 @@ async function chamar<T extends z.ZodType>(opts: {
     output_config: { effort: sistema.claudeEsforco, format: betaZodOutputFormat(opts.schema) },
     system: [{ type: "text", text: opts.sistema, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: opts.conteudo }],
+  });
+  const uso = resposta.usage;
+  await registrarGasto({
+    servico: "anthropic",
+    modelo: resposta.model ?? sistema.claudeModelo,
+    finalidade: opts.finalidade,
+    ctx: opts.ctx,
+    tokensEntrada: (uso?.input_tokens ?? 0) + (uso?.cache_creation_input_tokens ?? 0) + (uso?.cache_read_input_tokens ?? 0),
+    tokensSaida: uso?.output_tokens ?? 0,
   });
   if (resposta.stop_reason === "refusal") {
     throw new Error(`O Claude recusou a solicitação (${resposta.stop_details?.category ?? "sem categoria"}).`);
@@ -139,7 +152,7 @@ export type ItemAnalisado = z.infer<ReturnType<typeof schemaItens>>["itens"][num
 
 export async function analisarItens(
   itens: ItemParaAnalise[],
-  contexto: { cabecalho?: string | null; colunas?: string | null; moeda: string; fornecedor?: string | null },
+  contexto: { cabecalho?: string | null; colunas?: string | null; moeda: string; fornecedor?: string | null; pedidoId?: string },
 ): Promise<ItemAnalisado[]> {
   const { tax, texto } = await sistemaCatalogo();
   const conteudo: Anthropic.Beta.Messages.BetaContentBlockParam[] = [
@@ -157,7 +170,7 @@ A seguir vêm ${itens.length} itens, cada um com o texto da linha e a foto. Anal
       conteudo.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: it.imagemBase64 } });
     }
   }
-  const out = await chamar({ sistema: texto, conteudo, schema: schemaItens(tax) });
+  const out = await chamar({ sistema: texto, conteudo, schema: schemaItens(tax), finalidade: "analise", ctx: { pedidoId: contexto.pedidoId } });
   return out.itens;
 }
 
@@ -175,12 +188,14 @@ const schemaDeteccao = z.object({
   cabecalho: z.string().describe("fornecedor, data, número do pedido, moeda — se visíveis"),
 });
 
-export async function detectarPecas(imagemBase64: string, mime: string) {
+export async function detectarPecas(imagemBase64: string, mime: string, ctx?: ContextoGasto) {
   const { texto } = await sistemaCatalogo();
   return chamar({
     sistema: texto,
     schema: schemaDeteccao,
     maxTokens: 8000,
+    finalidade: "deteccao",
+    ctx,
     conteudo: [
       {
         type: "image",
@@ -207,7 +222,7 @@ const schemaParecer = z.object({
 
 export type Parecer = z.infer<typeof schemaParecer>;
 
-export async function parecerEspecialistas(dadosPedido: unknown): Promise<Parecer> {
+export async function parecerEspecialistas(dadosPedido: unknown, ctx?: ContextoGasto): Promise<Parecer> {
   const [prec, fiscal, marca] = await Promise.all([getConfig("precificacao"), getConfig("fiscal"), getConfig("marca")]);
   const sistema = `Você é um comitê de quatro especialistas que avalia cada pedido importado pela loja ${marca.nome}.
 ${Object.values(PERSONAS)
@@ -221,6 +236,8 @@ Cada parecer: objetivo, com números do pedido, no máximo ~12 linhas, terminand
   return chamar({
     sistema,
     schema: schemaParecer,
+    finalidade: "parecer",
+    ctx,
     conteudo: [{ type: "text", text: `Dados do pedido (JSON):\n${JSON.stringify(dadosPedido)}` }],
   });
 }
@@ -234,7 +251,7 @@ const schemaTextos = z.object({
   prompt_cena: z.string().describe("descrição em inglês da cena ideal para foto publicitária desta peça"),
 });
 
-export async function textosMarketing(produto: Record<string, unknown>, imagemBase64?: string) {
+export async function textosMarketing(produto: Record<string, unknown>, imagemBase64?: string, ctx?: ContextoGasto) {
   const { texto } = await sistemaCatalogo();
   const conteudo: Anthropic.Beta.Messages.BetaContentBlockParam[] = [];
   if (imagemBase64) conteudo.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: imagemBase64 } });
@@ -242,7 +259,7 @@ export async function textosMarketing(produto: Record<string, unknown>, imagemBa
     type: "text",
     text: `Crie a legenda de Instagram (com chamada para ação e emoji com moderação), hashtags (8–15) e um nome comercial para esta peça. Produto: ${JSON.stringify(produto)}`,
   });
-  return chamar({ sistema: texto, schema: schemaTextos, conteudo, maxTokens: 6000 });
+  return chamar({ sistema: texto, schema: schemaTextos, conteudo, maxTokens: 6000, finalidade: "textos", ctx });
 }
 
 /* ------------------------------------- avaliação das fotos pelo marketing */
@@ -269,6 +286,7 @@ export async function avaliarFotoMarketing(opts: {
   geradaMime: string;
   estiloBase64?: string | null; // foto de referência de estilo usada (se houver)
   produto: Record<string, unknown>;
+  ctx?: ContextoGasto;
 }): Promise<AvaliacaoFoto> {
   const marca = await getConfig("marca");
   const rubrica = (marca as Record<string, unknown>).avaliacao_foto ?? {
@@ -293,6 +311,8 @@ Escreva problemas e pontos fortes em português; o ajuste_prompt em inglês, cur
     sistema,
     schema: schemaAvaliacaoFoto,
     maxTokens: 6000,
+    finalidade: "avaliacao_foto",
+    ctx: opts.ctx,
     conteudo: [
       { type: "text", text: "FOTO DE REFERÊNCIA (a peça real, foto do fornecedor):" },
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: opts.referenciaBase64 } },

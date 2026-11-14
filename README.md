@@ -23,6 +23,16 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
    - pode gerar para o pedido inteiro de uma vez. As artes (feed, stories, quadrado, catálogo) usam a foto aprovada como base; também há legenda e hashtags.
 8. **Envia para o UP Vendas:** por **planilha** com os campos da tela "Cadastro de Produtos Simplificado", que funciona hoje, ou por API. O conector da API está pronto, mas falta a documentação do UP; veja [docs/upvendas-suporte.md](docs/upvendas-suporte.md), que traz uma mensagem pronta para o suporte.
 9. **Especialistas:** um comitê de IA avalia cada pedido pelo olhar do **gestor de estoque, do contador, do administrador e do marketing**. Os mesmos especialistas existem como subagentes do Claude Code em `.claude/agents/`.
+10. **Recompra inteligente:** ao importar de novo uma peça que já veio antes (mesmo código e especificação do fornecedor), o app reaproveita a referência, o EAN, o nome e a classificação, sem gastar IA. Mostra também quanto o preço do fornecedor mudou. Se não for recompra, use **Não é recompra**.
+11. **Fotos para aprovar:** fila com a peça real ao lado da foto criada pela IA e a nota do marketing. A loja aprova, pede para refazer ou recusa. Só a foto **aprovada pela loja** vai para o catálogo do WhatsApp/Instagram e para o UP.
+12. **Pedido no celular:** no celular, as linhas do pedido viram cartões com foto, preço, fator e botões grandes.
+13. **Usuários e permissões:**
+    - a **gestora** vê tudo;
+    - a **funcionária** cadastra, mas não usa fator abaixo do mínimo, não exclui e não mexe em Configurações;
+    - o **Histórico** registra quem mudou o quê (fator, preço, cotação, fotos, envio ao UP).
+14. **Gastos com IA:** custo estimado por mês, por uso, por pedido e por dia, em dólar e em real. Tem limite mensal: ao atingir o limite, o app para de chamar a IA.
+15. **Backup automático:** uma cópia por dia do banco, guardando as 14 mais recentes, com botão **Baixar backup agora**. Para usar na nuvem, veja [docs/nuvem.md](docs/nuvem.md).
+16. **Catálogo do WhatsApp Business e Instagram Shopping:** link de feed (CSV) para o Commerce Manager da Meta, com preço, estoque, foto aprovada e um link que abre a conversa no WhatsApp da loja.
 
 ## Como rodar (no computador da loja)
 
@@ -48,7 +58,9 @@ npm run build
 npm start
 ```
 
-Depois disso, abra **http://localhost:3000**. Os dados ficam em `./dados/fiodeamor.db`. Faça backup dessa pasta.
+Depois disso, abra **http://localhost:3000**. Os dados ficam em `./dados/fiodeamor.db`. O app faz um backup por dia em `./dados/backups/`; mesmo assim, copie de vez em quando um backup para fora do computador (pen drive ou nuvem).
+
+**Primeiro acesso:** em **Configurações → Usuários**, crie a conta da gestora. A partir daí, o app pede login e a gestora cria as contas das funcionárias.
 
 As chaves das IAs podem ser coladas no próprio app, em **Configurações → Integrações**, ou em um arquivo `.env.local` (veja o modelo em `.env.example`):
 
@@ -66,7 +78,7 @@ Sem as chaves o app continua funcionando:
 
 ## Como rodar na nuvem (acesso pelo celular)
 
-O banco usa libSQL, então o mesmo código roda com um banco [Turso](https://turso.tech) (`DATABASE_URL` + `DATABASE_AUTH_TOKEN`). Publique na [Vercel](https://vercel.com) importando o repositório e definindo as variáveis acima. **Defina `APP_SENHA`**.
+O banco usa libSQL, então o mesmo código roda com um banco [Turso](https://turso.tech) (`DATABASE_URL` + `DATABASE_AUTH_TOKEN`). Publique na [Vercel](https://vercel.com) importando o repositório e definindo as variáveis acima. **Crie a conta da gestora logo no primeiro acesso.** O passo a passo, inclusive como levar o banco da loja para a nuvem e como restaurar um backup, está em [docs/nuvem.md](docs/nuvem.md).
 
 ## Fluxo de trabalho
 
@@ -100,7 +112,7 @@ scripts/            utilitários (migrações, teste de extração de PDF)
 npm test
 ```
 
-O comando testa o cálculo de EAN-13, a referência, o custo e o preço, e confere a leitura das linhas do pedido.
+O comando testa o cálculo de EAN-13, a referência, o custo e o preço (com frete e fator), a leitura das linhas do pedido, o feed da Meta e os cálculos de vendas, curva ABC, recompra e maleta.
 
 Para testar a leitura de um PDF real (o arquivo não vai para o GitHub):
 
@@ -110,4 +122,4 @@ npx tsx scripts/testar-extracao.mts caminho/do/pedido.pdf
 
 ## Privacidade
 
-A pasta `amostras/` (pedidos reais, custos dos fornecedores) e a pasta `dados/` (banco local) **não são enviadas** ao GitHub.
+A pasta `amostras/` (pedidos reais, custos dos fornecedores) e a pasta `dados/` (banco local e backups) **não são enviadas** ao GitHub.

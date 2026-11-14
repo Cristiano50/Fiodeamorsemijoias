@@ -43,6 +43,7 @@ next-env.d.ts
 # Fio de Amor
 # banco SQLite local (produtos, fotos, chaves salvas)
 /dados/
+/dados-*/
 # pedidos reais de fornecedores (custos e preços — não publicar)
 /amostras/
 /public/pdf.worker.min.mjs

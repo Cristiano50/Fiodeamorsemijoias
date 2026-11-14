@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       .from(schema.produtos)
       .where(ids?.length ? inArray(schema.produtos.id, ids) : pedido ? eq(schema.produtos.pedidoId, pedido) : undefined)
       .orderBy(asc(schema.produtos.linha));
-    const ctx = await contextoUp(req.nextUrl.origin);
+    const ctx = await contextoUp(req.nextUrl.origin, produtos.map((x) => x.id));
     const linhas = produtos.map((x) => linhaUp(x, ctx));
     const nome = `fiodeamor-produtos-${new Date().toISOString().slice(0, 10)}`;
 

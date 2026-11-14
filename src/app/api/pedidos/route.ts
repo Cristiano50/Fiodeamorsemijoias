@@ -5,7 +5,7 @@ import { erro, ok } from "@/lib/api";
 import { buscarCotacao } from "@/lib/cambio";
 import { getCenarios, getConfig } from "@/lib/config";
 import { adicionarItens } from "@/lib/importacao";
-import { agruparVariacoesAutomaticas, novoId, recalcularPedido } from "@/lib/servicos";
+import { agruparVariacoesAutomaticas, detectarRecompras, novoId, recalcularPedido } from "@/lib/servicos";
 
 export const maxDuration = 300;
 
@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
     // Compatível com envio único; o navegador manda os itens em lotes por /api/pedidos/:id/itens.
     const lote = await adicionarItens(pedidoId, form);
 
+    await detectarRecompras(pedidoId);
     await agruparVariacoesAutomaticas(pedidoId);
     await recalcularPedido(pedidoId);
     const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, pedidoId));

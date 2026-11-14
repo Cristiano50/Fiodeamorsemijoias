@@ -62,6 +62,7 @@ export const produtos = sqliteTable(
     tamanho: text("tamanho"),
     variacao: text("variacao"),
     grupo: text("grupo"), // variações do mesmo modelo (mesmo grupo = mesma referência, um EAN por variação)
+    recompraDe: text("recompra_de"), // produto original quando a linha é recompra (mesma referência e EAN)
     ehConjunto: integer("eh_conjunto", { mode: "boolean" }).notNull().default(false),
     componentes: text("componentes", { mode: "json" }).$type<string[]>(),
     estilo: text("estilo"),
@@ -94,7 +95,8 @@ export const produtos = sqliteTable(
   (t) => [
     index("produtos_pedido_idx").on(t.pedidoId),
     index("produtos_referencia_idx").on(t.referencia),
-    uniqueIndex("produtos_codigo_barras_uq").on(t.codigoBarras),
+    index("produtos_codigo_barras_idx").on(t.codigoBarras), // recompra reaproveita o EAN do produto original
+    index("produtos_codigo_fornecedor_idx").on(t.codigoFornecedor),
   ],
 );
 
@@ -144,7 +146,91 @@ export const logs = sqliteTable("logs", {
   criadoEm: text("criado_em").notNull().default(agora),
 });
 
+/** Usuários do app (gestora, funcionário). Sem usuários cadastrados, vale APP_SENHA ou o acesso livre local. */
+export const usuarios = sqliteTable(
+  "usuarios",
+  {
+    id: text("id").primaryKey(),
+    nome: text("nome").notNull(),
+    login: text("login").notNull(),
+    senhaHash: text("senha_hash").notNull(),
+    papel: text("papel").notNull().default("funcionario"), // gestora | funcionario
+    ativo: integer("ativo", { mode: "boolean" }).notNull().default(true),
+    criadoEm: text("criado_em").notNull().default(agora),
+  },
+  (t) => [uniqueIndex("usuarios_login_uq").on(t.login)],
+);
+
+/** Histórico de alterações: quem mudou o quê. */
+export const historico = sqliteTable(
+  "historico",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    criadoEm: text("criado_em").notNull().default(agora),
+    usuarioId: text("usuario_id"),
+    usuarioNome: text("usuario_nome"),
+    acao: text("acao").notNull(), // ex.: pedido.fator, produto.preco, produto.excluir, config.precificacao
+    entidade: text("entidade"),
+    entidadeId: text("entidade_id"),
+    resumo: text("resumo").notNull(),
+    dados: text("dados", { mode: "json" }).$type<Record<string, unknown>>(),
+  },
+  (t) => [index("historico_entidade_idx").on(t.entidade, t.entidadeId)],
+);
+
+/** Gastos com IA (Claude, Gemini, OpenAI), para o painel e o limite mensal. */
+export const gastosIa = sqliteTable(
+  "gastos_ia",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    criadoEm: text("criado_em").notNull().default(agora),
+    servico: text("servico").notNull(), // anthropic | gemini | openai
+    modelo: text("modelo").notNull(),
+    finalidade: text("finalidade").notNull(), // analise | deteccao | parecer | textos | foto | avaliacao_foto
+    pedidoId: text("pedido_id"),
+    produtoId: text("produto_id"),
+    tokensEntrada: integer("tokens_entrada").notNull().default(0),
+    tokensSaida: integer("tokens_saida").notNull().default(0),
+    imagens: integer("imagens").notNull().default(0),
+    custoUsd: real("custo_usd").notNull().default(0),
+  },
+  (t) => [index("gastos_ia_data_idx").on(t.criadoEm)],
+);
+
+/** Vendas importadas do UP Vendas (planilha hoje; API quando disponível). */
+export const vendas = sqliteTable(
+  "vendas",
+  {
+    id: text("id").primaryKey(),
+    loteId: text("lote_id"),
+    data: text("data"), // AAAA-MM-DD
+    referencia: text("referencia"),
+    codigoBarras: text("codigo_barras"),
+    produtoId: text("produto_id"), // ligado pelo EAN ou pela referência
+    descricao: text("descricao"),
+    quantidade: real("quantidade").notNull().default(1),
+    valorTotal: real("valor_total"),
+    revendedora: text("revendedora"),
+    canal: text("canal"), // consignado | varejo | ...
+    origem: text("origem").notNull().default("planilha"),
+    criadoEm: text("criado_em").notNull().default(agora),
+  },
+  (t) => [index("vendas_produto_idx").on(t.produtoId), index("vendas_data_idx").on(t.data), index("vendas_revendedora_idx").on(t.revendedora)],
+);
+
+export const lotesVendas = sqliteTable("lotes_vendas", {
+  id: text("id").primaryKey(),
+  arquivoNome: text("arquivo_nome"),
+  linhas: integer("linhas").notNull().default(0),
+  ligadas: integer("ligadas").notNull().default(0), // linhas ligadas a produtos do app
+  periodoInicio: text("periodo_inicio"),
+  periodoFim: text("periodo_fim"),
+  criadoEm: text("criado_em").notNull().default(agora),
+});
+
 export type Pedido = typeof pedidos.$inferSelect;
 export type Produto = typeof produtos.$inferSelect;
 export type NovoProduto = typeof produtos.$inferInsert;
 export type Imagem = typeof imagens.$inferSelect;
+export type Usuario = typeof usuarios.$inferSelect;
+export type Venda = typeof vendas.$inferSelect;

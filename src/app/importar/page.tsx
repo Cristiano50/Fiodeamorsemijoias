@@ -176,8 +176,9 @@ export default function ImportarPage() {
         await api(`/api/pedidos/${r.id}/itens`, { method: "POST", body: f });
       }
       setStatus("Calculando custos e preços…");
-      const fim = await api<{ paginas: number }>(`/api/pedidos/${r.id}/finalizar`, { method: "POST" });
+      const fim = await api<{ paginas: number; recompras: number }>(`/api/pedidos/${r.id}/finalizar`, { method: "POST" });
       r.paginas = fim.paginas;
+      if (fim.recompras) avisar(`${fim.recompras} peça(s) reconhecida(s) como recompra: mesma referência e EAN do cadastro anterior.`, "info");
       r.avisos.forEach((a) => avisar(a, "info"));
 
       if (analisarIa) {

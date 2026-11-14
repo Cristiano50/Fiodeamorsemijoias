@@ -77,6 +77,15 @@ export interface Sistema {
   claudeEsforco: "low" | "medium" | "high";
   imagemProvedor: "gemini" | "openai" | "nenhum";
   fotoTentativas: number; // tentativas até o marketing aprovar a foto com modelo
+  limiteMensalIaUsd: number; // 0 = sem limite
+  precosIa: Record<string, { entradaPorMilhao?: number; saidaPorMilhao?: number; porImagem?: number }>; // US$
+  whatsappNumero: string; // com DDI e DDD, só números (ex.: 5511999999999)
+  linkProdutoModelo: string; // link do produto no catálogo Meta; marcadores {whatsapp} {referencia} {nome}
+  feedChave: string; // chave do link público do feed do catálogo (gerada automaticamente)
+  prazoReposicaoDias: number; // China → prateleira
+  diasEstoqueParado: number;
+  maletaValorAlvo: number; // R$ em etiqueta por maleta
+  maletaPecasAlvo: number;
   geminiModelo: string;
   openaiModelo: string;
 }
@@ -94,6 +103,23 @@ export const SISTEMA_PADRAO: Sistema = {
   claudeEsforco: "medium",
   imagemProvedor: "gemini",
   fotoTentativas: 3,
+  limiteMensalIaUsd: 0,
+  precosIa: {
+    // Preços de referência (US$) — confira na página de preços de cada serviço e ajuste em Configurações.
+    "claude-opus-5-5": { entradaPorMilhao: 4, saidaPorMilhao: 20 },
+    "claude-sonnet-5-5": { entradaPorMilhao: 2, saidaPorMilhao: 10 },
+    "claude-haiku-5-5": { entradaPorMilhao: 0.1, saidaPorMilhao: 0.5 },
+    "gemini-3-pro-image": { entradaPorMilhao: 2, saidaPorMilhao: 120, porImagem: 0.134 },
+    "gemini-3.1-flash-image": { entradaPorMilhao: 0.5, saidaPorMilhao: 60, porImagem: 0.067 },
+    "gpt-image-2": { entradaPorMilhao: 8, saidaPorMilhao: 30, porImagem: 0.08 },
+  },
+  whatsappNumero: "",
+  linkProdutoModelo: "https://wa.me/{whatsapp}?text=Ol%C3%A1!%20Tenho%20interesse%20na%20pe%C3%A7a%20{referencia}",
+  feedChave: "",
+  prazoReposicaoDias: 45,
+  diasEstoqueParado: 120,
+  maletaValorAlvo: 4000,
+  maletaPecasAlvo: 85,
   geminiModelo: "gemini-3-pro-image", // Nano Banana Pro: o mais realista para foto comercial (alternativa mais barata: gemini-3.1-flash-image)
   openaiModelo: "gpt-image-2", // gpt-image-1 foi desativado pela OpenAI em 23/10/2026
 };

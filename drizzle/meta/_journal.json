@@ -15,6 +15,13 @@
       "when": 1794613934295,
       "tag": "0001_fator_do_pedido",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794619379357,
+      "tag": "0002_usuarios_historico_gastos_vendas",
+      "breakpoints": true
     }
   ]
 }

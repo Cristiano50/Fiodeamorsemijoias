@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     proxyClientMaxBodySize: "20mb",
   },
   serverExternalPackages: ["@libsql/client", "libsql", "exceljs", "sharp", "bwip-js"],
+  // Na nuvem (Vercel), leva junto os pareceres lidos do disco por /api/especialistas.
+  outputFileTracingIncludes: {
+    "/api/especialistas": ["./docs/especialistas/*.md"],
+  },
   turbopack: {
     rules: {
       "*.css": {

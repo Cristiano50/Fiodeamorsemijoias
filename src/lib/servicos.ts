@@ -7,6 +7,7 @@ import { getCenarios, getComponentesCusto, getConfig, ncmPara } from "./config";
 import { calcularCustos, calcularPreco, detalharCustos, valoresDoCenario } from "./precos";
 import { chaveSequenciaReferencia, montarEan13, montarReferencia } from "./codigos";
 import type { ItemAnalisado } from "./ai/claude";
+import { lerLinha } from "./extracao";
 import type { Produto } from "./db/schema";
 
 export const novoId = () => randomUUID();
@@ -202,6 +203,7 @@ export async function gerarCodigos(produtoIds: string[], refazer = false) {
   for (const p of itens) if (p.grupo && p.referencia && !refazer) refPorGrupo.set(`${p.pedidoId}:${p.grupo}`, p.referencia);
   let n = 0;
   for (const p of itens) {
+    if (p.recompraDe) continue; // recompra usa a referência e o EAN do produto original
     const set: Partial<Produto> = {};
     const chaveGrupo = p.grupo ? `${p.pedidoId}:${p.grupo}` : null;
     if (!p.referencia || refazer) {
@@ -225,6 +227,95 @@ export async function gerarCodigos(produtoIds: string[], refazer = false) {
     }
   }
   return n;
+}
+
+/* ------------------------------------------------------------- recompra */
+
+const normCodigo = (s: string | null | undefined) => (s ?? "").toUpperCase().replace(/\s+/g, "");
+/** Especificação do fornecedor (G, MR, 14K, MR粉油…) lida da linha original do documento — estável, a IA não altera. */
+const especificacao = (p: { textoOriginal: string | null; variacao: string | null }) =>
+  (p.textoOriginal ? (lerLinha(p.textoOriginal).especificacao ?? "") : (p.variacao ?? "")).trim().toUpperCase();
+const normFornecedor = (s: string | null | undefined) => (s ?? "").replace(/\s+/g, "").toLowerCase();
+
+/**
+ * Recompra: a linha cujo código do fornecedor (+ especificação/cor) já foi cadastrado em pedido anterior
+ * reaproveita a referência, o EAN e a classificação do produto original (mesmo SKU no UP) — sem gastar IA.
+ * Avisa quando o preço do fornecedor mudou. Regra do gestor de estoque (docs/especialistas/gestor-estoque.md).
+ */
+export async function detectarRecompras(pedidoId: string) {
+  const db = await getDb();
+  const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, pedidoId));
+  if (!pedido) return 0;
+  const itens = await produtosDoPedido(pedidoId);
+  const codigos = [...new Set(itens.map((i) => i.codigoFornecedor).filter(Boolean))] as string[];
+  if (!codigos.length) return 0;
+  const candidatos = await db
+    .select({ produto: schema.produtos, fornecedor: schema.pedidos.fornecedor, numero: schema.pedidos.numero, dataCompra: schema.pedidos.dataCompra })
+    .from(schema.produtos)
+    .leftJoin(schema.pedidos, eq(schema.produtos.pedidoId, schema.pedidos.id))
+    .where(and(inArray(schema.produtos.codigoFornecedor, codigos), isNull(schema.produtos.recompraDe)));
+  let n = 0;
+  for (const it of itens) {
+    if (!it.codigoFornecedor || it.recompraDe) continue;
+    const orig = candidatos
+      .filter(
+        (c) =>
+          c.produto.pedidoId !== pedidoId &&
+          normCodigo(c.produto.codigoFornecedor) === normCodigo(it.codigoFornecedor) &&
+          especificacao(c.produto) === especificacao(it) &&
+          !!c.produto.codigoBarras &&
+          (!pedido.fornecedor || !c.fornecedor || normFornecedor(pedido.fornecedor) === normFornecedor(c.fornecedor)),
+      )
+      .sort((a, b) => a.produto.criadoEm.localeCompare(b.produto.criadoEm))[0];
+    if (!orig) continue;
+    const o = orig.produto;
+    const alertas = [`Recompra de ${o.referencia} (pedido ${orig.numero ?? "?"}${orig.dataCompra ? ` de ${orig.dataCompra.split("-").reverse().join("/")}` : ""}).`];
+    if (o.precoOrigem && it.precoOrigem && o.moeda === pedido.moeda && Math.abs(it.precoOrigem - o.precoOrigem) > 0.001) {
+      const pct = ((it.precoOrigem - o.precoOrigem) / o.precoOrigem) * 100;
+      alertas.push(`Preço do fornecedor ${pct > 0 ? "subiu" : "caiu"} ${Math.abs(pct).toFixed(0)}% (${o.precoOrigem} → ${it.precoOrigem}).`);
+    }
+    await db
+      .update(schema.produtos)
+      .set({
+        recompraDe: o.id,
+        referencia: o.referencia,
+        codigoBarras: o.codigoBarras,
+        nome: o.nome,
+        nomeComercial: o.nomeComercial,
+        nomesSugeridos: o.nomesSugeridos,
+        traducao: it.traducao ?? o.traducao,
+        avaliacao: o.avaliacao,
+        legenda: o.legenda,
+        hashtags: o.hashtags,
+        destaque: o.destaque,
+        tipo: o.tipo,
+        subtipo: o.subtipo,
+        material: o.material,
+        banho: o.banho,
+        corPedra: o.corPedra,
+        tamanho: o.tamanho,
+        ehConjunto: o.ehConjunto,
+        componentes: o.componentes,
+        estilo: o.estilo,
+        ncm: o.ncm,
+        status: "revisado",
+        alertas,
+        atualizadoEm: new Date().toISOString(),
+      })
+      .where(eq(schema.produtos.id, it.id));
+    n++;
+  }
+  return n;
+}
+
+/** Desfaz a recompra: a linha vira produto novo (ganha referência e EAN próprios). */
+export async function desfazerRecompra(ids: string[]) {
+  const db = await getDb();
+  await db
+    .update(schema.produtos)
+    .set({ recompraDe: null, referencia: null, codigoBarras: null, alertas: [], atualizadoEm: new Date().toISOString() })
+    .where(inArray(schema.produtos.id, ids));
+  await gerarCodigos(ids);
 }
 
 /** Marca como variações do mesmo modelo as linhas do pedido com o mesmo código de fornecedor. */

@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import OpenAI, { toFile } from "openai";
 import { getConfig, getSegredo, type Marca } from "../config";
 import { IaIndisponivel } from "./claude";
+import { checarLimiteIa, registrarGasto, type ContextoGasto } from "../gastos";
 
 export type Proporcao = "4:5" | "9:16" | "1:1";
 
@@ -105,10 +106,12 @@ export async function gerarFotoIA(opts: {
   proporcao: Proporcao;
   provedor?: "gemini" | "openai";
   estilo?: { dados: Buffer; mime: string } | null; // foto de referência de estilo (expositor, luz, fundo)
+  ctx?: ContextoGasto;
 }): Promise<{ dados: Buffer; mime: string; provedor: string; modelo: string }> {
   const sistema = await getConfig("sistema");
   const provedor = opts.provedor ?? (sistema.imagemProvedor === "nenhum" ? undefined : sistema.imagemProvedor);
   if (!provedor) throw new IaIndisponivel("Geração de fotos por IA desativada em Configurações.");
+  await checarLimiteIa();
 
   if (provedor === "gemini") {
     const apiKey = await getSegredo("GEMINI_API_KEY");
@@ -135,6 +138,15 @@ export async function gerarFotoIA(opts: {
         // Modelos Gemini 3 aceitam resolução maior (2K) — melhor para campanha.
         imageConfig: { aspectRatio: opts.proporcao, ...(/gemini-3/.test(sistema.geminiModelo) ? { imageSize: "2K" } : {}) },
       },
+    });
+    await registrarGasto({
+      servico: "gemini",
+      modelo: sistema.geminiModelo,
+      finalidade: "foto",
+      ctx: opts.ctx,
+      tokensEntrada: resp.usageMetadata?.promptTokenCount ?? 0,
+      tokensSaida: resp.usageMetadata?.candidatesTokenCount ?? 0,
+      imagens: 1,
     });
     const parte = resp.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
     if (!parte?.inlineData?.data) {
@@ -172,6 +184,15 @@ export async function gerarFotoIA(opts: {
     if (e instanceof OpenAI.BadRequestError && exato !== padrao) resp = await editar(padrao);
     else throw e;
   }
+  await registrarGasto({
+    servico: "openai",
+    modelo: sistema.openaiModelo,
+    finalidade: "foto",
+    ctx: opts.ctx,
+    tokensEntrada: resp.usage?.input_tokens ?? 0,
+    tokensSaida: resp.usage?.output_tokens ?? 0,
+    imagens: 1,
+  });
   const b64 = resp.data?.[0]?.b64_json;
   if (!b64) throw new Error("A OpenAI não devolveu a imagem.");
   return { dados: Buffer.from(b64, "base64"), mime: "image/png", provedor, modelo: sistema.openaiModelo };

@@ -8,6 +8,9 @@ export async function api<T = unknown>(url: string, opts: RequestInit & { json?:
     headers: json !== undefined ? { "Content-Type": "application/json", ...(resto.headers ?? {}) } : resto.headers,
     body: json !== undefined ? JSON.stringify(json) : resto.body,
   });
+  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/entrar")) {
+    window.location.href = `/entrar?voltar=${encodeURIComponent(window.location.pathname)}`;
+  }
   const tipo = res.headers.get("content-type") ?? "";
   const dados = tipo.includes("json") ? await res.json() : await res.text();
   if (!res.ok) throw new Error((dados as { erro?: string })?.erro ?? `Erro ${res.status}`);

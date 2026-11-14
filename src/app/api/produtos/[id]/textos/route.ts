@@ -18,6 +18,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
     const r = await textosMarketing(
       { nome: p.nome, nome_comercial: p.nomeComercial, tipo: p.tipo, material: p.material, banho: p.banho, cor_pedra: p.corPedra, estilo: p.estilo, avaliacao: p.avaliacao, preco: p.precoVenda },
       p.imagemId ? await imagemParaIa(p.imagemId) : undefined,
+      { produtoId: id, pedidoId: p.pedidoId },
     );
     await db.update(schema.produtos).set({ legenda: r.legenda, hashtags: r.hashtags, nomeComercial: p.nomeComercial || r.nome_comercial }).where(eq(schema.produtos.id, id));
     return ok(r);

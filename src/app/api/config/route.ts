@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { erro, ok } from "@/lib/api";
+import { exigirPapel } from "@/lib/auth";
+import { registrar } from "@/lib/historico";
 import { getCenarios, getComponentesCusto, getConfig, restaurarPadrao, salvarConfig } from "@/lib/config";
 
 const PUBLICAS = ["precificacao", "taxonomia", "fiscal", "marca", "sistema", "upvendas"] as const;
@@ -30,11 +32,21 @@ export async function PUT(req: NextRequest) {
         if (v) atuais[k] = String(v).trim();
         else delete atuais[k];
       }
+      await exigirPapel(req, "gestora");
       await salvarConfig("segredos", atuais);
+      await registrar(req, { acao: "config.segredos", entidade: "config", resumo: `Chaves de API alteradas: ${Object.keys(valor).join(", ")}` });
       return ok();
     }
     if (!(PUBLICAS as readonly string[]).includes(chave)) return erro("Configuração desconhecida", 400);
+    await exigirPapel(req, "gestora");
+    if (chave === "sistema") {
+      // A chave do feed da Meta é criada pelo servidor; telas que salvam o "sistema" inteiro
+      // com dados antigos não podem apagá-la (o link cadastrado na Meta pararia de funcionar).
+      const { feedChave } = await getConfig("sistema");
+      if (feedChave && !valor.feedChave) valor.feedChave = feedChave;
+    }
     await salvarConfig(chave as (typeof PUBLICAS)[number], valor);
+    await registrar(req, { acao: `config.${chave}`, entidade: "config", entidadeId: chave, resumo: `Configuração "${chave}" alterada` });
     return ok({ valor: await getConfig(chave as (typeof PUBLICAS)[number]) });
   } catch (e) {
     return erro(e);
@@ -46,7 +58,11 @@ export async function DELETE(req: NextRequest) {
   try {
     const chave = req.nextUrl.searchParams.get("chave") ?? "";
     if (!(PUBLICAS as readonly string[]).includes(chave)) return erro("Configuração desconhecida", 400);
+    await exigirPapel(req, "gestora");
+    const { feedChave } = chave === "sistema" ? await getConfig("sistema") : { feedChave: "" };
     await restaurarPadrao(chave as (typeof PUBLICAS)[number]);
+    if (feedChave) await salvarConfig("sistema", { feedChave }); // mantém o link do catálogo da Meta
+    await registrar(req, { acao: `config.${chave}.padrao`, entidade: "config", entidadeId: chave, resumo: `Configuração "${chave}" voltou ao padrão` });
     return ok();
   } catch (e) {
     return erro(e);

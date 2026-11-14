@@ -4,6 +4,7 @@ import { getDb, schema } from "./db";
 import { getConfig, getSegredo, type Taxonomia, type UpVendasConfig } from "./config";
 import type { PoliticaPreco } from "./precos";
 import type { Produto } from "./db/schema";
+import { fotosModeloPorProduto } from "./fotos";
 
 /**
  * Integração com o UP Vendas.
@@ -63,16 +64,18 @@ export interface ContextoUp {
   marca: string;
   codigoNoUp: "ean13" | "code128";
   urlBase: string; // para montar o link público da imagem
+  fotos: Record<string, { id: string; publicavel: boolean }>; // foto criada pela IA e aprovada pela loja
 }
 
-export async function contextoUp(urlBase: string): Promise<ContextoUp> {
+export async function contextoUp(urlBase: string, produtoIds: string[] = []): Promise<ContextoUp> {
+  const fotos = await fotosModeloPorProduto(produtoIds);
   const [tax, pol, up, sistema] = await Promise.all([
     getConfig("taxonomia"),
     getConfig("precificacao"),
     getConfig("upvendas"),
     getConfig("sistema"),
   ]);
-  return { tax, pol, up, marca: sistema.marcaUp, codigoNoUp: sistema.codigoNoUp ?? "ean13", urlBase };
+  return { tax, pol, up, marca: sistema.marcaUp, codigoNoUp: sistema.codigoNoUp ?? "ean13", urlBase, fotos };
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -82,6 +85,8 @@ export function linhaUp(p: Produto, ctx: ContextoUp): LinhaUp {
   const material = ctx.tax.materiais.find((m) => m.id === p.material);
   const banho = ctx.tax.banhos.find((b) => b.id === p.banho);
   const custo = p.custoTotalBrl ?? 0;
+  // Foto aprovada pela loja (fila de aprovação) tem prioridade; senão a foto principal.
+  const fotoId = ctx.fotos[p.id]?.publicavel ? ctx.fotos[p.id].id : p.imagemId;
   const base = ctx.pol.tabelas_preco.find((t) => t.id === ctx.pol.tabela_base);
   const segunda = ctx.pol.tabelas_preco.find((t) => t.tabela_up_vendas && t.id !== ctx.pol.tabela_base);
   const valor2 = segunda ? (p.precos?.[segunda.id] ?? 0) : 0;
@@ -118,7 +123,7 @@ export function linhaUp(p: Produto, ctx: ContextoUp): LinhaUp {
     acabado: true,
     compartilhar: true,
     sincronizarUpVendas: true,
-    imagemUrl: p.imagemId ? `${ctx.urlBase}/api/imagens/${p.imagemId}` : "",
+    imagemUrl: fotoId ? `${ctx.urlBase}/api/imagens/${fotoId}` : "",
     tipo: tipo?.nome ?? p.tipo ?? "",
     material: material?.nome ?? p.material ?? "",
     banho: banho?.nome ?? p.banho ?? "",
@@ -186,7 +191,7 @@ export async function testarConexao() {
 
 export async function enviarProdutos(ids: string[], urlBase: string, simular = false) {
   const db = await getDb();
-  const ctx = await contextoUp(urlBase);
+  const ctx = await contextoUp(urlBase, ids);
   const token = simular ? "" : await login(ctx.up);
   const resultados: { id: string; referencia: string | null; ok: boolean; mensagem: string; payload?: unknown }[] = [];
   for (const id of ids) {

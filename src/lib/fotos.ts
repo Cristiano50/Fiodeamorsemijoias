@@ -66,11 +66,11 @@ export async function gerarFotoModelo(
       descricaoPeca: [p.traducao, p.avaliacao].filter(Boolean).join(" — "),
       comReferencia: !!estilo,
     });
-    const foto = await gerarFotoIA({ imagem: base.dados, mime: base.mime, prompt, proporcao: opts.proporcao ?? "4:5", provedor: opts.provedor, estilo });
+    const foto = await gerarFotoIA({ imagem: base.dados, mime: base.mime, prompt, proporcao: opts.proporcao ?? "4:5", provedor: opts.provedor, estilo, ctx: { produtoId, pedidoId: p.pedidoId } });
     let avaliacao: AvaliacaoFoto | null = null;
     if (avaliar) {
       const geradaB64 = (await sharp(foto.dados).resize({ width: 1024, height: 1024, fit: "inside" }).jpeg({ quality: 88 }).toBuffer()).toString("base64");
-      avaliacao = await avaliarFotoMarketing({ referenciaBase64: referenciaB64, geradaBase64: geradaB64, geradaMime: "image/jpeg", estiloBase64: estiloB64, produto: produtoInfo });
+      avaliacao = await avaliarFotoMarketing({ referenciaBase64: referenciaB64, geradaBase64: geradaB64, geradaMime: "image/jpeg", estiloBase64: estiloB64, produto: produtoInfo, ctx: { produtoId, pedidoId: p.pedidoId } });
     }
     tentativas.push({ numero: n, aprovada: avaliacao ? avaliacao.aprovada : null, nota: avaliacao?.nota ?? null, problemas: avaliacao?.problemas ?? [] });
     if (!melhor || (avaliacao?.nota ?? 0) > (melhor.avaliacao?.nota ?? -1)) melhor = { ...foto, prompt, avaliacao };
@@ -131,13 +131,17 @@ export async function fotosModeloPorProduto(produtoIds: string[]) {
     .select({ id: schema.imagens.id, produtoId: schema.imagens.produtoId, meta: schema.imagens.meta, criadoEm: schema.imagens.criadoEm })
     .from(schema.imagens)
     .where(eq(schema.imagens.origem, "ia"));
-  const out: Record<string, { id: string; aprovada: boolean | null; nota: number | null }> = {};
+  type Foto = { id: string; aprovada: boolean | null; nota: number | null; decisao: "aprovada" | "recusada" | null; publicavel: boolean };
+  const out: Record<string, Foto> = {};
+  const peso = (f: Foto) => (f.decisao === "aprovada" ? 3 : f.aprovada ? 2 : 1);
   for (const l of linhas.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))) {
     if (!l.produtoId || !produtoIds.includes(l.produtoId)) continue;
-    const m = (l.meta ?? {}) as { aprovada?: boolean | null; avaliacao?: { nota?: number } | null };
+    const m = (l.meta ?? {}) as { aprovada?: boolean | null; avaliacao?: { nota?: number } | null; decisao?: "aprovada" | "recusada" };
+    if (m.decisao === "recusada") continue; // recusada na fila de aprovação: nunca aparece
+    const f: Foto = { id: l.id, aprovada: m.aprovada ?? null, nota: m.avaliacao?.nota ?? null, decisao: m.decisao ?? null, publicavel: m.decisao === "aprovada" };
     const atual = out[l.produtoId];
-    // Prefere a aprovada mais recente; senão a mais recente.
-    if (!atual || m.aprovada || !atual.aprovada) out[l.produtoId] = { id: l.id, aprovada: m.aprovada ?? null, nota: m.avaliacao?.nota ?? null };
+    // Prefere a aprovada pela loja; depois a aprovada pelo marketing; empate → a mais recente.
+    if (!atual || peso(f) >= peso(atual)) out[l.produtoId] = f;
   }
   return out;
 }

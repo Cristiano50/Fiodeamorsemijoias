@@ -43,7 +43,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
       },
       numeros,
       itens,
-    });
+    }, { pedidoId: id });
     const db = await getDb();
     await db.update(schema.pedidos).set({ parecer: { ...parecer, geradoEm: new Date().toISOString() } }).where(eq(schema.pedidos.id, id));
     return ok(parecer);

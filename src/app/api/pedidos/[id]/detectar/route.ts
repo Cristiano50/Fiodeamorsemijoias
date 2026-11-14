@@ -27,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
 
     const sistema = await getConfig("sistema");
     const b64 = await imagemParaIa(pagina.imagemId, 1568);
-    const det = await detectarPecas(b64!, "image/jpeg");
+    const det = await detectarPecas(b64!, "image/jpeg", { pedidoId: id });
     const [{ ultima }] = await db.select({ ultima: max(schema.produtos.linha) }).from(schema.produtos).where(eq(schema.produtos.pedidoId, id));
     let linha = (ultima ?? 0) + 1;
     let criados = 0;

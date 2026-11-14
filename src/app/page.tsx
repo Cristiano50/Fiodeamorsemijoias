@@ -5,7 +5,7 @@ import { Botao, Carregando, Cartao, Numero, Selo } from "@/components/ui";
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, moedaSimbolo, num } from "@/lib/cliente";
 
-type Painel = { produtos: number; pecas: number; custo: number; venda: number; pedidos: number; aprovados: number; semCodigo: number; noUp: number; comFotoIa: number; porTipo: { tipo: string; pecas: number; venda: number }[] };
+type Painel = { produtos: number; pecas: number; custo: number; venda: number; pedidos: number; aprovados: number; semCodigo: number; noUp: number; comFotoIa: number; fotosPendentes: number; gastoIaMes: number; porTipo: { tipo: string; pecas: number; venda: number }[] };
 type PedidoLista = { id: string; numero: string | null; fornecedor: string | null; dataCompra: string | null; moeda: string; status: string; linhas: number; pecas: number; custo: number; venda: number };
 
 export default function Painel() {
@@ -44,6 +44,14 @@ export default function Painel() {
         <Numero rotulo="Investimento (custo)" valor={brl(p.custo)} />
         <Numero rotulo="Valor em etiqueta" valor={brl(p.venda)} detalhe={p.custo ? `markup × ${num(p.venda / p.custo)}` : ""} />
         <Numero rotulo="No UP Vendas" valor={p.noUp} detalhe={`${p.semCodigo} sem código · ${p.comFotoIa} com arte/foto IA`} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Link href="/fotos">
+          <Numero rotulo="Fotos para aprovar" valor={p.fotosPendentes} detalhe="toque para revisar" />
+        </Link>
+        <Link href="/gastos">
+          <Numero rotulo="Gastos com IA no mês" valor={`US$ ${num(p.gastoIaMes, 2)}`} detalhe="estimativa · ver detalhes" />
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

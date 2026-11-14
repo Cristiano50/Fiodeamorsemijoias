@@ -2,13 +2,18 @@ import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
-import { gerarCodigos, recalcularProduto } from "@/lib/servicos";
+import { desfazerRecompra, gerarCodigos, recalcularProduto } from "@/lib/servicos";
+import { exigirPapel } from "@/lib/auth";
+import { registrar } from "@/lib/historico";
+import { checarFator } from "@/lib/permissoes";
 
 /** Ações em lote: { ids, acao: "aprovar" | "rascunho" | "codigos" | "recalcular" | "excluir", dados? } */
 export async function POST(req: NextRequest) {
   try {
     const { ids, acao, dados } = (await req.json()) as { ids: string[]; acao: string; dados?: Record<string, unknown> };
     if (!ids?.length) return erro("Nenhum produto selecionado", 400);
+    if (acao === "excluir") await exigirPapel(req, "gestora");
+    if (acao === "definir" && dados && "fator" in dados) await checarFator(req, dados.fator as number | null);
     const db = await getDb();
     const agora = new Date().toISOString();
     switch (acao) {
@@ -45,6 +50,9 @@ export async function POST(req: NextRequest) {
           await gerarCodigos(ids.slice(1), false);
         }
         break;
+      case "naoRecompra":
+        await desfazerRecompra(ids);
+        break;
       case "excluir":
         await db.delete(schema.imagens).where(inArray(schema.imagens.produtoId, ids));
         await db.delete(schema.produtos).where(inArray(schema.produtos.id, ids));
@@ -52,6 +60,8 @@ export async function POST(req: NextRequest) {
       default:
         return erro(`Ação desconhecida: ${acao}`, 400);
     }
+    if (["excluir", "definir", "codigos", "naoRecompra", "agrupar", "desagrupar"].includes(acao))
+      await registrar(req, { acao: `lote.${acao}`, entidade: "produto", resumo: `${acao} em ${ids.length} peça(s)${dados ? `: ${JSON.stringify(dados)}` : ""}`, dados: { ids } });
     return ok({ ok: true, total: ids.length });
   } catch (e) {
     return erro(e);
