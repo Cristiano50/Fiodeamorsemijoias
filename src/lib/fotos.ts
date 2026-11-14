@@ -1,4 +1,6 @@
 import "server-only";
+import fs from "node:fs/promises";
+import path from "node:path";
 import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "./db";
@@ -31,8 +33,10 @@ export async function gerarFotoModelo(
   const base = await lerImagem(opts.imagemId ?? p.imagemId ?? "");
   if (!base) throw new Error("O produto não tem foto de referência.");
   const [marca, sistema] = await Promise.all([getConfig("marca"), getConfig("sistema")]);
-  const cenarioId = cenarioDoTipo(marca, p.tipo, opts.cenarioId);
-  const estilo = await referenciaDeEstilo(p.tipo);
+  const cenarioId = cenarioDoTipo(marca, p.tipo, opts.cenarioId, p.subtipo);
+  const cenario = marca.prompts_ia_foto?.cenarios?.find((c) => c.id === cenarioId);
+  // Referência de estilo só para cenários de expositor (com modelo, a cena vem do texto).
+  const estilo = cenario?.modelo ? null : await referenciaDeEstilo(p.tipo, cenario?.referencia_estilo);
   const avaliar = !!(await getSegredo("ANTHROPIC_API_KEY"));
   const maxTentativas = Math.min(Math.max(opts.tentativas ?? sistema.fotoTentativas ?? 3, 1), 5);
   const estiloB64 = estilo ? (await sharp(estilo.dados).resize({ width: 640, height: 640, fit: "inside" }).jpeg({ quality: 80 }).toBuffer()).toString("base64") : null;
@@ -95,15 +99,28 @@ export async function gerarFotoModelo(
   return { imagemId, aprovada, avaliacao: melhor!.avaliacao, tentativas, provedor: melhor!.provedor, modelo: melhor!.modelo };
 }
 
-/** Foto de referência de estilo cadastrada para o tipo da peça (uma ao acaso, se houver várias). */
-export async function referenciaDeEstilo(tipo: string | null) {
-  if (!tipo) return null;
+/**
+ * Foto de referência de estilo: a cadastrada em Configurações para o tipo da peça (uma ao acaso);
+ * se não houver, o arquivo indicado pelo marketing no cenário (cenarios[].referencia_estilo), se existir.
+ */
+export async function referenciaDeEstilo(tipo: string | null, arquivoDoCenario?: string | null) {
   const db = await getDb();
-  const refs = await db.select().from(schema.imagens).where(eq(schema.imagens.origem, "referencia"));
-  const doTipo = refs.filter((r) => ((r.meta as { tipos?: string[] } | null)?.tipos ?? []).includes(tipo));
-  if (!doTipo.length) return null;
-  const r = doTipo[Math.floor(Math.random() * doTipo.length)];
-  return { id: r.id, dados: r.dados, mime: r.mime };
+  if (tipo) {
+    const refs = await db.select().from(schema.imagens).where(eq(schema.imagens.origem, "referencia"));
+    const doTipo = refs.filter((r) => ((r.meta as { tipos?: string[] } | null)?.tipos ?? []).includes(tipo));
+    if (doTipo.length) {
+      const r = doTipo[Math.floor(Math.random() * doTipo.length)];
+      return { id: r.id, dados: r.dados, mime: r.mime };
+    }
+  }
+  if (arquivoDoCenario) {
+    const caminho = path.resolve(process.cwd(), arquivoDoCenario);
+    if (caminho.startsWith(process.cwd() + path.sep)) {
+      const dados = await fs.readFile(caminho).catch(() => null);
+      if (dados) return { id: arquivoDoCenario, dados: await sharp(dados).jpeg({ quality: 90 }).toBuffer(), mime: "image/jpeg" };
+    }
+  }
+  return null;
 }
 
 /** Última foto com modelo de cada produto (para a tabela do pedido e o estúdio). */

@@ -57,7 +57,7 @@ export interface Marca {
   prompts_ia_foto?: {
     base?: string;
     por_tipo?: Record<string, string>;
-    cenarios?: { id: string; nome: string; prompt: string; modelo?: boolean }[];
+    cenarios?: { id: string; nome: string; prompt: string; modelo?: boolean; referencia_estilo?: string | null }[];
     negativo?: string[];
   };
   [k: string]: unknown;

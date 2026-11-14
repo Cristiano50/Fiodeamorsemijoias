@@ -18,47 +18,65 @@ const BANHO_EN: Record<string, string> = {
 };
 const TONS_PELE = ["fair", "light olive", "medium tan", "deep brown"];
 
+type PromptsFoto = NonNullable<Marca["prompts_ia_foto"]> & {
+  instrucao_referencia_estilo?: string;
+  aliases?: Record<string, string>;
+  por_subtipo?: Record<string, string>;
+  por_subtipo_modelo?: Record<string, string>;
+  still_life?: string;
+  cenario_padrao?: string;
+  cenario_por_tipo?: Record<string, string>;
+  cenario_por_subtipo?: Record<string, string>;
+  negativo_modelo?: string[];
+};
+
+const contem = (subtipo: string | null | undefined, chave: string) => {
+  const sub = (subtipo ?? "").toLowerCase();
+  const k = chave.toLowerCase();
+  return sub.includes(k) || (k === "religioso" && /religios|santa|nossa senhora|crucifix|terço|escapul|são |sao /.test(sub));
+};
+
 /**
  * Monta o prompt na ordem definida pelo marketing (marca.json → prompts_ia_foto.montagem):
- * base + (cenário com modelo: por_tipo[tipo|alias|default] + por_subtipo) ou (still: still_life)
- * + cena + ajuste da avaliação anterior + "Avoid: " negativo.
+ * base + instrução da referência de estilo (se houver imagem 2) + bloco do cenário
+ * (expositor: still_life | com modelo: por_tipo + por_subtipo_modelo) + por_subtipo + cena
+ * + ajuste da avaliação anterior + "Avoid:" negativo (+ negativo_modelo se houver modelo).
  */
 export function montarPromptFoto(
   marca: Marca,
   opts: { tipo?: string | null; subtipo?: string | null; banho?: string | null; tamanho?: string | null; cenarioId?: string; extra?: string; descricaoPeca?: string; comReferencia?: boolean },
 ): string {
-  const p = (marca.prompts_ia_foto ?? {}) as NonNullable<Marca["prompts_ia_foto"]> & {
-    instrucao_referencia_estilo?: string;
-    aliases?: Record<string, string>;
-    por_subtipo?: Record<string, string>;
-    still_life?: string;
-    cenario_padrao?: string;
-  };
-  const cen = p.cenarios?.find((c) => c.id === cenarioDoTipo(marca, opts.tipo, opts.cenarioId)) ?? p.cenarios?.[0];
-  const comModelo = cen?.modelo !== false;
+  const p = (marca.prompts_ia_foto ?? {}) as PromptsFoto;
+  const cen = p.cenarios?.find((c) => c.id === cenarioDoTipo(marca, opts.tipo, opts.cenarioId, opts.subtipo)) ?? p.cenarios?.[0];
+  const comModelo = cen?.modelo === true;
   const tipo = (opts.tipo && (p.por_tipo?.[opts.tipo] ? opts.tipo : p.aliases?.[opts.tipo])) || "default";
-  const subtipoChaves = Object.keys(p.por_subtipo ?? {}).filter((k) => {
-    const sub = (opts.subtipo ?? "").toLowerCase();
-    return sub.includes(k.toLowerCase()) || (k.toLowerCase() === "religioso" && /religios|santa|nossa senhora|crucifix|terço|escapul/.test(sub));
-  });
-  const corpo = comModelo
-    ? [p.por_tipo?.[tipo] ?? p.por_tipo?.default ?? "", ...subtipoChaves.map((k) => p.por_subtipo![k])]
-    : [p.still_life ?? "", ...subtipoChaves.filter((k) => k.toLowerCase() === "religioso").map((k) => p.por_subtipo![k])];
+  const bloco = comModelo
+    ? [
+        p.por_tipo?.[tipo] ?? p.por_tipo?.default ?? "",
+        ...Object.keys(p.por_subtipo_modelo ?? {})
+          .filter((k) => contem(opts.subtipo, k))
+          .map((k) => p.por_subtipo_modelo![k]),
+      ]
+    : [p.still_life ?? ""];
+  const porSubtipo = Object.keys(p.por_subtipo ?? {})
+    .filter((k) => contem(opts.subtipo, k))
+    .map((k) => p.por_subtipo![k]);
   const cenario = cen?.prompt ?? "";
-  const usaPlaceholderCena = [p.base, ...corpo].some((t) => t?.includes("{scene}"));
-  const negativo = Array.isArray(p.negativo) && p.negativo.length ? `Avoid: ${p.negativo.join(", ")}.` : "";
+  const usaPlaceholderCena = [p.base, ...bloco, ...porSubtipo].some((t) => t?.includes("{scene}"));
+  const negativos = [...(Array.isArray(p.negativo) ? p.negativo : []), ...(comModelo && Array.isArray(p.negativo_modelo) ? p.negativo_modelo : [])];
   const instrucaoRef =
     opts.comReferencia &&
     (p.instrucao_referencia_estilo ??
       "Image 1 is the real product: copy the jewelry ONLY from image 1. Image 2 is a style reference only: reproduce its display prop, materials, colors, background, light and framing, but never copy the jewelry shown in image 2.");
   const texto = [
-    instrucaoRef || "",
     p.base ??
       "Use the reference photo as the exact jewelry piece. Keep its shape, color, stones and plating identical. Remove supplier cards, tags and QR codes.",
-    ...corpo,
+    instrucaoRef || "",
+    ...bloco,
+    ...porSubtipo,
     usaPlaceholderCena ? "" : cenario,
     opts.extra ?? "",
-    negativo,
+    negativos.length ? `Avoid: ${negativos.join(", ")}.` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -70,13 +88,14 @@ export function montarPromptFoto(
     .replaceAll("{skin_tone}", TONS_PELE[Math.floor(Math.random() * TONS_PELE.length)]);
 }
 
-/** Cenário a usar: o escolhido; ou, em "auto", o expositor definido pelo marketing para o tipo da peça. */
-export function cenarioDoTipo(marca: Marca, tipo?: string | null, escolhido?: string): string | undefined {
-  const p = (marca.prompts_ia_foto ?? {}) as { cenario_padrao?: string; cenario_por_tipo?: Record<string, string>; aliases?: Record<string, string> };
+/** Cenário: o escolhido no estúdio; em "auto", o expositor do subtipo, senão o do tipo, senão o padrão (marketing). */
+export function cenarioDoTipo(marca: Marca, tipo?: string | null, escolhido?: string, subtipo?: string | null): string | undefined {
+  const p = (marca.prompts_ia_foto ?? {}) as PromptsFoto;
   if (escolhido && escolhido !== "auto") return escolhido;
-  if (p.cenario_padrao && p.cenario_padrao !== "auto" && !p.cenario_por_tipo) return p.cenario_padrao;
+  if (p.cenario_padrao && p.cenario_padrao !== "auto") return p.cenario_padrao;
+  const porSub = subtipo ? p.cenario_por_subtipo?.[subtipo] : undefined;
   const mapa = p.cenario_por_tipo ?? {};
-  return (tipo && (mapa[tipo] ?? (p.aliases?.[tipo] ? mapa[p.aliases[tipo]] : undefined))) || mapa.default || (p.cenario_padrao !== "auto" ? p.cenario_padrao : undefined);
+  return porSub ?? (tipo ? (mapa[tipo] ?? (p.aliases?.[tipo] ? mapa[p.aliases[tipo]] : undefined)) : undefined) ?? mapa.default ?? p.cenarios?.[0]?.id;
 }
 
 export async function gerarFotoIA(opts: {

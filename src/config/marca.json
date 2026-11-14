@@ -215,26 +215,26 @@
     }
   },
   "diretrizes_arte": [
-    "Base das artes de divulgação: a foto com modelo aprovada em avaliacao_foto, sangrada (cover), com a peça no terço central e dentro dos 1012 px centrais. A foto do fornecedor nunca entra na arte. Só a vitrine_loja usa a foto still da peça sozinha.",
-    "Pouco texto: no máximo 3 elementos (rótulo curto, nome comercial e preço opcional) mais o logo e o aviso de IA. Nenhum texto, logo ou fio sobre a peça nem sobre a boca e o queixo da modelo.",
-    "Legibilidade com degradê sutil, nunca faixa chapada. Modo padrão: degradê ameixa #4A353D de 0% até no máximo 65%, textos e logo em branco, com sombra de texto quase invisível (rgba(0,0,0,0.25), desfoque de 12 px, sem deslocamento). Modo claro, quando a luminância média da área do texto passar de 0,72: degradê creme #F6EFE6 de 0% a 85%, textos em primaria_escura e texto, logo rosé e sem sombra.",
-    "Logo pequeno: 160 px de largura (o mínimo de logo.regras), com respiro, nunca sobre a peça ou o rosto.",
+    "Base das artes de divulgação: a foto de IA aprovada em avaliacao_foto. Por padrão é a peça num expositor de veludo (cenario_por_tipo); quando escolhida, a peça em modelo. A foto entra sangrada (cover), com a peça no terço central e dentro dos 1012 px centrais. A foto do fornecedor nunca entra na arte. A vitrine_loja usa a peça sozinha em fundo limpo.",
+    "Pouco texto: no máximo 3 elementos (rótulo curto, nome comercial e preço opcional) mais o logo e o aviso de IA. Nenhum texto, logo ou fio sobre a peça.",
+    "Legibilidade com degradê sutil, nunca faixa chapada. Modo padrão: degradê ameixa #4A353D de 0% até no máximo 65%, textos e logo em branco, com sombra de texto quase invisível (rgba(0,0,0,0.25), desfoque de 12 px, sem deslocamento). Modo claro, quando a luminância média da área do texto passar de 0,72 (comum nas fotos de expositor com fundo creme): degradê creme #F6EFE6 de 0% a 85%, textos em primaria_escura e texto, logo rosé e sem sombra.",
+    "Logo pequeno: 160 px de largura (o mínimo de logo.regras), com respiro, nunca sobre a peça.",
     "Preço opcional (liga/desliga no app). Sem preço, o bloco de texto desce e respira. A versão sem preço é a das revendedoras e maletas.",
-    "Não desenhar a fita rosé por cima da foto com modelo, porque fica artificial: a fita aparece no cenário da própria foto. O único grafismo permitido é um fio dourado #B8925A de 1 a 1,5 px.",
+    "Não desenhar a fita rosé por cima da foto, porque fica artificial. O único grafismo permitido é um fio dourado #B8925A de 1 a 1,5 px.",
     "Aviso de IA na arte, pequeno e legível: 'Imagem ilustrativa criada com IA' em Jost 300 de 15 a 16 px, branco 70% (ou cor texto 70% no modo claro), na posição indicada em cada template. Na publicação, ativar também o rótulo de IA do Instagram.",
     "Tipografia: Satisfy só no nome comercial; Cormorant Garamond 500–600 no preço; Jost 300 em MAIÚSCULAS com tracking de 0.18em nos rótulos; Jost 400–500 no CTA e no catálogo."
   ],
   "templates_arte": [
     {
       "id": "feed_produto",
-      "nome": "Feed retrato: produto com modelo",
+      "nome": "Feed retrato: produto",
       "largura": 1080,
       "altura": 1350,
       "uso": "feed",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "4:5",
       "preco": "opcional",
-      "layout": "Foto com modelo aprovada sangrada em 1080x1350 (cover), peça entre y = 300 e 950 e dentro dos 1012 px centrais. Sem faixa e sem moldura. Degradê inferior ameixa #4A353D: 0% em y = 820, 25% em y = 1050 e 60% em y = 1350. Bloco de texto alinhado à esquerda em x = 72: rótulo (coleção ou detalhe curto, até 32 caracteres) em Jost 300 MAIÚSCULAS 20 px, tracking 0.18em, branco 85%, linha de base em y = 1128; nome comercial em Satisfy 68 px branco, linha de base em y = 1212, largura máxima de 640 px (reduzir até 56 px se não couber); fio dourado de 56 x 1,5 px em y = 1240; preço opcional em Cormorant Garamond 500 44 px branco, linha de base em y = 1296. Sem preço, o bloco desce 60 px. Logo branco de 160 px no canto inferior direito, alinhado à direita em x = 1008 e com a base em y = 1296. Aviso de IA em Jost 300 16 px branco 70%, alinhado à direita em x = 1008, linha de base em y = 1326. Modo claro conforme diretrizes_arte."
+      "layout": "Foto aprovada sangrada em 1080x1350 (cover), peça entre y = 300 e 950 e dentro dos 1012 px centrais. Sem faixa e sem moldura. Degradê inferior ameixa #4A353D: 0% em y = 820, 25% em y = 1050 e 60% em y = 1350. Bloco de texto alinhado à esquerda em x = 72: rótulo (coleção ou detalhe curto, até 32 caracteres) em Jost 300 MAIÚSCULAS 20 px, tracking 0.18em, branco 85%, linha de base em y = 1128; nome comercial em Satisfy 68 px branco, linha de base em y = 1212, largura máxima de 640 px (reduzir até 56 px se não couber); fio dourado de 56 x 1,5 px em y = 1240; preço opcional em Cormorant Garamond 500 44 px branco, linha de base em y = 1296. Sem preço, o bloco desce 60 px. Logo branco de 160 px no canto inferior direito, alinhado à direita em x = 1008 e com a base em y = 1296. Aviso de IA em Jost 300 16 px branco 70%, alinhado à direita em x = 1008, linha de base em y = 1326. Modo claro conforme diretrizes_arte."
     },
     {
       "id": "feed_lancamento",
@@ -242,10 +242,10 @@
       "largura": 1080,
       "altura": 1350,
       "uso": "feed",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "4:5",
       "preco": "opcional",
-      "layout": "Igual a feed_produto, trocando o selo circular chapado por uma etiqueta discreta no canto superior esquerdo: 'NOVIDADE' ou o nome da coleção em Jost 400 MAIÚSCULAS 18 px, tracking 0.3em, branco, a partir de x = 72 com linha de base em y = 110, sublinhada por um fio dourado de 40 x 1,5 px em y = 128. Degradê superior ameixa de 30% em y = 0 até 0% em y = 260, só para dar leitura à etiqueta. O rótulo do bloco inferior pode trazer a ocasião ('PARA O SEU RÉVEILLON'). Não desenhar fita sobre a foto."
+      "layout": "Igual a feed_produto, trocando o selo circular chapado por uma etiqueta discreta no canto superior esquerdo: 'NOVIDADE' ou o nome da coleção em Jost 400 MAIÚSCULAS 18 px, tracking 0.3em, branco, a partir de x = 72 com linha de base em y = 110, sublinhada por um fio dourado de 40 x 1,5 px em y = 128. Degradê superior ameixa de 30% em y = 0 até 0% em y = 260, só para dar leitura à etiqueta (no modo claro, creme e etiqueta em primaria_escura). O rótulo do bloco inferior pode trazer a ocasião ('PARA O SEU RÉVEILLON'). Não desenhar fita sobre a foto."
     },
     {
       "id": "quadrado_feed",
@@ -253,10 +253,10 @@
       "largura": 1080,
       "altura": 1080,
       "uso": "feed",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "4:5 recortada em 1:1, centrada na peça",
       "preco": "opcional",
-      "layout": "Foto com modelo aprovada sangrada em 1080x1080 (cover), peça centralizada. Sem moldura. Degradê inferior ameixa #4A353D: 0% em y = 620, 25% em y = 820 e 60% em y = 1080. Bloco alinhado à esquerda em x = 64: nome comercial em Satisfy 60 px branco, linha de base em y = 968, largura máxima de 620 px; preço opcional em Cormorant Garamond 500 40 px branco, linha de base em y = 1026 (sem preço, o nome desce para y = 1010). Logo branco de 160 px no canto inferior direito, alinhado à direita em x = 1016 e com a base em y = 1022. Aviso de IA em Jost 300 15 px branco 70%, alinhado à direita em x = 1016, linha de base em y = 1054. Para anúncio pago, só nome e preço (menos de 20% da área com texto). Modo claro conforme diretrizes_arte."
+      "layout": "Foto aprovada sangrada em 1080x1080 (cover), peça centralizada. Sem moldura. Degradê inferior ameixa #4A353D: 0% em y = 620, 25% em y = 820 e 60% em y = 1080. Bloco alinhado à esquerda em x = 64: nome comercial em Satisfy 60 px branco, linha de base em y = 968, largura máxima de 620 px; preço opcional em Cormorant Garamond 500 40 px branco, linha de base em y = 1026 (sem preço, o nome desce para y = 1010). Logo branco de 160 px no canto inferior direito, alinhado à direita em x = 1016 e com a base em y = 1022. Aviso de IA em Jost 300 15 px branco 70%, alinhado à direita em x = 1016, linha de base em y = 1054. Para anúncio pago, só nome e preço (menos de 20% da área com texto). Modo claro conforme diretrizes_arte."
     },
     {
       "id": "stories_produto",
@@ -264,10 +264,10 @@
       "largura": 1080,
       "altura": 1920,
       "uso": "stories",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "9:16 (ou a 4:5 em cover, peça centralizada)",
       "preco": "opcional",
-      "layout": "Foto com modelo aprovada sangrada em 1080x1920 (cover), peça entre y = 420 e 1150. Zonas seguras: nenhum texto nos 250 px de cima nem abaixo de y = 1580 (interface do Instagram). Degradê superior ameixa #4A353D de 28% em y = 0 até 0% em y = 420; degradê inferior de 0% em y = 1000, 30% em y = 1250 e 65% em y = 1920. Logo branco de 160 px centralizado, com o topo em y = 270, e o aviso de IA logo abaixo, em Jost 300 16 px branco 70%, centralizado, linha de base em y = 366. Área livre para sticker de link ou enquete: y = 1150 a 1270, centralizada. Bloco centralizado em x = 540: rótulo em Jost 300 MAIÚSCULAS 22 px, tracking 0.18em, branco 85%, linha de base em y = 1330; nome comercial em Satisfy 84 px branco, linha de base em y = 1420, largura máxima de 900 px; fio dourado de 56 x 1,5 px centrado em y = 1450; preço opcional em Cormorant Garamond 500 48 px branco, linha de base em y = 1510; CTA 'CHAMA NO DIRECT' em Jost 400 MAIÚSCULAS 22 px, tracking 0.2em, branco, linha de base em y = 1560, sem botão chapado. Sem preço, o CTA sobe para y = 1510."
+      "layout": "Foto aprovada sangrada em 1080x1920 (cover), peça entre y = 420 e 1150. Zonas seguras: nenhum texto nos 250 px de cima nem abaixo de y = 1580 (interface do Instagram). Degradê superior ameixa #4A353D de 28% em y = 0 até 0% em y = 420; degradê inferior de 0% em y = 1000, 30% em y = 1250 e 65% em y = 1920. Logo branco de 160 px centralizado, com o topo em y = 270, e o aviso de IA logo abaixo, em Jost 300 16 px branco 70%, centralizado, linha de base em y = 366. Área livre para sticker de link ou enquete: y = 1150 a 1270, centralizada. Bloco centralizado em x = 540: rótulo em Jost 300 MAIÚSCULAS 22 px, tracking 0.18em, branco 85%, linha de base em y = 1330; nome comercial em Satisfy 84 px branco, linha de base em y = 1420, largura máxima de 900 px; fio dourado de 56 x 1,5 px centrado em y = 1450; preço opcional em Cormorant Garamond 500 48 px branco, linha de base em y = 1510; CTA 'CHAMA NO DIRECT' em Jost 400 MAIÚSCULAS 22 px, tracking 0.2em, branco, linha de base em y = 1560, sem botão chapado. Sem preço, o CTA sobe para y = 1510. Modo claro conforme diretrizes_arte."
     },
     {
       "id": "catalogo_whatsapp",
@@ -275,10 +275,10 @@
       "largura": 1080,
       "altura": 1080,
       "uso": "whatsapp",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "4:5 recortada em 1:1, centrada na peça",
       "preco": "duas versões: com preço (cliente final) e sem preço (revendedoras e maletas)",
-      "layout": "Foto com modelo aprovada sangrada em 1080x1080 (cover), peça centralizada. Degradê superior ameixa #4A353D de 22% em y = 0 até 0% em y = 200; degradê inferior de 0% em y = 640, 30% em y = 840 e 65% em y = 1080. Logo branco de 160 px no canto superior esquerdo (x = 48, topo em y = 44). Aviso de IA em Jost 300 15 px branco 70%, alinhado à direita em x = 1032, linha de base em y = 72. Bloco inferior à esquerda em x = 48: nome comercial em Jost 500 32 px branco (mais legível no WhatsApp), linha de base em y = 978; referência e um detalhe técnico ('REF BR_2611001 · PÉROLA 7 MM') em Jost 300 MAIÚSCULAS 20 px, tracking 0.12em, branco 85%, linha de base em y = 1020. Preço em Cormorant Garamond 600 52 px branco, alinhado à direita em x = 1032, linha de base em y = 1010, só na versão com preço. Enviar junto, como segunda imagem, a vitrine_loja (peça de perto, sem modelo)."
+      "layout": "Foto aprovada sangrada em 1080x1080 (cover), peça centralizada. Degradê superior ameixa #4A353D de 22% em y = 0 até 0% em y = 200; degradê inferior de 0% em y = 640, 30% em y = 840 e 65% em y = 1080. Logo branco de 160 px no canto superior esquerdo (x = 48, topo em y = 44). Aviso de IA em Jost 300 15 px branco 70%, alinhado à direita em x = 1032, linha de base em y = 72. Bloco inferior à esquerda em x = 48: nome comercial em Jost 500 32 px branco (mais legível no WhatsApp), linha de base em y = 978; referência e um detalhe técnico ('REF BR_2611001 · PÉROLA 7 MM') em Jost 300 MAIÚSCULAS 20 px, tracking 0.12em, branco 85%, linha de base em y = 1020. Preço em Cormorant Garamond 600 52 px branco, alinhado à direita em x = 1032, linha de base em y = 1010, só na versão com preço. Modo claro conforme diretrizes_arte. Enviar junto, como segunda imagem, a vitrine_loja (peça em fundo limpo)."
     },
     {
       "id": "catalogo_colecao",
@@ -286,10 +286,10 @@
       "largura": 1080,
       "altura": 1350,
       "uso": "catalogo",
-      "foto_base": "modelo",
+      "foto_base": "expositor (modelo opcional)",
       "proporcao_foto": "4:5 recortada em 1:1, centrada na peça",
       "preco": "opcional",
-      "layout": "Fundo fundo (#FFFBF8). 'COLEÇÃO' em Jost 300 MAIÚSCULAS 20 px, tracking 0.3em, cor texto, centralizado, linha de base em y = 84; nome da coleção em Satisfy 80 px na cor primaria_escura, centralizado, linha de base em y = 168. Grade 2x2 de fotos com modelo aprovadas de 440x440 px, cantos retos e sem sombra, em x = 84 e 556 e y = 210 e 746. Sob cada foto, alinhados à esquerda dela: nome comercial em Jost 400 22 px na cor texto, 34 px abaixo da foto, e preço opcional em Cormorant Garamond 600 26 px na cor primaria_escura, 64 px abaixo da foto. Rodapé: logo rosé de 160 px à esquerda (x = 84, topo em y = 1272) e aviso de IA em Jost 300 15 px na cor texto 70%, alinhado à direita em x = 996, linha de base em y = 1310. Capa do carrossel: feed_lancamento com a melhor foto da coleção."
+      "layout": "Fundo fundo (#FFFBF8). 'COLEÇÃO' em Jost 300 MAIÚSCULAS 20 px, tracking 0.3em, cor texto, centralizado, linha de base em y = 84; nome da coleção em Satisfy 80 px na cor primaria_escura, centralizado, linha de base em y = 168. Grade 2x2 de fotos aprovadas de 440x440 px, cantos retos e sem sombra, em x = 84 e 556 e y = 210 e 746. Sob cada foto, alinhados à esquerda dela: nome comercial em Jost 400 22 px na cor texto, 34 px abaixo da foto, e preço opcional em Cormorant Garamond 600 26 px na cor primaria_escura, 64 px abaixo da foto. Rodapé: logo rosé de 160 px à esquerda (x = 84, topo em y = 1272) e aviso de IA em Jost 300 15 px na cor texto 70%, alinhado à direita em x = 996, linha de base em y = 1310. Capa do carrossel: feed_lancamento com a melhor foto da coleção."
     },
     {
       "id": "vitrine_loja",
@@ -300,20 +300,56 @@
       "foto_base": "still",
       "proporcao_foto": "1:1",
       "preco": "nunca",
-      "layout": "Somente a peça sozinha, sem modelo: foto real ou foto de IA aprovada no cenário still_fundo_limpo. Fundo branco puro (#FFFFFF) ou creme muito claro, peça centralizada ocupando de 80% a 85% do quadro, sem texto, sem logo e sem moldura (marketplaces recusam arte com texto). Exportar JPG sRGB com qualidade 90."
+      "layout": "Somente a peça sozinha, sem expositor e sem modelo: foto real ou foto de IA aprovada no cenário still_fundo_limpo. Fundo branco puro (#FFFFFF) ou creme muito claro, peça centralizada ocupando de 80% a 85% do quadro, sem texto, sem logo e sem moldura (marketplaces recusam arte com texto). Exportar JPG sRGB com qualidade 90."
     }
   ],
   "prompts_ia_foto": {
     "variaveis": {
       "{piece_description}": "Descrição objetiva em inglês, montada a partir da foto e do cadastro: tipo, forma ou motivo, quantidade e cor de pedras e pérolas (com mm), cores do esmalte, acabamento e se o par é simétrico ou assimétrico. Ex. (KY1195B): 'pair of gold-plated flower stud earrings, each with three white pearlescent enamel petals outlined by small clear cubic zirconia and one 7 mm white pearl in the center'. A IA de imagem e a avaliadora usam essa descrição para conferir a peça.",
       "{plating}": "Tom do banho: 'yellow gold', 'light champagne gold', 'rhodium silver' ou 'two-tone gold and silver'.",
-      "{size}": "Tamanho real aproximado (ex.: 'about 2.5 cm wide', '45 cm chain', 'inner diameter 6 cm'). É essencial para a IA não aumentar nem diminuir a peça; os prompts por tipo trazem âncoras do corpo (lóbulo ≈ 2 cm, dedo ≈ 1,7 cm, pulso ≈ 5,5 cm).",
-      "{scene}": "Prompt do cenário escolhido em 'cenarios' (sem escolha, o de cenario_padrao).",
-      "{skin_tone}": "Variar entre 'fair', 'light olive', 'medium tan', 'deep brown' para representar as clientes brasileiras."
+      "{size}": "Tamanho real aproximado (ex.: 'about 2.5 cm wide', '45 cm chain', 'inner diameter 6 cm'). É essencial para a IA não aumentar nem diminuir a peça em relação ao expositor ou ao corpo.",
+      "{scene}": "Prompt do cenário escolhido em 'cenarios' (no modo 'auto', o de cenario_por_subtipo ou cenario_por_tipo).",
+      "{skin_tone}": "Só nos cenários com modelo. Variar entre 'fair', 'light olive', 'medium tan', 'deep brown' para representar as clientes brasileiras."
     },
-    "montagem": "Ordem do prompt: base + (cenário com modelo: por_tipo[tipo], ou por_tipo[aliases[tipo]], ou por_tipo.default, mais o por_subtipo cuja chave estiver contida no subtipo) ou (cenário com modelo = false: still_life, mais o por_subtipo 'religioso' se casar) + ajuste_prompt da avaliação anterior + 'Avoid: ' + negativo. {scene} recebe cenarios[].prompt; sem escolha, usar cenario_padrao. Enviar sempre a foto de referência junto. Gerar a foto principal em 4:5 (feed, quadrado e catálogo saem dela por recorte) e, se possível, uma em 9:16 para stories; cada imagem passa pela avaliacao_foto antes de virar arte.",
-    "cenario_padrao": "estudio_rose",
-    "base": "Create a photorealistic jewelry advertising photograph using the attached reference photo as the exact product. The reference shows the real piece being sold: {piece_description}. Reproduce it identically: same shape, silhouette and proportions; same real size ({size}); same number, cut, color and placement of every stone and pearl; same enamel colors and pattern; same metal tone ({plating}) and surface finish (polished, hammered, pleated, textured or pavé); same posts, hinges, clasps, links and chain. Do not redesign, simplify, beautify, recolor, add or remove any detail. A symmetric pair stays identical on both sides; an asymmetric pair keeps each side exactly as in the reference. Take only the jewelry from the reference: the supplier display card, plastic bag, stickers, price tags, barcodes, QR codes, printed text, third-party logos or brand names (such as 'Delicate') and any hands or props from the original shot are not part of the product and do not appear. Scene: {scene}. Style: high-end jewelry campaign and premium e-commerce photography, like a fashion magazine editorial; true-to-life color with a warm, clean grade (creamy whites, soft blush accents, natural gold); the jewelry is the sharpest and brightest point of the image, with realistic metal reflections and stone sparkle and no blown highlights. Keep the jewelry in the central area of the frame with calm, softly blurred space around it, so the image can be cropped to 4:5, 1:1 or 9:16 without cutting the piece. The result is a clean photograph only, with no text, letters, logos, watermarks or borders.",
+    "montagem": "Ordem do prompt: base + instrucao_referencia_estilo (quando a foto de estilo do cenário for enviada como imagem 2) + bloco do cenário + por_subtipo cuja chave estiver contida no subtipo (vale nos dois modos) + ajuste_prompt da avaliação anterior + 'Avoid: ' + negativo. Bloco do cenário: se cenario.modelo = false, still_life; se cenario.modelo = true, por_tipo[tipo] (ou por_tipo[aliases[tipo]], ou por_tipo.default) + por_subtipo_modelo que casar, e o negativo recebe também negativo_modelo. Escolha do cenário: cenario_padrao = 'auto' usa cenario_por_subtipo (chave igual ao subtipo), senão cenario_por_tipo[tipo], senão cenario_por_tipo.default; a escolha manual no estúdio prevalece. {scene} recebe cenarios[].prompt. Imagens enviadas: imagem 1 = foto do fornecedor (a peça real); imagem 2 = arquivo de cenarios[].referencia_estilo, quando houver. Gerar a foto principal em 4:5 (feed, quadrado e catálogo saem dela por recorte) e, se possível, uma em 9:16 para stories; cada imagem passa pela avaliacao_foto antes de virar arte.",
+    "cenario_padrao": "auto",
+    "cenario_por_tipo": {
+      "brinco": "expositor_suporte_brinco",
+      "colar": "expositor_busto",
+      "gargantilha": "expositor_busto",
+      "choker": "expositor_busto",
+      "pingente": "expositor_busto",
+      "corrente": "expositor_busto",
+      "escapulario": "expositor_busto",
+      "conjunto": "expositor_busto",
+      "anel": "expositor_caixinha_anel",
+      "pulseira": "expositor_bandeja",
+      "bracelete": "expositor_bandeja",
+      "tornozeleira": "expositor_bandeja",
+      "relogio": "expositor_bandeja",
+      "berloque": "expositor_bandeja",
+      "terco": "expositor_bandeja",
+      "broche": "expositor_bandeja",
+      "oculos": "expositor_bandeja",
+      "acessorio_cabelo": "expositor_bandeja",
+      "chaveiro": "expositor_bandeja",
+      "piercing": "expositor_porta_joias",
+      "default": "expositor_bandeja"
+    },
+    "cenario_por_subtipo": {
+      "Kit de brincos": "expositor_porta_joias",
+      "Ear cuff": "expositor_porta_joias",
+      "Terço de pescoço": "expositor_busto",
+      "Bracelete + anel": "expositor_bandeja",
+      "Pulseira + anel": "expositor_bandeja"
+    },
+    "cenario_alternativo_por_tipo": {
+      "brinco": "expositor_porta_joias",
+      "default": "still_fundo_limpo"
+    },
+    "instrucao_referencia_estilo": "Two images are attached. Image 1 is the supplier photo of the real jewelry being sold, and it is the only source for the jewelry. Image 2 is a style reference only: match its type of display, velvet material and color, background, surface, lighting, camera angle, depth of field and framing. Never copy the jewelry shown in image 2: ignore its design, stones, metal color and number of pieces, and replace it entirely with the exact piece from image 1. If image 2 shows more pieces or several displays, show only the piece or pieces from image 1, with one display per pair. From image 1, only the jewelry is used; its card, tags, QR codes, hands and background do not appear.",
+    "base": "Create a photorealistic jewelry product photograph using image 1 (the supplier photo) as the exact product. Image 1 shows the real piece being sold: {piece_description}. Reproduce it identically: same shape, silhouette and proportions; same real size ({size}); same number, cut, color and placement of every stone and pearl; same enamel colors and pattern; same metal tone ({plating}) and surface finish (polished, hammered, pleated, textured or pavé); same posts, hinges, clasps, links and chain. Do not redesign, simplify, beautify, recolor, add or remove any detail. A symmetric pair stays identical on both sides; an asymmetric pair keeps each side exactly as in image 1. Take only the jewelry from image 1: the supplier display card, plastic bag, stickers, price tags, barcodes, QR codes, printed text, third-party logos or brand names (such as 'Delicate'), the grey background and any hands or props from the original shot are not part of the product and do not appear. Scene: {scene}. Style: premium jewelry e-commerce and campaign photography, soft and refined; true-to-life color with a warm, clean grade (creamy whites, dusty-rose velvet, natural gold); the jewelry is the sharpest and brightest point of the image, with realistic metal reflections and stone sparkle and no blown highlights. Keep the jewelry in the central area of the frame with calm, softly blurred space around it, so the image can be cropped to 4:5, 1:1 or 9:16 without cutting the piece. The result is a clean photograph only, with no text, letters, logos, watermarks or borders.",
+    "still_life": "Show the piece alone on the velvet jewelry display described in the scene, with no person, skin or hands in the image. The jewelry is the hero: centered, large in the frame and fully sharp, while the edges of the display and the background fall softly out of focus. It rests on or hangs from the display with gravity: earring posts go into the velvet, a ring sits firmly in its slot, a necklace follows the curve of the bust, a chain settles into the velvet pile; there is a soft natural contact shadow and the velvet is slightly pressed where the metal touches it. The display is neat and clean, with fine, realistic velvet pile and no dust, lint, text or logos. Camera: full-frame camera, 100 mm macro lens at f/5.6 to f/8, the whole piece sharp with a shallow depth of field behind it. Light: soft diffused window light from the side with a white bounce fill, crisp realistic reflections on the metal and real sparkle in the stones, gentle shadows and no blown highlights.",
     "por_tipo": {
       "brinco": "Model: an adult Brazilian woman, about 25 to 40 years old, with {skin_tone} skin, wearing the earring. Pose: head in three-quarter profile turned toward the light, chin slightly lifted, neck long and relaxed, hair smoothly tucked behind the ear or gathered in a low soft bun, so the whole ear, jawline and neck are clear. Framing: tight editorial close-up from just below the eyes to the collarbone, eyes out of frame, the earring in the central third as the clear hero. Camera: full-frame camera, 100 mm macro lens at f/4, focus on the earring, the entire earring sharp, cheek and hair falling softly out of focus. Light: key light at about 45 degrees from the front side giving one clean highlight on the metal and real sparkle on the stones, gentle fill, a subtle rim light separating jaw and neck from the background. Anatomy and scale: a natural, well-formed human ear with realistic helix, lobe and skin texture with visible pores; the post goes through a lobe piercing and the earring hangs with gravity, touching the skin with a soft contact shadow. An adult earlobe is about 2 cm tall: render the earring at its real size ({size}) relative to it. Styling: natural makeup with visible skin texture, soft nude-rose lips, plain simple neckline, no other jewelry. Only one ear is visible; if the second earring appears, it matches the reference pair.",
       "colar": "Model: an adult Brazilian woman, about 25 to 40 years old, with {skin_tone} skin, wearing the necklace. Pose: shoulders relaxed and slightly angled, upright posture, head gently tilted, so the necklace lies centered and follows the collarbones. Framing: editorial crop from the lips to mid-chest, eyes out of frame, the necklace across the central third. Camera: full-frame camera, 85 mm lens at f/4, focus on the center of the necklace, the whole necklace sharp. Light: soft key light from the side sculpting the collarbones, gentle fill, a faint rim light on the shoulders, realistic reflections on every link and stone. Anatomy and length: natural neck, collarbones and shoulders with real skin texture and visible pores; the necklace falls at its exact length ({size}): a 30 to 35 cm choker sits snug around the neck, 40 to 45 cm rests on the collarbones, 50 cm on the upper chest, 60 cm or more at mid-chest; the clasp stays hidden at the back. Styling: open neckline (off-shoulder, strapless-style or soft V) in a plain fabric, natural makeup, no other necklaces or earrings competing with the piece.",
@@ -326,7 +362,6 @@
       "conjunto": "Model: an adult Brazilian woman, about 25 to 40 years old, with {skin_tone} skin, wearing every piece of the set together and only those pieces: the necklace or pendant on the décolletage, the earring on the visible ear, and the bracelet or ring on a hand resting gently near the collarbone. Pose: three-quarter profile, shoulders relaxed, hair tucked behind the ear. Framing: editorial crop from just below the eyes to mid-chest, eyes out of frame, every piece visible and none hidden by hair, fabric or fingers. Camera: full-frame camera, 70 mm lens at f/5.6, every piece sharp. Light: soft side key light, gentle fill and a subtle rim light, consistent highlights on all pieces. Anatomy and scale: natural ear, neck and hand with exactly five fingers and real skin texture; every piece at its real size ({size}). The number of pieces matches the reference exactly. Styling: open neckline in a plain fabric, natural makeup.",
       "default": "Model: an adult Brazilian woman with {skin_tone} skin, wearing or holding the piece in the most natural way for this kind of accessory: a brooch pinned on the lapel of a plain cream blazer; a hair accessory in a smooth low bun seen from the back or three-quarter back; sunglasses held by the temples in a relaxed hand at chest height, lenses facing the camera; a rosary, keychain or other small object resting in gently cupped hands. Framing: close editorial crop with the eyes out of frame and the piece in the central third, sharp and clearly the hero. Camera: full-frame camera, 100 mm macro lens at f/5.6. Light: soft side key light, gentle fill and a subtle rim light, realistic reflections. Anatomy and scale: exactly five natural fingers with short clean nails, real skin texture; the piece keeps its real size ({size}). No other jewelry or accessories."
     },
-    "still_life": "Show the piece alone as a premium product still life, with no person, skin or hands in the image. Arrangement: earrings as a pair side by side, one facing the camera and the other turned slightly to show the post and volume; a necklace or pendant on a thin plain chain, laid in a soft curve or on a small velvet neck bust; a ring upright in a velvet ring cone; a bracelet in a soft oval curve; a bangle standing upright; a set arranged in a U shape (necklace outside, bracelet inside, earrings in the center) with no piece overlapping; a kit with every pair in a row by size. The piece rests on the surface with a soft natural contact shadow. Camera: full-frame camera, 100 mm macro lens at f/8, three-quarter top angle, the entire piece sharp. Light: large diffused key light, white bounce fill, crisp realistic reflections without blown highlights.",
     "aliases": {
       "gargantilha": "colar",
       "choker": "colar",
@@ -341,74 +376,115 @@
       "chaveiro": "default"
     },
     "por_subtipo": {
-      "Kit de brincos": "Style all the pairs of the kit as a curated ear stack on one ear with several lobe and upper-lobe piercings, the largest piece at the bottom and the smallest at the top, one earring of each pair, tight close-up on the ear only. Use only the pairs from the reference.",
-      "Argola": "The hoop keeps its exact diameter, tube thickness and closure; it hangs from the lobe and frames the jawline, seen slightly from the side to show its volume.",
-      "Argolinha (huggie)": "The small hoop hugs the earlobe closely at its exact diameter; tighter close-up on the ear.",
+      "Kit de brincos": "Show every pair of the kit, and only those pairs, each pair kept together.",
+      "Argola": "The hoop keeps its exact diameter, tube thickness and closure, seen slightly from the side to show its volume.",
+      "Argolinha (huggie)": "The small hoop keeps its exact diameter and hinged closure.",
+      "Ear climber (escalador)": "The ear climber keeps its exact length and curve.",
+      "Ear cuff": "The ear cuff keeps its exact open shape and size; it has no post.",
+      "Brinco grande": "Show the full length of the statement earring at its real size, hanging straight with gravity.",
+      "Brinco pendurado": "Show the full length of the drop earring, with the dangling part hanging straight with gravity.",
+      "infantil": "This is a children's piece; no child appears in the image.",
+      "Mãe e filha": "Show both pieces of the mother-and-daughter set, the larger and the smaller, fully visible; no child appears in the image.",
+      "religioso": "Religious piece: keep the sacred figure, its face, halo or rays and every detail exactly as in image 1, in a serene and respectful mood, with no extra crosses, saints, rosaries or other religious objects.",
+      "Anel de falange": "The midi ring keeps its small real diameter.",
+      "Escrava (braço)": "The upper-arm cuff keeps its exact open shape and size.",
+      "Colar camadas (mix)": "Every strand of the layered necklace keeps its own length and spacing exactly as in image 1."
+    },
+    "por_subtipo_modelo": {
+      "Kit de brincos": "Style the pairs as a curated ear stack on one ear with several lobe and upper-lobe piercings, the largest piece at the bottom and the smallest at the top, one earring of each pair, tight close-up on the ear only.",
+      "Argola": "The hoop hangs from the lobe and frames the jawline.",
+      "Argolinha (huggie)": "The small hoop hugs the earlobe closely; tighter close-up on the ear.",
       "Ear climber (escalador)": "The ear climber starts at the lobe piercing and follows the curve of the ear upward exactly as in the reference; close-up on the ear.",
-      "Ear cuff": "The cuff sits on the middle cartilage of the ear without a piercing, exactly as in the reference; close-up on the ear.",
-      "Brinco grande": "Statement earring: frame slightly wider, from the cheekbone to the shoulder, so its full length is visible, hanging straight with gravity at its real length; neck and shoulder stay clean.",
-      "Brinco pendurado": "Drop earring: show its full length hanging straight from the lobe, with the natural fall of the dangling part, at its real length.",
-      "infantil": "This is a children's piece and no child appears in the image. Instead of the worn pose, show the piece resting in the open palm of an adult woman's hand, close-up, eyes out of frame.",
-      "Mãe e filha": "No child appears in the image: the adult model wears the larger piece and holds the smaller matching piece in her open palm, both sharp and fully visible.",
-      "religioso": "Religious piece: keep the sacred figure, its face, halo or rays and every detail exactly as in the reference, in a serene and respectful mood, with no extra crosses, saints, rosaries or other religious objects.",
-      "Anel de falange": "The ring is worn on the upper segment of the finger, above the last knuckle, at its real width.",
-      "Escrava (braço)": "The cuff is worn on the upper arm, above the elbow, with the arm relaxed along the body; crop from the shoulder to the elbow.",
-      "Colar camadas (mix)": "Every strand of the layered necklace keeps its own length and spacing exactly as in the reference."
+      "Ear cuff": "The cuff sits on the middle cartilage of the ear without a piercing; close-up on the ear.",
+      "Brinco grande": "Frame slightly wider, from the cheekbone to the shoulder, so its full length is visible; neck and shoulder stay clean.",
+      "infantil": "Instead of the worn pose, show the piece resting in the open palm of an adult woman's hand, close-up, eyes out of frame.",
+      "Mãe e filha": "The adult model wears the larger piece and holds the smaller matching piece in her open palm.",
+      "Anel de falange": "The ring is worn on the upper segment of the finger, above the last knuckle.",
+      "Escrava (braço)": "The cuff is worn on the upper arm, above the elbow, with the arm relaxed along the body; crop from the shoulder to the elbow."
     },
     "cenarios": [
       {
+        "id": "expositor_bandeja",
+        "nome": "Expositor: bandeja quadrada de veludo rosé (pulseira, bracelete, tornozeleira e acessórios)",
+        "modelo": false,
+        "referencia_estilo": "amostras/referencias-estilo/pulseira-bandeja-veludo.webp",
+        "prompt": "a square jewelry display tray with softly rounded corners, covered in fine pale dusty-rose velvet (close to #CEA6B6), resting on a smooth warm cream (#F6EFE6) surface against a plain cream background; the piece lies on the velvet, centered: a bracelet, anklet or chain in a relaxed open oval with the clasp and any extender resting near the top edge; a bangle or watch lying flat or standing on its edge; a brooch, charm, rosary, hair accessory, keychain or sunglasses placed neatly in the middle; high three-quarter view from about 45 degrees; soft diffused window light from the upper left with gentle shadows; shallow depth of field, the far edge of the tray and the background softly out of focus"
+      },
+      {
+        "id": "expositor_caixinha_anel",
+        "nome": "Expositor: caixinha de veludo rosé com fenda (anel)",
+        "modelo": false,
+        "referencia_estilo": "amostras/referencias-estilo/anel-caixinha-veludo.webp",
+        "prompt": "the inside of an open jewelry box lined with fine pale blush-rose velvet (close to #CEA6B6); the ring stands upright, firmly seated in the padded velvet slot, centered, with its top design facing the camera; eye-level frontal view, close framing with the soft velvet walls of the box around the ring and a plain cream background above; soft diffused window light; shallow depth of field, the front velvet edge and the background gently out of focus while the whole ring stays sharp"
+      },
+      {
+        "id": "expositor_busto",
+        "nome": "Expositor: busto de veludo rosa-malva (colar, gargantilha, pingente e conjunto)",
+        "modelo": false,
+        "referencia_estilo": "amostras/referencias-estilo/colar-busto-veludo.webp",
+        "prompt": "a jewelry display neck bust covered in fine dusty-rose to mauve velvet (close to #CEA6B6), standing on a cream surface against a plain warm cream (#F6EFE6) background; the necklace sits around the neck of the bust and follows its curve, centered and symmetrical, at its real length (a choker high on the neck, longer chains falling lower on the chest), with the clasp hidden at the back; a pendant hangs centered on a fine plain chain in the same metal tone; for a set, the necklace is on the bust and the other pieces of the set (earrings, bracelet, ring) rest neatly on the cream surface at the base of the bust, all fully visible; frontal eye-level view, the bust filling most of the frame; soft, even diffused window light, gentle shadows, shallow depth of field on the background"
+      },
+      {
+        "id": "expositor_suporte_brinco",
+        "nome": "Expositor: suporte de veludo malva em arco (brinco)",
+        "modelo": false,
+        "referencia_estilo": "amostras/referencias-estilo/brinco-suporte-veludo.webp",
+        "prompt": "an arch-shaped (inverted U) earring display stand covered in fine dusty-rose to mauve velvet (close to #CEA6B6), standing on a cream surface with softly draped cream fabric blurred behind it; the pair of earrings is mounted side by side on the top front of the arch, posts through the velvet, at the same height and facing the camera; drop earrings and hoops hang freely from the front edge of the arch; slight high angle, close framing on the stand; soft diffused window light from the side; shallow depth of field with the background softly out of focus"
+      },
+      {
+        "id": "expositor_porta_joias",
+        "nome": "Expositor: porta-joias de veludo rosé sobre cetim creme (brinco alternativo, kit, piercing)",
+        "modelo": false,
+        "referencia_estilo": "amostras/referencias-estilo/brinco-porta-joias-cetim.webp",
+        "prompt": "a small round or hexagonal jewelry box with a padded pale dusty-rose velvet top cushion (close to #CEA6B6), resting on a white marble surface in front of softly folded cream satin fabric; the earrings are pinned side by side into the velvet cushion, facing the camera; one velvet box per pair, so a kit uses one small box per pair grouped closely, and a single piece (piercing or ear cuff) rests alone on its cushion; high three-quarter view from about 45 degrees; soft diffused window light with delicate highlights on the satin; shallow depth of field"
+      },
+      {
+        "id": "still_fundo_limpo",
+        "nome": "Still: fundo limpo para vitrine e marketplace (sem expositor)",
+        "modelo": false,
+        "prompt": "a product-only packshot without any person or display: a pure white (#FFFFFF) seamless background, the piece centered and filling about 80 percent of the frame, slightly angled to show depth, even soft three-point softbox lighting, a faint natural contact shadow, no props and no ribbon"
+      },
+      {
         "id": "estudio_rose",
-        "nome": "Estúdio rosé e creme, com modelo (padrão)",
+        "nome": "Opcional, com modelo: estúdio rosé e creme",
         "modelo": true,
         "prompt": "a high-end jewelry studio with a seamless warm cream (#F6EFE6) backdrop and a soft dusty-rose (#CEA6B6) glow behind the model, a large softbox key light, a white bounce fill and a delicate rim light; the model wears a plain ivory or soft blush silk top; a thin blush satin ribbon may appear as a subtle accent in her hair or on the fabric, never touching or covering the jewelry; calm, luminous and elegant mood"
       },
       {
         "id": "lifestyle_luz_natural",
-        "nome": "Lifestyle com luz natural, com modelo",
+        "nome": "Opcional, com modelo: lifestyle com luz natural",
         "modelo": true,
         "prompt": "a bright, airy apartment in soft morning light, a large window with sheer linen curtains as the main light from the side, warm cream walls and a hint of green plant far out of focus; a relaxed, candid gesture such as tucking the hair or touching the collarbone; the model wears an ivory linen shirt or a cream fine-knit top; fresh, natural and real mood"
       },
       {
         "id": "editorial_dourado",
-        "nome": "Editorial dourado (golden hour), com modelo",
+        "nome": "Opcional, com modelo: editorial dourado (golden hour)",
         "modelo": true,
         "prompt": "a fashion magazine editorial at golden hour, warm low sunlight from the side giving a soft glow on the skin and delicate highlights on the metal, a warm neutral plaster wall or soft outdoor bokeh in champagne and honey tones behind her; the model wears a champagne or ivory satin top; refined and confident mood, with no lens flare over the jewelry"
       },
       {
         "id": "festa_brilho",
-        "nome": "Festas, Réveillon, noivas e formatura, com modelo",
+        "nome": "Opcional, com modelo: festas, Réveillon, noivas e formatura",
         "modelo": true,
         "prompt": "an elegant evening celebration for New Year's Eve, weddings or graduations, warm golden bokeh lights far in the background, a soft flattering key light on the model; she wears an ivory, white or champagne satin dress with a clean neckline; festive and sophisticated but uncluttered, the jewelry is the brightest point of the image"
       },
       {
         "id": "verao_luz",
-        "nome": "Verão e praia, com modelo",
+        "nome": "Opcional, com modelo: verão e praia",
         "modelo": true,
         "prompt": "summer by the sea in late-afternoon sun, soft sea and sky bokeh in the background, warm natural light with a gentle rim on the skin, sun-kissed skin with a natural glow; the model wears a white or sand linen top, a light breeze in her hair kept away from the jewelry; relaxed and fresh mood"
       },
       {
         "id": "presente_afeto",
-        "nome": "Presente e afeto (Natal, Dia das Mães, Namorados), com modelo",
+        "nome": "Opcional, com modelo: presente e afeto (Natal, Dia das Mães, Namorados)",
         "modelo": true,
         "prompt": "a cozy, affectionate gifting moment indoors with warm lamp and window light; the model wears a cream knit sweater and holds a small blush-pink gift box with an untied satin ribbon, softly out of focus near the lower edge of the frame; tender and intimate mood"
       },
       {
         "id": "fe_serena",
-        "nome": "Fé e serenidade (peças religiosas), com modelo",
+        "nome": "Opcional, com modelo: fé e serenidade (peças religiosas)",
         "modelo": true,
         "prompt": "a serene and respectful mood, a soft beam of warm window light, a plain warm-cream background; the model wears a simple cream linen top with a modest neckline, calm posture, minimal composition, with no religious objects or symbols other than the piece itself"
-      },
-      {
-        "id": "still_veludo_rose",
-        "nome": "Still: porta-joias de veludo rosé (sem modelo)",
-        "modelo": false,
-        "prompt": "a product-only still life without any person: the piece on a blush-pink (#CEA6B6) velvet jewelry display (cushion, neck bust or ring cone) inside a soft velvet box, a warm cream (#F6EFE6) seamless background, soft window light from the left, a thin blush satin ribbon loosely curved beside the piece without touching it"
-      },
-      {
-        "id": "still_fundo_limpo",
-        "nome": "Still: fundo limpo para vitrine e marketplace (sem modelo)",
-        "modelo": false,
-        "prompt": "a product-only packshot without any person: a pure white (#FFFFFF) seamless background, the piece centered and filling about 80 percent of the frame, slightly angled to show depth, even soft three-point softbox lighting, a faint natural contact shadow, no props and no ribbon"
       }
     ],
     "negativo": [
@@ -417,28 +493,21 @@
       "extra stones",
       "missing stones",
       "changed stone, pearl or enamel color",
-      "different metal tone from the reference",
+      "different metal tone from image 1",
       "added charms, chains or components",
       "mismatched earrings in a symmetric pair",
-      "extra jewelry not in the reference",
+      "extra jewelry not in image 1",
+      "jewelry copied from the style reference image",
       "oversized jewelry",
       "undersized jewelry",
       "floating jewelry",
-      "earring not passing through the earlobe",
-      "piercing in the wrong place",
-      "deformed ear",
-      "extra fingers",
-      "missing fingers",
-      "fused fingers",
-      "distorted hands",
-      "long acrylic nails",
-      "plastic-looking skin",
-      "waxy airbrushed skin",
+      "jewelry not resting on the display",
+      "deformed or melted display",
+      "text, logo or label on the display",
+      "plastic-looking velvet",
+      "dust, lint or stains on the velvet",
       "CGI or 3D render look",
       "illustration",
-      "visible eyes",
-      "full face",
-      "celebrity likeness",
       "child",
       "supplier display card",
       "price tag",
@@ -446,7 +515,6 @@
       "barcode",
       "QR code",
       "plastic bag",
-      "fingers holding the product from the original photo",
       "text",
       "letters",
       "watermark",
@@ -457,7 +525,22 @@
       "harsh flash reflections",
       "cluttered background",
       "blurry jewelry",
-      "low resolution",
+      "low resolution"
+    ],
+    "negativo_modelo": [
+      "earring not passing through the earlobe",
+      "piercing in the wrong place",
+      "deformed ear",
+      "extra fingers",
+      "missing fingers",
+      "fused fingers",
+      "distorted hands",
+      "long acrylic nails",
+      "plastic-looking skin",
+      "waxy airbrushed skin",
+      "visible eyes",
+      "full face",
+      "celebrity likeness",
       "sensual or revealing pose"
     ],
     "aviso_publicacao": "Imagem ilustrativa criada com IA a partir da foto real da peça. Cores e tamanho podem variar levemente."
@@ -469,14 +552,15 @@
       "realismo": 8
     },
     "escala": "Nota inteira de 0 a 10 em cada critério. Nota final = soma de (nota x peso) / 100, com uma casa decimal.",
-    "entradas": "Foto de referência do fornecedor, foto gerada, tipo, subtipo, {piece_description}, {size}, {plating}, cenário usado e número da tentativa (1 a 3).",
+    "entradas": "Imagem 1 (foto do fornecedor, a peça real), imagem 2 (foto de estilo do cenário, se enviada), foto gerada, tipo, subtipo, cenário usado e se ele tem modelo, {piece_description}, {size}, {plating} e número da tentativa (1 a 3).",
     "procedimento": [
-      "Olhe primeiro a referência e liste a peça: tipo, forma, quantidade e cor de pedras e pérolas, cores do esmalte, banho, acabamento, fecho, par simétrico ou assimétrico, peças do conjunto e tamanho informado.",
-      "Encontre a peça na foto gerada e confira item por item, com zoom na peça. Cartela, etiqueta e fundo da referência não fazem parte da peça.",
-      "Cheque os eliminatórios: qualquer um reprova, seja qual for a nota.",
+      "Olhe primeiro a imagem 1 e liste a peça: tipo, forma, quantidade e cor de pedras e pérolas, cores do esmalte, banho, acabamento, fecho, par simétrico ou assimétrico, peças do conjunto e tamanho informado.",
+      "Encontre a peça na foto gerada e confira item por item, com zoom na peça. Cartela, etiqueta e fundo da imagem 1 não fazem parte da peça.",
+      "Compare com a imagem 2 só o estilo (expositor, veludo, fundo, luz, ângulo e enquadramento). Nenhum traço da joia da imagem 2 pode aparecer.",
+      "Cheque os eliminatórios: qualquer um reprova, seja qual for a nota. Os que começam com 'Com modelo:' só valem quando o cenário tem modelo.",
       "Dê a nota de cada critério e calcule a nota final ponderada.",
       "Aprove só se não houver eliminatório, a nota final for maior ou igual a nota_minima_aprovacao e os mínimos de nota_minima_por_criterio forem atendidos. Na dúvida sobre fidelidade, reprove.",
-      "Se a referência contradizer o cadastro (ex.: foto dourada com especificação ródio), avalie contra a foto e registre um alerta para conferir a peça na chegada.",
+      "Se a imagem 1 contradizer o cadastro (ex.: foto dourada com especificação ródio), avalie contra a foto e registre um alerta para conferir a peça na chegada.",
       "Mesmo aprovada, a imagem é ilustrativa: publicar com o aviso_publicacao e o rótulo de IA do Instagram."
     ],
     "criterios": [
@@ -484,31 +568,31 @@
         "id": "fidelidade",
         "nome": "Fidelidade da peça",
         "peso": 40,
-        "o_que_avaliar": "Compare com a referência detalhe por detalhe: silhueta e proporções; quantidade, formato, cor e posição de pedras e pérolas; cores e desenho do esmalte; tom do banho (dourado, champanhe, ródio, rosé, bicolor) e acabamento (polido, martelado, plissado, texturizado, pavê); pino, tarraxa, argola, fecho, elos e corrente; par simétrico igual ou assimetria preservada; conjunto e kit com todas as peças e só elas; escala real em relação ao corpo (lóbulo ≈ 2 cm, dedo ≈ 1,7 cm, pulso ≈ 5,5 cm) e ao tamanho informado. 10 = idêntica; 9 = idêntica, com diferença só de luz ou ângulo; 8 ou menos = algum detalhe da peça mudou."
+        "o_que_avaliar": "Compare com a imagem 1 detalhe por detalhe: silhueta e proporções; quantidade, formato, cor e posição de pedras e pérolas; cores e desenho do esmalte; tom do banho (dourado, champanhe, ródio, rosé, bicolor) e acabamento (polido, martelado, plissado, texturizado, pavê); pino, tarraxa, argola, fecho, elos e corrente; par simétrico igual ou assimetria preservada; conjunto e kit com todas as peças e só elas; nenhum traço da joia da imagem 2 (no pingente, a corrente fina e lisa de apoio é permitida); escala coerente com o expositor e com o tamanho informado (com modelo: lóbulo ≈ 2 cm, dedo ≈ 1,7 cm, pulso ≈ 5,5 cm). 10 = idêntica; 9 = idêntica, com diferença só de luz ou ângulo; 8 ou menos = algum detalhe da peça mudou."
       },
       {
         "id": "realismo",
-        "nome": "Realismo (pele, anatomia, luz)",
+        "nome": "Realismo (materiais, apoio e luz)",
         "peso": 25,
-        "o_que_avaliar": "Parece foto de câmera, não render: pele com poros, textura e pequenas imperfeições naturais, sem cera, plástico ou airbrush; anatomia correta (orelha com hélix e lóbulo naturais e furo no lugar certo; mão com 5 dedos, articulações e unhas curtas proporcionais; pescoço, clavículas, pulso e pé naturais); peça pendurada ou apoiada com gravidade e sombra de contato, sem flutuar nem afundar na pele; luz coerente entre pele, metal e fundo (direção, temperatura e reflexos sem estouro); foco e profundidade de campo plausíveis para a lente."
+        "o_que_avaliar": "Parece foto de câmera, não render: veludo com pelo fino e real, que afunda de leve onde a peça apoia; metal com reflexos coerentes com a luz e pedras com brilho real; peça apoiada com gravidade e sombra de contato (pino do brinco entrando no veludo, anel firme na fenda, colar acompanhando o busto, corrente assentada na bandeja); expositor com forma e proporção plausíveis; luz e profundidade de campo plausíveis para a lente. Com modelo: pele com poros, sem cera ou airbrush, e anatomia correta (orelha, mão com 5 dedos, unhas curtas)."
       },
       {
         "id": "apelo_comercial",
         "nome": "Apelo comercial e composição",
         "peso": 15,
-        "o_que_avaliar": "Funciona como campanha de joalheria e e-commerce premium: a peça é o herói e o ponto mais nítido e brilhante; close de editorial que valoriza a peça e mostra a escala; pose elegante e natural; fundo limpo, sem distrações; peça no terço central com respiro para recortar em 4:5, 1:1 e 9:16 e receber o texto da arte sem cobrir a peça; dá vontade de salvar e comprar."
+        "o_que_avaliar": "A peça é o herói, como nas fotos de estilo da loja: centralizada, grande no quadro, o ponto mais nítido e brilhante, no ângulo que revela o desenho; arrumação caprichada (par alinhado na mesma altura, corrente sem nós e com caimento simétrico, fecho discreto, anel reto na fenda); expositor e fundo limpos, sem poeira, fiapos ou objetos sobrando; ângulo e enquadramento da foto de estilo; respiro para recortar em 4:5, 1:1 e 9:16 e receber o texto da arte sem cobrir a peça; dá vontade de salvar e comprar."
       },
       {
         "id": "identidade",
-        "nome": "Identidade Fio de Amor",
+        "nome": "Identidade Fio de Amor (expositor de veludo)",
         "peso": 10,
-        "o_que_avaliar": "Paleta creme, rosé (#CEA6B6) e dourado suave; luz suave e quente, sem amarelo saturado; roupa lisa e maquiagem natural nos tons da marca; clima afetivo, delicado e feminino; fita de cetim rosé, se aparecer, discreta e sem tocar a peça; olhos fora do quadro e sem semelhança com pessoa real; cenário coerente com a ocasião e o público da peça."
+        "o_que_avaliar": "Estilo de expositor da loja: veludo de rosé claro a malva (perto de #CEA6B6), com toque aveludado; fundo creme liso, cetim creme ou mármore claro; luz suave de janela e profundidade de campo rasa; paleta creme, rosé e dourado natural, sem amarelo saturado nem tons frios; expositor certo para o tipo de peça (cenario_por_tipo) e fiel à foto de estilo; clima delicado e afetivo, sem excesso de objetos. Com modelo (opcional): roupa lisa, maquiagem natural e olhos fora do quadro."
       },
       {
         "id": "limpeza",
         "nome": "Limpeza (sem artefatos)",
         "peso": 10,
-        "o_que_avaliar": "Nenhum resto da foto do fornecedor (cartela 'Delicate', etiqueta, QR code, saco plástico, dedos, fundo cinza); nenhum texto, letra, logo ou marca d'água; sem artefatos de IA (bordas derretidas, pedras borradas, elos fundidos, metal deformado, joias duplicadas, cabelo fundido à peça, halos, ruído, faixas); imagem nítida, com resolução boa para 1080 px."
+        "o_que_avaliar": "Nenhum resto da foto do fornecedor (cartela 'Delicate', etiqueta, QR code, saco plástico, dedos, fundo cinza); nenhum texto, letra, logo ou marca d'água, nem no expositor; sem artefatos de IA (bordas derretidas, pedras borradas, elos fundidos, metal deformado, joias duplicadas, veludo manchado, halos, ruído, faixas); imagem nítida, com resolução boa para 1080 px."
       }
     ],
     "eliminatorios": [
@@ -516,21 +600,25 @@
       "Pedras, pérolas ou esmalte com cor, quantidade, tamanho ou posição trocados.",
       "Banho de outra cor (dourado virou prateado, rosé ou bicolor, ou o contrário).",
       "Brinco do par diferente do outro num par simétrico, ou assimetria da referência perdida.",
-      "Peça faltando ou sobrando no conjunto ou no kit; joia extra que não está à venda.",
-      "Peça fora de escala: maior ou menor que a real em relação à orelha, ao dedo, ao pulso ou ao colo.",
-      "Dedos a mais, a menos ou fundidos; mão, orelha, pescoço ou pé deformados.",
-      "Peça flutuando, atravessando a pele ou com furo no lugar errado.",
-      "Aspecto artificial: pele de plástico ou cera, cara de render 3D ou ilustração.",
+      "Peça faltando ou sobrando no conjunto ou no kit; joia extra que não está à venda (a corrente fina e lisa de apoio do pingente é permitida).",
+      "Joia da foto de estilo (imagem 2) copiada no lugar da peça real ou junto com ela.",
+      "Peça fora de escala: maior ou menor que a real em relação ao expositor ou ao corpo.",
+      "Peça flutuando ou mal apoiada no expositor: brinco sem o pino no veludo, anel fora da fenda, colar solto do busto, sem sombra de contato.",
+      "Expositor deformado ou incoerente (busto torto, caixinha ou suporte derretidos) ou com texto, logo, etiqueta ou marca.",
+      "Aspecto artificial: cara de render 3D ou ilustração, veludo de plástico, metal sem reflexo real.",
       "Texto, letras, logo ou marca d'água na imagem.",
-      "Cartela, etiqueta, QR code, saco plástico ou dedos da foto do fornecedor visíveis.",
-      "Olhos visíveis ou rosto inteiro; semelhança com pessoa real ou celebridade.",
-      "Criança na imagem.",
-      "Peça desfocada, cortada ou coberta por cabelo, roupa ou mão.",
+      "Cartela, etiqueta, QR code, saco plástico, dedos ou fundo cinza da foto do fornecedor visíveis.",
+      "Peça desfocada, cortada ou escondida por dobra do veludo, borda da caixinha, cabelo, roupa ou mão.",
       "Figura religiosa alterada ou símbolos religiosos acrescentados.",
-      "Pose, roupa ou clima sensual, vulgar ou fora do tom afetivo da marca."
+      "Criança na imagem.",
+      "Com modelo: dedos a mais, a menos ou fundidos; mão, orelha, pescoço ou pé deformados.",
+      "Com modelo: pele de plástico ou cera.",
+      "Com modelo: brinco sem passar pelo lóbulo ou piercing no lugar errado.",
+      "Com modelo: olhos visíveis ou rosto inteiro; semelhança com pessoa real ou celebridade.",
+      "Com modelo: pose, roupa ou clima sensual, vulgar ou fora do tom afetivo da marca."
     ],
-    "instrucoes_ajuste": "Se reprovar, escreva em ajuste_prompt de 1 a 3 frases curtas em inglês (até 60 palavras), que o app soma ao prompt da próxima tentativa. Corrija primeiro o problema de maior peso (fidelidade, depois realismo, composição, identidade e limpeza), no máximo 2 problemas por vez. Escreva de forma positiva e concreta, descrevendo o que a referência mostra e deve aparecer, com contagens, cores, posições e medidas, por exemplo: 'Each earring has exactly three white pearlescent enamel petals outlined by one row of small clear stones and one 7 mm white pearl in the center; keep the yellow gold tone.' Para anatomia e escala, use âncoras: 'Show exactly five relaxed fingers with short natural nails.' ou 'The earring is about 2 cm tall, the same height as the earlobe.' Para limpeza, nomeie o que sai: 'Only the worn earring appears; the white label from the reference is not part of the scene.' Não reescreva o prompt inteiro, não troque o cenário nem o tom de pele e não peça 'more beautiful', 'shinier' ou 'luxury'. Se o mesmo erro voltar na 2ª tentativa, simplifique: enquadramento mais fechado na peça, pose mais simples e fundo liso (ex.: 'Use a tighter close-up on the ear against a plain cream background.').",
-    "apos_limite_tentativas": "Depois de 3 reprovações, a foto não é publicada nem vira arte: o app marca o item para revisão manual, usa a foto real ou um still aprovado (still_veludo_rose ou still_fundo_limpo) na arte e guarda a melhor tentativa só como rascunho interno.",
+    "instrucoes_ajuste": "Se reprovar, escreva em ajuste_prompt de 1 a 3 frases curtas em inglês (até 60 palavras), que o app soma ao prompt da próxima tentativa. Corrija primeiro o problema de maior peso (fidelidade, depois realismo, composição, identidade e limpeza), no máximo 2 problemas por vez. Escreva de forma positiva e concreta, descrevendo o que a imagem 1 mostra e deve aparecer, com contagens, cores, posições e medidas, por exemplo: 'Each earring has exactly three white pearlescent enamel petals outlined by one row of small clear stones and one 7 mm white pearl in the center; keep the yellow gold tone.' Para cópia da imagem 2: 'The only jewelry in the image is the pendant from image 1; the necklace from image 2 does not appear.' Para apoio e realismo: 'The bracelet lies flat on the velvet tray, the clasp resting on the velvet, with a soft contact shadow under every link.' ou 'Both earring posts go into the top of the velvet arch at the same height.' Para limpeza, nomeie o que sai: 'The velvet display is plain, with no label or text.' Não reescreva o prompt inteiro, não troque o expositor sem necessidade e não peça 'more beautiful', 'shinier' ou 'luxury'. Se o mesmo erro voltar na 2ª tentativa, simplifique (enquadramento mais fechado na peça, menos elementos) ou indique em cenario_sugerido o cenário de cenario_alternativo_por_tipo.",
+    "apos_limite_tentativas": "Depois de 3 reprovações, a foto não é publicada nem vira arte: o app marca o item para revisão manual, usa a foto real ou um still aprovado (still_fundo_limpo) na arte e guarda a melhor tentativa só como rascunho interno.",
     "formato_resposta": {
       "aprovada": false,
       "nota_final": 7.5,
@@ -542,9 +630,10 @@
         "limpeza": 7
       },
       "eliminatorios": ["Pedras, pérolas ou esmalte com cor, quantidade, tamanho ou posição trocados."],
-      "problemas": ["A pérola central ficou maior que na referência e uma das pétalas perdeu o contorno de zircônias."],
+      "problemas": ["A pérola central ficou maior que na imagem 1 e uma das pétalas perdeu o contorno de zircônias."],
       "alertas": [],
-      "ajuste_prompt": "Each earring has exactly three white pearlescent enamel petals, each outlined by one row of small clear stones, and one 7 mm white pearl in the center, as small as in the reference. Keep the yellow gold tone."
+      "cenario_sugerido": "",
+      "ajuste_prompt": "Each earring has exactly three white pearlescent enamel petals, each outlined by one row of small clear stones, and one 7 mm white pearl in the center, as small as in image 1. Keep the yellow gold tone."
     }
   }
 }
