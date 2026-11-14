@@ -32,17 +32,31 @@ const SO_GESTORA: { caminho: RegExp; metodos: string[] }[] = [
 
 const g = globalThis as unknown as { __fda_modo_proxy?: { modo: string; ate: number } };
 
+async function consultarModo(base: string): Promise<string> {
+  const res = await fetch(new URL("/api/sessao?modo=1", base), { cache: "no-store", signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const { modo } = (await res.json()) as { modo: string };
+  if (!["aberto", "senha", "usuarios"].includes(modo)) throw new Error("modo desconhecido");
+  return modo;
+}
+
 async function modoDeAcesso(req: NextRequest): Promise<string> {
   if (g.__fda_modo_proxy && g.__fda_modo_proxy.ate > Date.now()) return g.__fda_modo_proxy.modo;
-  try {
-    const res = await fetch(new URL("/api/sessao?modo=1", req.nextUrl.origin), { cache: "no-store" });
-    const { modo } = (await res.json()) as { modo: string };
-    g.__fda_modo_proxy = { modo, ate: Date.now() + 15000 };
-    return modo;
-  } catch {
-    // Sem resposta: por segurança, exige login se houver senha configurada.
-    return process.env.APP_SENHA ? "senha" : "aberto";
+  // No computador da loja, pergunta ao próprio servidor (127.0.0.1); na nuvem, pelo endereço público.
+  // O endereço da requisição pode ser um proxy/visualização que o servidor não alcança.
+  const bases = [process.env.VERCEL ? null : `http://127.0.0.1:${process.env.PORT || 3000}`, req.nextUrl.origin].filter(Boolean) as string[];
+  for (const base of bases) {
+    try {
+      const modo = await consultarModo(base);
+      g.__fda_modo_proxy = { modo, ate: Date.now() + 15000 };
+      return modo;
+    } catch {
+      /* tenta o próximo endereço */
+    }
   }
+  // Sem resposta: nunca abre o app por falha. Usa o último modo conhecido; sem nenhum, exige login.
+  if (g.__fda_modo_proxy) return g.__fda_modo_proxy.modo;
+  return process.env.APP_SENHA ? "senha" : "usuarios";
 }
 
 export async function proxy(req: NextRequest) {
