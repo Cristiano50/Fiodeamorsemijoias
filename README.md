@@ -75,7 +75,7 @@ Depois disso, abra **http://localhost:3000**. Os dados ficam em `./dados/fiodeam
 
 **Primeiro acesso:** em **Configurações → Usuários**, crie a conta da gestora. A partir daí, o app pede login e a gestora cria as contas das funcionárias.
 
-As chaves das IAs podem ser coladas no próprio app, em **Configurações → Integrações**, ou em um arquivo `.env.local` (veja o modelo em `.env.example`):
+As chaves das IAs podem ser coladas no próprio app, em **Configurações → Integrações e IA**, ou em um arquivo `.env.local` (veja o modelo em `.env.example`). Depois de colar a chave do Claude, use **Testar chave do Claude**. O teste não gasta créditos. O consumo aparece em **Gastos com IA**, onde também dá para pôr um limite por mês.
 
 | Para quê | Variável | Onde obter |
 | --- | --- | --- |

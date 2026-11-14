@@ -76,6 +76,31 @@ function useSalvar(recarregar: () => Promise<void>) {
   return { salvar, restaurar, salvando };
 }
 
+/** Confere a chave do Claude sem gastar créditos (consulta o modelo na API de modelos da Anthropic). */
+function BotaoTestarClaude() {
+  const avisar = useAviso();
+  const [testando, setTestando] = useState(false);
+  return (
+    <Botao
+      variante="secundario"
+      carregando={testando}
+      onClick={async () => {
+        setTestando(true);
+        try {
+          const r = await api<{ ok: boolean; mensagem: string }>("/api/config/testar-claude", { method: "POST" });
+          avisar(r.mensagem, r.ok ? undefined : "erro");
+        } catch (e) {
+          avisar(e instanceof Error ? e.message : String(e), "erro");
+        } finally {
+          setTestando(false);
+        }
+      }}
+    >
+      Testar chave do Claude
+    </Botao>
+  );
+}
+
 function Integracoes({ config, recarregar }: Props) {
   const { salvar, salvando } = useSalvar(recarregar);
   const [chaves, setChaves] = useState({ ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "", OPENAI_API_KEY: "" });
@@ -99,7 +124,8 @@ function Integracoes({ config, recarregar }: Props) {
             <input type="password" autoComplete="off" placeholder="cole a chave para salvar ou trocar" value={chaves[k]} onChange={(e) => setChaves((c) => ({ ...c, [k]: e.target.value }))} />
           </Campo>
         ))}
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <BotaoTestarClaude />
           <Botao
             carregando={salvando}
             onClick={() => salvar("segredos", Object.fromEntries(Object.entries(chaves).filter(([, v]) => v))).then(() => setChaves({ ANTHROPIC_API_KEY: "", GEMINI_API_KEY: "", OPENAI_API_KEY: "" }))}
