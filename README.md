@@ -33,6 +33,13 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
 14. **Gastos com IA:** custo estimado por mês, por uso, por pedido e por dia, em dólar e em real. Tem limite mensal: ao atingir o limite, o app para de chamar a IA.
 15. **Backup automático:** uma cópia por dia do banco, guardando as 14 mais recentes, com botão **Baixar backup agora**. Para usar na nuvem, veja [docs/nuvem.md](docs/nuvem.md).
 16. **Catálogo do WhatsApp Business e Instagram Shopping:** link de feed (CSV) para o Commerce Manager da Meta, com preço, estoque, foto aprovada e um link que abre a conversa no WhatsApp da loja.
+17. **Vendas e recompra:** importe a planilha de vendas exportada do UP (CSV ou XLSX). O app liga cada venda à peça pelo código de barras e calcula:
+    - giro, *sell-through* e curva ABC;
+    - peças paradas e o ranking das revendedoras;
+    - a **lista de recompra**, em planilha com foto, código do fornecedor e quantidade sugerida, com uma aba por fornecedor, pronta para mandar à China (sem preços).
+
+    A mesma planilha pode ser importada de novo sem duplicar as vendas, e a gestora pode desfazer uma importação.
+18. **Maleta inteligente:** escolha a revendedora e o valor e a quantidade de peças da maleta. O app sugere o mix pelo que ela mais vende, pelo giro da loja e pelas novidades, e explica o motivo de cada peça. Dá para trocar, remover, imprimir ou exportar o romaneio em CSV.
 
 ## Como rodar (no computador da loja)
 
