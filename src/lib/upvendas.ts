@@ -5,6 +5,8 @@ import { getConfig, getSegredo, type Taxonomia, type UpVendasConfig } from "./co
 import type { PoliticaPreco } from "./precos";
 import type { Produto } from "./db/schema";
 import { fotosModeloPorProduto } from "./fotos";
+import { codigoParaUp } from "./upvendas-codigo";
+export { codigoParaUp };
 
 /**
  * Integração com o UP Vendas.
@@ -63,6 +65,7 @@ export interface ContextoUp {
   up: UpVendasConfig;
   marca: string;
   codigoNoUp: "ean13" | "code128";
+  origemCodigoBarras: "upvendas" | "app";
   urlBase: string; // para montar o link público da imagem
   fotos: Record<string, { id: string; publicavel: boolean }>; // foto criada pela IA e aprovada pela loja
 }
@@ -75,7 +78,7 @@ export async function contextoUp(urlBase: string, produtoIds: string[] = []): Pr
     getConfig("upvendas"),
     getConfig("sistema"),
   ]);
-  return { tax, pol, up, marca: sistema.marcaUp, codigoNoUp: sistema.codigoNoUp ?? "ean13", urlBase, fotos };
+  return { tax, pol, up, marca: sistema.marcaUp, codigoNoUp: sistema.codigoNoUp ?? "ean13", origemCodigoBarras: sistema.origemCodigoBarras ?? "upvendas", urlBase, fotos };
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -116,8 +119,7 @@ export function linhaUp(p: Produto, ctx: ContextoUp): LinhaUp {
     percentualLucro2: custo > 0 && valor2 ? r2((valor2 / custo - 1) * 100) : 0,
     valorTabela2: valor2,
     descricaoGrade,
-    // Code128 curto = os 8 dígitos da sequência (EAN "9100"+SEQ8+DV) — deve ser igual ao impresso na etiqueta.
-    codigoBarras: ctx.codigoNoUp === "code128" && p.codigoBarras ? p.codigoBarras.replace(/^9100/, "").slice(0, -1) : (p.codigoBarras ?? ""),
+    codigoBarras: codigoParaUp(p, ctx),
     estoque: p.quantidade,
     ativo: true,
     acabado: true,

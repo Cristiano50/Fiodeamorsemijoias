@@ -14,7 +14,7 @@ export async function GET() {
         (select coalesce(sum(preco_venda*quantidade),0) from produtos) as venda,
         (select count(*) from pedidos) as pedidos,
         (select count(*) from produtos where status='aprovado') as aprovados,
-        (select count(*) from produtos where referencia is null or codigo_barras is null) as semCodigo,
+        (select count(*) from produtos where referencia is null or coalesce(codigo_barras_origem, '') <> 'up') as semCodigo,
         (select count(*) from produtos where up_status='enviado') as noUp,
         (select count(distinct produto_id) from imagens where origem in ('ia','arte')) as comFotoIa,
         (select count(*) from imagens where origem = 'ia' and json_extract(meta, '$.decisao') is null) as fotosPendentes,

@@ -6,6 +6,8 @@ import type { Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "@/components/ui";
 import { useConfig, type ConfigCliente } from "@/components/hooks";
 import { api, brl } from "@/lib/cliente";
+import { ImportarCodigosUp } from "@/components/ImportarCodigosUp";
+import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
 
 type Resultado = { id: string; referencia: string | null; ok: boolean; mensagem: string; payload?: unknown };
 type UpCfg = {
@@ -37,13 +39,14 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [ocupado, setOcupado] = useState("");
+  const [versao, setVersao] = useState(0); // recarrega a lista depois de importar os códigos do UP
 
   useEffect(() => {
     const ids = params.get("ids");
     const pedido = params.get("pedido");
     const url = pedido ? `/api/produtos?pedido=${pedido}&limite=2000` : `/api/produtos?limite=2000${ids ? "" : "&status=aprovado"}`;
     api<Produto[]>(url).then((l) => setProdutos(ids ? l.filter((p) => ids.split(",").includes(p.id)) : l));
-  }, [params]);
+  }, [params, versao]);
 
   async function salvar() {
     setOcupado("salvar");
@@ -124,7 +127,7 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
               <tr>
                 <th>Referência</th>
                 <th>Nome</th>
-                <th>EAN</th>
+                <th>Código de barras</th>
                 <th>Preço</th>
                 <th>Estoque</th>
                 <th>Status UP</th>
@@ -142,7 +145,9 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
                         {p.nome}
                       </Link>
                     </td>
-                    <td className="font-mono text-xs">{p.codigoBarras}</td>
+                    <td>
+                      <CodigoBarrasCelula codigo={p.codigoBarras} origem={p.codigoBarrasOrigem} />
+                    </td>
                     <td>{brl(p.precoVenda)}</td>
                     <td>{p.quantidade}</td>
                     <td>
@@ -168,6 +173,8 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
           </table>
         </div>
       </Cartao>
+
+      <ImportarCodigosUp aoAplicar={() => setVersao((v) => v + 1)} />
 
       <Cartao titulo="Conexão com a API">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">

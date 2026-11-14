@@ -9,6 +9,8 @@ import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
 import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 import { RenomearFornecedor } from "@/components/Fornecedor";
+import { BiparCodigosUp } from "@/components/BiparCodigosUp";
+import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
 
 interface Cenario {
   nome: string;
@@ -30,6 +32,7 @@ interface Dados {
   margemBrutaPct: number;
   fatorMedio: number;
   semCodigo: number;
+  semCodigoUp: number;
   semAnalise: number;
   comAlerta: number;
   paginasPendentes: number;
@@ -50,6 +53,7 @@ export default function PedidoPage() {
   const [d, setD] = useState<Dados | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [ocupado, setOcupado] = useState("");
+  const [bipando, setBipando] = useState(false);
   const [progresso, setProgresso] = useState("");
   const [abaParecer, setAbaParecer] = useState<"resumo" | "estoque" | "contador" | "administrador" | "marketing">("resumo");
   const [mostrarCustos, setMostrarCustos] = useState(false);
@@ -201,9 +205,22 @@ export default function PedidoPage() {
           <Botao variante="secundario" onClick={() => gerarFotos(sel.size ? [...sel] : pendentesFoto)} disabled={!!fotos?.rodando}>
             ✦ Fotos com IA {sel.size ? `(${sel.size})` : pendentesFoto.length ? `(${pendentesFoto.length})` : ""}
           </Botao>
-          <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
-            Gerar referências e EAN {d.semCodigo ? `(${d.semCodigo})` : ""}
-          </Botao>
+          {config?.sistema.origemCodigoBarras === "app" ? (
+            <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
+              Gerar referências e EAN {d.semCodigo ? `(${d.semCodigo})` : ""}
+            </Botao>
+          ) : (
+            <>
+              {d.semCodigo > 0 && (
+                <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências geradas. O código de barras vem do UP.")} carregando={ocupado === "codigos"}>
+                  Gerar referências ({d.semCodigo})
+                </Botao>
+              )}
+              <Botao variante="secundario" onClick={() => setBipando((b) => !b)} title="Bipar ou digitar o código de barras que o UP criou para cada peça">
+                ▥ Códigos do UP {d.semCodigoUp ? `(${d.semCodigoUp} faltando)` : "✓"}
+              </Botao>
+            </>
+          )}
           <Botao variante="secundario" onClick={() => acao("parecer", () => api(`/api/pedidos/${id}/parecer`, { method: "POST" }), "Parecer dos especialistas pronto.")} carregando={ocupado === "parecer"}>
             ♡ Parecer dos especialistas
           </Botao>
@@ -265,6 +282,8 @@ export default function PedidoPage() {
         <Numero rotulo="Margem após comissão" valor={`${num(d.margemBrutaPct, 1)}%`} detalhe={`líquido ${brl(d.receitaLiquidaPotencial)}`} />
         <Numero rotulo="Markup médio" valor={`× ${num(d.fatorMedio)}`} detalhe="preço ÷ custo" />
       </div>
+
+      {bipando && <BiparCodigosUp produtos={d.produtos} aoGravar={() => void carregar()} aoFechar={() => setBipando(false)} />}
 
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border-2 border-rose bg-white px-5 py-4">
         <div className="min-w-[220px]">
@@ -709,7 +728,9 @@ export default function PedidoPage() {
                   </td>
                   <td className="whitespace-nowrap font-mono text-xs">
                     {p.referencia ?? <span className="text-[#c2a9b2]">—</span>}
-                    <div className="text-[#8a6d78]">{p.codigoBarras ?? ""}</div>
+                    <div className="text-[#8a6d78]">
+                      <CodigoBarrasCelula codigo={p.codigoBarras} origem={p.codigoBarrasOrigem} />
+                    </div>
                     <div className="text-[#8a6d78]">NCM {p.ncm}</div>
                   </td>
                 </tr>

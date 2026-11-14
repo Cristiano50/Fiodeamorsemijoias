@@ -15,5 +15,9 @@ export const MIGRACOES: { tag: string; sql: string }[] = [
   {
     "tag": "0003_fornecedores_apelido",
     "sql": "CREATE TABLE `fornecedores` (\n\t`chave` text PRIMARY KEY NOT NULL,\n\t`nome_original` text NOT NULL,\n\t`apelido` text,\n\t`atualizado_em` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')) NOT NULL\n);\n"
+  },
+  {
+    "tag": "0004_codigo_barras_do_up",
+    "sql": "ALTER TABLE `produtos` ADD `codigo_barras_origem` text;--> statement-breakpoint\n-- Os códigos que já existiam foram gerados pelo app (EAN interno 91…).\nUPDATE `produtos` SET `codigo_barras_origem` = 'app' WHERE `codigo_barras` IS NOT NULL;\n"
   }
 ];

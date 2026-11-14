@@ -44,7 +44,7 @@ export default function Painel() {
         <Numero rotulo="Produtos cadastrados" valor={p.produtos} detalhe={`${p.pecas} peças · ${p.aprovados} aprovados`} />
         <Numero rotulo="Investimento (custo)" valor={brl(p.custo)} />
         <Numero rotulo="Valor em etiqueta" valor={brl(p.venda)} detalhe={p.custo ? `markup × ${num(p.venda / p.custo)}` : ""} />
-        <Numero rotulo="No UP Vendas" valor={p.noUp} detalhe={`${p.semCodigo} sem código · ${p.comFotoIa} com arte/foto IA`} />
+        <Numero rotulo="No UP Vendas" valor={p.noUp} detalhe={`${p.semCodigo} sem código do UP · ${p.comFotoIa} com arte/foto IA`} />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Link href="/fotos">

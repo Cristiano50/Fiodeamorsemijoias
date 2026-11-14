@@ -79,6 +79,8 @@ export const produtos = sqliteTable(
     precos: text("precos", { mode: "json" }).$type<Record<string, number>>(),
     referencia: text("referencia"),
     codigoBarras: text("codigo_barras"),
+    // De onde veio o código de barras: "up" = criado pelo UP Vendas (importado ou bipado); "app" = EAN interno gerado pelo app.
+    codigoBarrasOrigem: text("codigo_barras_origem"),
     ncm: text("ncm"),
     unidade: text("unidade").notNull().default("UN"),
     imagemId: text("imagem_id"),

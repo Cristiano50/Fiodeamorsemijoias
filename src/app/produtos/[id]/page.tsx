@@ -7,6 +7,7 @@ import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "@/components/u
 import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
 import { BotaoFotoIa } from "@/components/BotaoFotoIa";
+import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
 
 type ImagemInfo = { id: string; origem: string; largura: number; altura: number; meta: Record<string, unknown> | null; criadoEm: string };
 const ORIGEM: Record<string, string> = { catalogo: "Catálogo", pagina: "Página", arte: "Arte da marca", ia: "Foto IA", upload: "Enviada" };
@@ -138,13 +139,17 @@ export default function ProdutoPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={`/api/codigo-barras?c=${p.codigoBarras}&altura=14`} alt={p.codigoBarras} className="mx-auto h-24" />
             ) : (
-              <p className="text-sm text-[#8a6d78]">Ainda sem código.</p>
+              <p className="text-sm text-[#8a6d78]">Ainda sem o código do UP. Cadastre a peça no UP e bipe ou digite aqui o código que o UP criou.</p>
             )}
+            <div className="mt-2 text-center">
+              <CodigoBarrasCelula codigo={p.codigoBarras} origem={p.codigoBarrasOrigem} />
+              {p.recompraDe && <div className="mt-1 text-xs text-[#9a8089]">Recompra: usa o mesmo código da peça original.</div>}
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Campo rotulo="Referência">
                 <input {...txt("referencia", true)} className="font-mono" />
               </Campo>
-              <Campo rotulo="EAN-13">
+              <Campo rotulo="Código de barras (do UP)">
                 <input {...txt("codigoBarras")} className="font-mono" />
               </Campo>
             </div>

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
-import { recalcularProduto } from "@/lib/servicos";
+import { CodigoEmUso, definirCodigoBarras, recalcularProduto } from "@/lib/servicos";
 import { exigirPapel } from "@/lib/auth";
 import { registrar } from "@/lib/historico";
 import { checarFator, checarPrecoManual } from "@/lib/permissoes";
@@ -44,14 +44,18 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (!antes) return erro("Produto não encontrado", 404);
     if ("fator" in body) await checarFator(req, body.fator);
     if ("precoVenda" in body) await checarPrecoManual(req, Number(body.precoVenda), antes.custoTotalBrl);
-    // O EAN só pode se repetir entre o produto original e as suas recompras.
-    if (body.codigoBarras && body.codigoBarras !== antes.codigoBarras) {
-      const usados = await db.select({ id: schema.produtos.id, recompraDe: schema.produtos.recompraDe }).from(schema.produtos).where(eq(schema.produtos.codigoBarras, body.codigoBarras));
-      const raiz = antes.recompraDe ?? antes.id;
-      if (usados.some((u) => u.id !== id && (u.recompraDe ?? u.id) !== raiz)) return erro("Esse código de barras já é de outro produto.", 409);
+    // Código de barras digitado ou bipado = o código criado pelo UP. Vale para o produto e as recompras dele
+    // (no UP são o mesmo produto) e só pode se repetir dentro dessa cadeia.
+    if ("codigoBarras" in body && (body.codigoBarras || null) !== antes.codigoBarras) {
+      try {
+        await definirCodigoBarras(id, body.codigoBarras ? String(body.codigoBarras) : null, "up");
+      } catch (e) {
+        if (e instanceof CodigoEmUso) return erro(e.message, 409);
+        throw e;
+      }
     }
     const set: Record<string, unknown> = { atualizadoEm: new Date().toISOString() };
-    for (const c of EDITAVEIS) if (c in body) set[c] = body[c];
+    for (const c of EDITAVEIS) if (c in body && c !== "codigoBarras") set[c] = body[c];
     if ("precoVenda" in body) set.precoManual = Number(body.precoVenda) > 0 ? Number(body.precoVenda) : null;
     await db.update(schema.produtos).set(set).where(eq(schema.produtos.id, id));
     const mexeuPreco = ["precoOrigem", "quantidade", "fator", "tipo"].some((c) => c in body) || "precoVenda" in body;

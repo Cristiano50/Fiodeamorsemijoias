@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import { getCenarios, getComponentesCusto, getConfig, ncmPara } from "./config";
 import { calcularCustos, calcularPreco, detalharCustos, valoresDoCenario } from "./precos";
@@ -218,9 +218,12 @@ export async function gerarCodigos(produtoIds: string[], refazer = false) {
         if (chaveGrupo) refPorGrupo.set(chaveGrupo, set.referencia);
       }
     }
-    if (!p.codigoBarras || refazer) {
+    // Código de barras: por padrão quem cria é o UP Vendas no cadastro (o app importa depois).
+    // Só no modo "app" o app gera o EAN interno; um código vindo do UP nunca é trocado.
+    if (sistema.origemCodigoBarras === "app" && p.codigoBarrasOrigem !== "up" && (!p.codigoBarras || refazer)) {
       const seq = await proximaSequencia(`ean:${sistema.eanPrefixo}`);
       set.codigoBarras = montarEan13(sistema.eanPrefixo, seq);
+      set.codigoBarrasOrigem = "app";
     }
     if (Object.keys(set).length) {
       await db.update(schema.produtos).set({ ...set, atualizadoEm: new Date().toISOString() }).where(eq(schema.produtos.id, p.id));
@@ -265,7 +268,7 @@ export async function detectarRecompras(pedidoId: string) {
           c.produto.pedidoId !== pedidoId &&
           normCodigo(c.produto.codigoFornecedor) === normCodigo(it.codigoFornecedor) &&
           especificacao(c.produto) === especificacao(it) &&
-          !!c.produto.codigoBarras &&
+          !!c.produto.referencia && // o original já foi cadastrado (o código do UP pode chegar depois)
           (!pedido.fornecedor || !c.fornecedor || normFornecedor(pedido.fornecedor) === normFornecedor(c.fornecedor)),
       )
       .sort((a, b) => a.produto.criadoEm.localeCompare(b.produto.criadoEm))[0];
@@ -282,6 +285,7 @@ export async function detectarRecompras(pedidoId: string) {
         recompraDe: o.id,
         referencia: o.referencia,
         codigoBarras: o.codigoBarras,
+        codigoBarrasOrigem: o.codigoBarrasOrigem,
         nome: o.nome,
         nomeComercial: o.nomeComercial,
         nomesSugeridos: o.nomesSugeridos,
@@ -315,9 +319,42 @@ export async function desfazerRecompra(ids: string[]) {
   const db = await getDb();
   await db
     .update(schema.produtos)
-    .set({ recompraDe: null, referencia: null, codigoBarras: null, alertas: [], atualizadoEm: new Date().toISOString() })
+    .set({ recompraDe: null, referencia: null, codigoBarras: null, codigoBarrasOrigem: null, alertas: [], atualizadoEm: new Date().toISOString() })
     .where(inArray(schema.produtos.id, ids));
   await gerarCodigos(ids);
+}
+
+/* ------------------------------------------------- código de barras do UP */
+
+export class CodigoEmUso extends Error {}
+
+/**
+ * Grava o código de barras de um produto e de toda a cadeia de recompra dele (no UP é o mesmo produto).
+ * O código só pode se repetir dentro da cadeia. `codigo` vazio apaga.
+ */
+export async function definirCodigoBarras(produtoId: string, codigo: string | null, origem: "up" | "app" = "up") {
+  const db = await getDb();
+  const [p] = await db.select({ id: schema.produtos.id, recompraDe: schema.produtos.recompraDe }).from(schema.produtos).where(eq(schema.produtos.id, produtoId));
+  if (!p) throw new Error("Produto não encontrado");
+  const raiz = p.recompraDe ?? p.id;
+  const valor = codigo?.replace(/\s+/g, "") || null;
+  if (valor) {
+    const usados = await db
+      .select({ id: schema.produtos.id, recompraDe: schema.produtos.recompraDe, referencia: schema.produtos.referencia })
+      .from(schema.produtos)
+      .where(eq(schema.produtos.codigoBarras, valor));
+    const outro = usados.find((u) => (u.recompraDe ?? u.id) !== raiz);
+    if (outro) throw new CodigoEmUso(`O código ${valor} já é de outro produto (${outro.referencia ?? "sem referência"}).`);
+  }
+  const cadeia = await db
+    .select({ id: schema.produtos.id })
+    .from(schema.produtos)
+    .where(or(eq(schema.produtos.id, raiz), eq(schema.produtos.recompraDe, raiz)));
+  await db
+    .update(schema.produtos)
+    .set({ codigoBarras: valor, codigoBarrasOrigem: valor ? origem : null, atualizadoEm: new Date().toISOString() })
+    .where(inArray(schema.produtos.id, cadeia.map((c) => c.id)));
+  return cadeia.length;
 }
 
 /** Marca como variações do mesmo modelo as linhas do pedido com o mesmo código de fornecedor. */
@@ -397,7 +434,8 @@ export async function resumoPedido(pedidoId: string) {
     margemBrutaPct: vendaPotencial > 0 ? r2(((vendaPotencial * (1 - comissao) - custoTotal) / (vendaPotencial * (1 - comissao))) * 100) : 0,
     fatorMedio: custoTotal > 0 ? r2(vendaPotencial / custoTotal) : 0,
     porTipo,
-    semCodigo: itens.filter((p) => !p.referencia || !p.codigoBarras).length,
+    semCodigo: itens.filter((p) => !p.referencia).length, // sem referência (o app gera)
+    semCodigoUp: itens.filter((p) => p.codigoBarrasOrigem !== "up").length, // sem o código de barras criado pelo UP
     semAnalise: itens.filter((p) => !p.tipo).length,
     comAlerta: itens.filter((p) => (p.alertas ?? []).length > 0).length,
   };

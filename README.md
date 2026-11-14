@@ -10,10 +10,12 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
    - o **funcionário digita o fator** num campo em branco no pedido (vale para todas as peças) ou numa peça específica; em branco, vale o padrão da loja (×10). Fator abaixo de 10 gera alerta;
    - tabelas Consignado, Varejo, Atacado e Liquidação.
 4. **Classifica cada peça com IA (Claude):** material (semijoia, prata, aço…), tipo (brinco, colar, anel, pulseira, bracelete, óculos, relógio…), subtipo, banho, cor da pedra (zircônia, cristal, azul, preto, pérola, esmalte…) e tamanho (único, aro de anel, comprimento). Também traduz o chinês e **avalia a peça, sugerindo 3 nomes de cadastro** no padrão `BRINCO (SJ) …` e um nome comercial.
-5. **Gera referência e código de barras:**
-   - referência por tipo: `BR_2611001` (brinco), `CL_` colar, `AN_` anel, `PU_` pulseira, `BC_` bracelete…;
-   - **EAN-13 interno** `91…`, com dígito verificador;
-   - variações da mesma peça compartilham a referência.
+5. **Gera a referência e usa o código de barras do UP Vendas:**
+   - referência por tipo: `BR_2611001` (brinco), `CL_` colar, `AN_` anel, `PU_` pulseira, `BC_` bracelete…; variações da mesma peça compartilham a referência;
+   - o **código de barras é o que o UP cria** no cadastro. A planilha vai sem código para o UP gerar o dele;
+   - os códigos voltam para o app de dois jeitos: pela lista de produtos exportada do UP (**UP Vendas → Códigos de barras do UP**), que liga cada código à peça pela referência e pela grade, ou bipando no pedido (**Códigos do UP**);
+   - a recompra herda o código da peça original, e as etiquetas, as vendas e o catálogo usam o código do UP;
+   - se um dia preferir, em Configurações → Referência e código de barras dá para voltar ao EAN-13 interno do app (`91…`).
 6. **Imprime etiquetas:** rabicho térmico 95×12 mm, folha A4 Pimaco (6180 e 6187) e cartela de brinco.
 7. **Fotos com IA (padrão: peça em expositor):**
    - botão **"Criar foto com IA"** em cada produto do catálogo, em cada linha do pedido e na ficha do produto;
@@ -96,9 +98,11 @@ O banco usa libSQL, então o mesmo código roda com um banco [Turso](https://tur
    - os alertas da IA.
 
    Use **Parecer dos especialistas** para uma análise do pedido.
-3. **Gerar referências e EAN** → **Aprovar** → **Etiquetas**.
+3. **Gerar referências** → **Aprovar**.
 4. Em cada produto, abra o **Estúdio de fotos** para criar as artes e as fotos com modelo.
-5. **UP Vendas:** baixe a planilha ou envie pela API.
+5. **UP Vendas:** baixe a planilha e cadastre no UP. O UP cria o código de barras de cada peça.
+6. **Traga os códigos do UP:** exporte a lista de produtos do UP e envie em **UP Vendas → Códigos de barras do UP**, ou bipe no pedido em **Códigos do UP**.
+7. **Etiquetas**, já com o código do UP.
 
 ## Estrutura
 

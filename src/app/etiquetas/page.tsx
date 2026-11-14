@@ -5,6 +5,7 @@ import type { Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Selo } from "@/components/ui";
 import { useConfig } from "@/components/hooks";
 import { api, brl } from "@/lib/cliente";
+import { ean13Valido } from "@/lib/codigos-up";
 
 type Formato = "rabicho" | "a4_6180" | "a4_6187" | "cartela";
 
@@ -15,10 +16,18 @@ const FORMATOS: Record<Formato, { nome: string; descricao: string }> = {
   cartela: { nome: "Cartela de brinco 50×50 mm", descricao: "Cartela que segura o brinco, com logo, nome, referência, código e preço." },
 };
 
-function Codigo({ valor, simbologia, altura }: { valor: string; simbologia: "ean13" | "code128"; altura: number }) {
-  const v = simbologia === "code128" ? valor.replace(/^9100/, "").slice(0, -1) || valor : valor;
+/**
+ * O código impresso é sempre o mesmo número gravado no UP:
+ *  - código do UP: o número inteiro (EAN-13 se tiver 13 dígitos; senão, ou se escolher Code128, em Code128);
+ *  - EAN interno do app no "Code128 curto": os 8 dígitos da sequência (é o que o app grava no UP nesse modo).
+ */
+function Codigo({ valor, origem, simbologia, altura }: { valor: string; origem: string | null; simbologia: "ean13" | "code128"; altura: number }) {
+  const curto = simbologia === "code128" && origem !== "up" && /^9100\d{9}$/.test(valor);
+  const v = curto ? valor.replace(/^9100/, "").slice(0, -1) : valor;
+  // EAN-13 só quando o número é um EAN-13 válido; senão Code128 com o mesmo número (o leitor do caixa lê os dois).
+  const tipo = simbologia === "ean13" && ean13Valido(v) ? "ean13" : "code128";
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`/api/codigo-barras?c=${encodeURIComponent(v)}&tipo=${simbologia}&texto=0&altura=${altura}`} alt={valor} className="block h-full w-full object-fill" />;
+  return <img src={`/api/codigo-barras?c=${encodeURIComponent(v)}&tipo=${tipo}&texto=0&altura=${altura}`} alt={valor} className="block h-full w-full object-fill" />;
 }
 
 function EtiquetasConteudo() {
@@ -31,6 +40,9 @@ function EtiquetasConteudo() {
   const [pular, setPular] = useState(0);
   const { config } = useConfig();
   const codigoNoUp = config?.sistema.codigoNoUp === "code128" ? "code128" : "ean13";
+  // Padrão da loja: o código de barras é o que o UP criou; peça sem ele não ganha etiqueta.
+  const modoUp = config?.sistema.origemCodigoBarras !== "app";
+  const temCodigo = (p: Produto) => !!p.codigoBarras && (!modoUp || p.codigoBarrasOrigem === "up");
   const simbologia = simbologiaEscolhida ?? codigoNoUp;
 
   useEffect(() => {
@@ -46,15 +58,15 @@ function EtiquetasConteudo() {
   const etiquetas = useMemo(() => {
     const out: (Produto | null)[] = Array.from({ length: formato.startsWith("a4") ? pular : 0 }, () => null);
     for (const p of produtos ?? []) {
-      if (!p.codigoBarras) continue;
+      if (!p.codigoBarras || (modoUp && p.codigoBarrasOrigem !== "up")) continue;
       const n = copias === "quantidade" ? Math.max(1, p.quantidade) : 1;
       for (let i = 0; i < n; i++) out.push(p);
     }
     return out;
-  }, [produtos, copias, formato, pular]);
+  }, [produtos, copias, formato, pular, modoUp]);
 
   if (!produtos) return <Carregando />;
-  const semCodigo = produtos.filter((p) => !p.codigoBarras).length;
+  const semCodigo = produtos.filter((p) => !temCodigo(p)).length;
   const total = etiquetas.filter(Boolean).length;
 
   const css = {
@@ -71,7 +83,8 @@ function EtiquetasConteudo() {
         <div>
           <h1 className="text-4xl font-semibold">Etiquetas</h1>
           <p className="text-sm text-[#8a6d78]">
-            {produtos.length} produto(s) · {total} etiqueta(s){semCodigo ? ` · ${semCodigo} sem código de barras (gere antes)` : ""}
+            {produtos.length} produto(s) · {total} etiqueta(s)
+            {semCodigo ? (modoUp ? ` · ${semCodigo} sem o código de barras do UP (cadastre no UP e importe ou bipe os códigos)` : ` · ${semCodigo} sem código de barras (gere antes)`) : ""}
           </p>
         </div>
         <Botao onClick={() => window.print()} disabled={!total}>
@@ -90,10 +103,21 @@ function EtiquetasConteudo() {
               ))}
             </select>
           </Campo>
-          <Campo rotulo="Código impresso" dica={simbologia !== (codigoNoUp ?? "ean13") ? "⚠ Diferente do código gravado no UP (Configurações → Códigos). O caixa não vai achar o produto." : simbologia === "code128" ? "Code128 de 8 dígitos: cabe melhor no rabicho" : "EAN-13 (padrão)"}>
+          <Campo
+            rotulo="Código impresso"
+            dica={
+              modoUp
+                ? "Sempre o número criado pelo UP. Code128 mostra o mesmo número com outro desenho de barras."
+                : simbologia !== (codigoNoUp ?? "ean13")
+                  ? "⚠ Diferente do código gravado no UP (Configurações → Códigos). O caixa não vai achar o produto."
+                  : simbologia === "code128"
+                    ? "Code128 de 8 dígitos: cabe melhor no rabicho"
+                    : "EAN-13 (padrão)"
+            }
+          >
             <select value={simbologia} onChange={(e) => setSimbologia(e.target.value as "ean13" | "code128")}>
               <option value="ean13">EAN-13</option>
-              <option value="code128">Code128 curto</option>
+              <option value="code128">{modoUp ? "Code128 (mesmo número)" : "Code128 curto"}</option>
             </select>
           </Campo>
           <Campo rotulo="Cópias">
@@ -115,8 +139,8 @@ function EtiquetasConteudo() {
         </div>
         {formato === "rabicho" && simbologia === "ean13" && (
           <p className="mt-3 text-xs text-amber-800">
-            <Selo cor="amarelo">teste antes</Selo> No rabicho, o EAN-13 fica com ~28 mm, abaixo do mínimo GS1. Teste a leitura no leitor do caixa com algumas etiquetas; se falhar, use “Code128
-            curto” (ver parecer do gestor de estoque).
+            <Selo cor="amarelo">teste antes</Selo> No rabicho, o EAN-13 fica com ~28 mm, abaixo do mínimo GS1. Teste a leitura no leitor do caixa com algumas etiquetas; se falhar, use{" "}
+            {modoUp ? "“Code128 (mesmo número)”" : "“Code128 curto” (ver parecer do gestor de estoque)"}.
           </p>
         )}
       </Cartao>
@@ -143,7 +167,7 @@ function EtiquetasConteudo() {
                 </div>
                 <div className="flex flex-col justify-center px-[0.5mm]" style={{ width: "30mm" }}>
                   <div style={{ height: "8mm" }}>
-                    <Codigo valor={p.codigoBarras!} simbologia={simbologia} altura={8} />
+                    <Codigo valor={p.codigoBarras!} origem={p.codigoBarrasOrigem} simbologia={simbologia} altura={8} />
                   </div>
                   <div className="text-center font-mono leading-none" style={{ fontSize: "5pt" }}>
                     {simbologia === "ean13" ? p.codigoBarras : p.codigoBarras!.replace(/^9100/, "").slice(0, -1)}
@@ -164,7 +188,7 @@ function EtiquetasConteudo() {
                     {p.nome}
                   </div>
                   <div style={{ height: "7mm" }}>
-                    <Codigo valor={p.codigoBarras!} simbologia={simbologia} altura={8} />
+                    <Codigo valor={p.codigoBarras!} origem={p.codigoBarrasOrigem} simbologia={simbologia} altura={8} />
                   </div>
                   <div className="flex justify-between font-mono" style={{ fontSize: "5.5pt" }}>
                     <span>{p.referencia}</span>
@@ -203,7 +227,7 @@ function EtiquetasConteudo() {
                 </div>
                 <div className="flex flex-col items-center" style={{ width: formato === "a4_6180" ? "32mm" : "22mm" }}>
                   <div style={{ height: formato === "a4_6180" ? "13mm" : "7.5mm", width: "100%" }}>
-                    <Codigo valor={p.codigoBarras!} simbologia={simbologia} altura={10} />
+                    <Codigo valor={p.codigoBarras!} origem={p.codigoBarrasOrigem} simbologia={simbologia} altura={10} />
                   </div>
                   <div className="font-mono leading-none" style={{ fontSize: "5pt" }}>
                     {simbologia === "ean13" ? p.codigoBarras : p.codigoBarras!.replace(/^9100/, "").slice(0, -1)}

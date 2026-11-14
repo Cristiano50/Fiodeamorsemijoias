@@ -29,6 +29,13 @@
       "when": 1794662197767,
       "tag": "0003_fornecedores_apelido",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794662560547,
+      "tag": "0004_codigo_barras_do_up",
+      "breakpoints": true
     }
   ]
 }

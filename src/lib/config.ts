@@ -67,6 +67,8 @@ export interface Marca {
 export interface Sistema {
   referenciaModelo: string; // ver montarReferencia()
   eanPrefixo: string;
+  // Quem cria o código de barras: "upvendas" = o UP gera no cadastro e o app importa (padrão); "app" = EAN interno do app.
+  origemCodigoBarras: "upvendas" | "app";
   marcaUp: string;
   codigoNoUp: "ean13" | "code128"; // o que gravar no campo "Cód. Barras" do UP (igual ao impresso na etiqueta)
   unidade: string;
@@ -93,6 +95,7 @@ export interface Sistema {
 export const SISTEMA_PADRAO: Sistema = {
   referenciaModelo: "{PREFIXO}_{AA}{MM}{SEQ:3}",
   eanPrefixo: "91", // gestor de estoque: "91" fica fora da faixa do UP (9000…), da balança (2x) e da GS1 Brasil (789)
+  origemCodigoBarras: "upvendas", // a loja usa o código que o UP Vendas gera no cadastro
   marcaUp: "FIO DE AMOR",
   codigoNoUp: "ean13",
   unidade: "UN",

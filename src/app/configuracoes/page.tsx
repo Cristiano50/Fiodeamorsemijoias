@@ -336,15 +336,32 @@ function Codigos({ config, recarregar }: Props) {
         <Campo rotulo="Modelo da referência" dica={<>Exemplo: <b className="font-mono">{exemploRef}</b> · {"{PREFIXO}"} {"{AA}"} {"{MM}"} {"{SSS}"} {"{SEQ:n}"}</>}>
           <input value={s.referenciaModelo} onChange={(e) => setS({ ...s, referenciaModelo: e.target.value })} className="font-mono" />
         </Campo>
-        <Campo rotulo="Prefixo do EAN-13 interno" dica={<>Exemplo: <b className="font-mono">{exemploEan}</b> · evite 2x (balança), 789 (GS1) e 9000 (UP)</>}>
-          <input value={s.eanPrefixo} onChange={(e) => setS({ ...s, eanPrefixo: e.target.value })} className="font-mono" />
-        </Campo>
-        <Campo rotulo="Código gravado no UP e impresso" dica="Code128 curto = 8 dígitos; cabe melhor no rabicho">
-          <select value={s.codigoNoUp} onChange={(e) => setS({ ...s, codigoNoUp: e.target.value })}>
-            <option value="ean13">EAN-13 completo</option>
-            <option value="code128">Code128 curto (8 dígitos)</option>
+        <Campo
+          rotulo="Quem cria o código de barras"
+          dica={
+            s.origemCodigoBarras === "app"
+              ? "O app gera um EAN-13 interno e manda para o UP na planilha."
+              : "O UP gera no cadastro; o app importa (UP Vendas → Códigos de barras do UP) ou recebe bipado no pedido."
+          }
+        >
+          <select value={s.origemCodigoBarras ?? "upvendas"} onChange={(e) => setS({ ...s, origemCodigoBarras: e.target.value as "upvendas" | "app" })}>
+            <option value="upvendas">UP Vendas (padrão da loja)</option>
+            <option value="app">O app (EAN interno)</option>
           </select>
         </Campo>
+        {s.origemCodigoBarras === "app" && (
+          <>
+            <Campo rotulo="Prefixo do EAN-13 interno" dica={<>Exemplo: <b className="font-mono">{exemploEan}</b> · evite 2x (balança), 789 (GS1) e 9000 (UP)</>}>
+              <input value={s.eanPrefixo} onChange={(e) => setS({ ...s, eanPrefixo: e.target.value })} className="font-mono" />
+            </Campo>
+            <Campo rotulo="Código gravado no UP e impresso" dica="Code128 curto = 8 dígitos; cabe melhor no rabicho">
+              <select value={s.codigoNoUp} onChange={(e) => setS({ ...s, codigoNoUp: e.target.value })}>
+                <option value="ean13">EAN-13 completo</option>
+                <option value="code128">Code128 curto (8 dígitos)</option>
+              </select>
+            </Campo>
+          </>
+        )}
         <Campo rotulo="Marca no UP">
           <input value={s.marcaUp} onChange={(e) => setS({ ...s, marcaUp: e.target.value })} />
         </Campo>
