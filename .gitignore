@@ -48,3 +48,7 @@ next-env.d.ts
 /amostras/
 /public/pdf.worker.min.mjs
 !.env.example
+
+# Python (scripts da skill do Claude)
+__pycache__/
+*.pyc
