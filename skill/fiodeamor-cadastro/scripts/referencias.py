@@ -7,7 +7,8 @@ Uso:
 
 O que faz, nesta ordem:
  1. Recompra: a peça que já foi cadastrada antes usa a referência, o nome, a classificação e o código de barras do UP
-    da peça original. Chave da recompra = fornecedor (nome original sem espaços, minúsculas) + código do fornecedor
+    da peça original, e guarda o preço vigente dela (``precoVigente``, do contexto do app): no UP é um preço só, então
+    o calcular.py mantém esse preço e só avisa "Custo mudou" quando o custo novo daria mais de 10% de diferença. Chave da recompra = fornecedor (nome original sem espaços, minúsculas) + código do fornecedor
     + especificação/cor, os dois normalizados (largura total → ASCII, maiúsculas, sem espaço, hífen ou ponto).
       - exatamente 1 original possível e ele casa a chave inteira → recompra (recompraDe = referência do original);
       - mais de um possível, ou fornecedor/especificação desconhecidos de um dos lados → "recompra a confirmar":
@@ -233,10 +234,15 @@ def _sem_alertas_de_recompra(it: dict) -> list:
 
 
 def aplicar_recompra(it: dict, h: dict, moeda_pedido: str | None) -> None:
-    """A peça vira recompra de ``h``: referência, código de barras do UP, nome e classificação da original."""
+    """A peça vira recompra de ``h``: referência, código de barras do UP, nome, classificação e preço vigente da original."""
     it["recompraDe"] = h["referencia"]
     it["referencia"] = h["referencia"]
     it.pop("recompraCandidatas", None)
+    vigente = ler_numero_br((h.get("dados") or {}).get("precoVenda"))
+    if vigente and vigente > 0:
+        it["precoVigente"] = vigente  # preço atual da original no app (o calcular.py mantém o mesmo preço)
+    else:
+        it.pop("precoVigente", None)  # sem preço no contexto (ou lista do UP): o preço é calculado normalmente
     if h.get("codigoBarras"):
         it["codigoBarras"] = h["codigoBarras"]
         it["codigoBarrasOrigem"] = "up"
@@ -279,6 +285,7 @@ def marcar_candidatas(it: dict, possiveis: list[dict]) -> list[str]:
     it["recompraCandidatas"] = refs
     it["recompraDe"] = None
     it["referencia"] = None
+    it.pop("precoVigente", None)
     if it.get("codigoBarrasOrigem") == "up" and it.get("codigoBarras"):
         it["codigoBarras"] = None  # o código de barras de uma original não vale para a peça a confirmar
         it.pop("codigoBarrasOrigem", None)
@@ -335,6 +342,7 @@ def main() -> int:
         if a.refazer and it.get("recompraDe"):
             it["recompraDe"] = None
             it["referencia"] = None
+            it.pop("precoVigente", None)
             if it.get("codigoBarrasOrigem") == "up":  # o código de barras era o da original
                 it["codigoBarras"] = None
                 it.pop("codigoBarrasOrigem", None)
@@ -353,6 +361,7 @@ def main() -> int:
             })
         else:
             it.pop("recompraCandidatas", None)
+            it.pop("precoVigente", None)
             it["alertas"] = _sem_alertas_de_recompra(it)
     if a_confirmar and not forn:
         avisos.append("O pedido está sem o nome do fornecedor: a recompra nunca é automática (só candidatas).")

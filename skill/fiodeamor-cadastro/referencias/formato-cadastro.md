@@ -63,10 +63,11 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
       "recompraDe": null,                   // referência do produto original quando é recompra
       "recompraCandidatas": null,           // opcional: referências possíveis quando a skill não teve certeza
       "codigoBarras": null,                 // só o código CRIADO PELO UP (recompra). Peça nova: null (o UP gera)
+      "precoVigente": null,                 // recompra: preço atual da original no app (o referencias.py guarda do contexto)
 
       // preço (scripts/calcular.py preenche)
       "fator": null,                        // fator só desta peça (vence o do pedido)
-      "precoManual": null,                  // preço fixado à mão (vence o fator)
+      "precoManual": null,                  // preço fixado à mão (vence o fator; na recompra vale o precoVigente)
       "custoProdutoBrl": 7.74, "custoAdicionalBrl": 1.04, "custoTotalBrl": 8.78,
       "fatorAplicado": 10, "precoVenda": 89.99,   // 8,78 × 10 = 87,80 → 89,99 na escada de preços
       "precos": { "consignado": 89.99, "atacado_revenda": 49.99 },
@@ -90,8 +91,12 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
   "ＡＢＣ１２３Ａ" = "ABC123A"). Original possível: mesmo código, fornecedor igual (ou desconhecido de um dos lados),
   especificação igual (ou vazia de um dos lados).
 - **Recompra** (exatamente um original possível e ele casa a chave inteira, com o fornecedor conhecido):
-  `recompraDe` = referência original, `referencia` = a mesma, `codigoBarras` = o código do UP do original, se houver.
-  O app confere de novo na importação.
+  `recompraDe` = referência original, `referencia` = a mesma, `codigoBarras` = o código do UP do original, se houver,
+  e `precoVigente` = o preço atual da original (`precoVenda` do contexto do app). O app confere de novo na importação.
+- **Preço da recompra**: fica o preço vigente da original (no UP é um produto só, com um preço só). O preço pelo custo
+  novo é calculado mesmo assim; se diferir mais de 10% do vigente, a peça recebe o alerta
+  "Custo mudou: preço vigente R$ X, pelo custo novo R$ Y (±Z%)." (o mesmo texto do app, que refaz esse alerta).
+  Sem preço vigente (sem o app), o preço é calculado normalmente.
 - **Recompra a confirmar** (`recompraCandidatas`, campo novo e opcional): mais de um original possível, ou
   fornecedor/especificação desconhecidos de um dos lados. `recompraDe` = null, `recompraCandidatas` = [referências
   possíveis], `referencia` = null (sai da decisão) e a peça fica fora da planilha do UP da skill. **Na dúvida a skill
@@ -106,6 +111,13 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
 - **Cotação**: para moeda diferente de BRL, nunca vira 1. Sem cotação, a skill busca a PTAX da data da compra; sem PTAX,
   os preços ficam pendentes (custos e preços null), com aviso.
 - **Quantidade**: 0 continua 0 (com aviso) na conta, na planilha e no pacote; vazia conta 1 (com aviso), como no app.
+- **Custos padrão da loja** (`sistema.json` ou contexto do app: `perdasPctPadrao` em %, `embalagemPorPecaPadrao` em
+  R$/peça): entram como componentes "perdas e defeitos" e "embalagem e etiqueta" quando maiores que zero e quando o
+  pedido não traz esses valores em `custos` — na ordem do app: cenário → frete e padrões da loja → `pedido.custos`.
+- **Fator mínimo**: fator (do pedido ou da peça) abaixo do mínimo da loja e preço manual abaixo dele só valem no app se
+  quem importar for a gestora (logada, em "Importar pedido → Cadastro feito no Claude"). Enviado pela skill (pela
+  chave) ou importado por uma funcionária, o app usa o fator mínimo e descarta o preço manual abaixo dele. A skill
+  calcula com o que veio e avisa no resumo.
 - **Números**: no `cadastro.json` podem vir como texto ("10,5", "R$ 1.234,56", "0,7745"), lidos como o `lerNumeroBr` do
   app: vírgula ou ponto decimal; ponto de milhar só no formato 1.234 / 12.345.678 e só em dinheiro (preço, frete,
   total); cotação e fator sem milhar ("0.775" = 0,775). No pacote eles já vão como números.
@@ -114,6 +126,10 @@ Os ids de classificação (`tipo`, `material`, `banho`, `corPedra`, `tamanho`) s
   maior (`precificacao.json → arredondamento`, modo "escada"; o modo antigo "terminar_em" continua aceito). As outras
   tabelas usam a mesma escada sem o mínimo. O app recalcula com as mesmas regras na importação; os valores da skill
   servem para a planilha do UP e para conferência. Se a loja digitou um preço à mão, use `precoManual`.
-- **Planilha do UP**: toda célula de texto que começa com = + - @, tab ou enter ganha um apóstrofo na frente (não vira
-  fórmula); números continuam números.
+- **Planilhas do UP** (as mesmas do app): **produtos novos** (`planilha-up-novos-…`, cadastro completo, sem recompras)
+  e **recompras** (`planilha-up-recompras-…`, entrada de estoque: código de barras do UP + quantidade + referência +
+  nome + custo unitário; linhas com o mesmo código somam a quantidade e o custo é a média ponderada; quantidade 0 fica
+  de fora; sem o código do UP, vai pela referência). Recompra a confirmar não entra em nenhuma das duas. Toda célula de
+  texto que começa com = + - @, tab ou enter ganha um apóstrofo na frente (não vira fórmula); números continuam
+  números.
 - **Pacote**: igual ao `cadastro.json`, mas cada item troca `foto` por `fotoBase64` (`data:image/jpeg;base64,…`).

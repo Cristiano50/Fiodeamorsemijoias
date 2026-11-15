@@ -10,7 +10,8 @@ e pedir para cadastrar, precificar, dar nome ou gerar a planilha do UP Vendas.
 Fale sempre em **português do Brasil**, de forma simples: quem usa é a equipe da loja, não programadores.
 
 O resultado é sempre:
-1. a **planilha do UP Vendas** (XLSX e CSV) para importar no UP;
+1. as **planilhas do UP Vendas** (XLSX e CSV), como as do app: **produtos novos** (cadastro no UP) e **recompras**
+   (entrada de estoque de produtos que já existem no UP);
 2. o **cadastro para o app** da loja (`cadastro-<pedido>.json`), enviado sozinho quando a skill está conectada;
 3. um **resumo** para conferência.
 
@@ -26,7 +27,10 @@ completo. Se faltar biblioteca: `pip install pymupdf openpyxl pillow`.
 
 ### 0. Perguntas rápidas (só o que faltar)
 - **Frete** do pedido em R$ (pedidos da China). Sem frete, o custo fica só a mercadoria: avise.
-- **Fator** do pedido, se a loja quiser um diferente do padrão (×10). Abaixo de ×10 só com a gestora: confirme.
+- **Fator** do pedido, se a loja quiser um diferente do padrão (×10). Abaixo de ×10 só com a gestora: confirme. No app,
+  fator abaixo do mínimo (e preço manual abaixo dele) **só vale se quem importar o cadastro for a gestora**, logada, em
+  "Importar pedido → Cadastro feito no Claude". Enviado pela skill (passo 8, pela chave) ou importado por uma
+  funcionária, o app usa o fator mínimo e descarta o preço manual abaixo dele — o resumo avisa quando houver.
 - **Data da compra**, se o documento não trouxer (a cotação é a do dia da compra).
 Não pergunte o que dá para ler no documento.
 
@@ -84,12 +88,12 @@ Para cada item, olhando a **foto** e a linha do documento, preencha no `cadastro
 ```
 python3 scripts/referencias.py /tmp/cadastro/cadastro.json [--contexto contexto.json | --lista-up produtos-up.xlsx]
 ```
-Peça já comprada antes usa a referência, o nome e o **código de barras do UP** da original. A chave da recompra é a
+Peça já comprada antes usa a referência, o nome, o **código de barras do UP** e o **preço vigente** da original. A chave da recompra é a
 mesma do app: **fornecedor** (nome original, sem espaços, minúsculas) + **código do fornecedor** + **especificação**
 (os dois em maiúsculas, sem espaço, hífen ou ponto; letras de largura total viram normais: "abc-123 a" = "ＡＢＣ１２３Ａ").
 - Exatamente **um** original com a mesma chave → recompra (`recompraDe` = referência do original).
 - Mais de um original possível (ou especificação/fornecedor vazios de um dos lados) → **recompra a confirmar**:
-  a peça ganha `recompraCandidatas` (as referências possíveis), fica sem referência e fora da planilha do UP.
+  a peça ganha `recompraCandidatas` (as referências possíveis), fica sem referência e fora das planilhas do UP.
   **Na dúvida a skill não decide; o app mostra "Recompra a confirmar"**: mostre as opções à pessoa (a saída do script
   traz cada uma) e peça para escolher no app ("É esta" ou "Não é recompra").
 - Pedido **sem o nome do fornecedor** → só candidatas, nunca recompra automática. Com a lista do UP (sem o app), tudo o
@@ -109,22 +113,35 @@ Custo da peça = preço × cotação × (1 + frete ÷ mercadoria em R$). Preço 
 de 20 em 20 até 199,99; de 50 em 50 até 399,99; de 100 em 100 acima; empate fica com o maior. Ex.: 27,30 → 24,99;
 87,80 → 89,99; 355,50 → 349,99. As outras tabelas (atacado, liquidação) usam a mesma escada, sem o mínimo.
 Preço digitado pela loja vai em `precoManual`; fator só de uma peça vai em `fator`.
+**Recompra fica com o preço vigente da original** (no UP é um produto só, com um preço só): o `referencias.py` guarda
+o preço atual da original (`precoVigente`, do contexto do app) e o `calcular.py` mantém esse preço. O preço pelo custo
+novo é calculado mesmo assim; se diferir mais de 10%, a peça ganha o alerta "Custo mudou: preço vigente R$ X, pelo
+custo novo R$ Y (±Z%)" — mostre para a gestora decidir no app. Sem o preço no contexto (sem o app), calcula normal.
+**Custos padrão da loja**: se o `sistema.json` (ou o contexto do app) trouxer `perdasPctPadrao` (% de perdas e
+defeitos) ou `embalagemPorPecaPadrao` (R$ de embalagem e etiqueta por peça), eles entram no custo quando o pedido não
+traz esses valores em `custos` — como o app faz no pedido novo. O resumo mostra em "Outros custos".
 Mostre os alertas (ex.: fator abaixo do mínimo — o fator escolhido, não o arredondado: a escada arredondar para baixo
-não gera alerta) e os avisos (moeda, cotação pendente, quantidade 0).
+não gera alerta) e os avisos (moeda, cotação pendente, quantidade 0, fator ou preço manual abaixo do mínimo, que no
+app só valem se a gestora importar).
 Códigos de saída: 0 = ok; 2 = preços pendentes (falta a cotação ou a moeda); 1 = erro.
 
 ### 7. Saídas
 ```
 python3 scripts/gerar_saidas.py /tmp/cadastro/cadastro.json --saida /tmp/cadastro/saida [--contexto /tmp/cadastro/contexto.json]
 ```
-Gera `planilha-up-<pedido>.xlsx` e `.csv`, `cadastro-<pedido>.json` e `resumo-<pedido>.md`.
-As células da planilha são protegidas como no app: texto que começa com = + - @ (ou tab/enter) ganha um apóstrofo
-na frente, para não virar fórmula no Excel; números continuam números. A quantidade 0 vai 0 no estoque.
-**Recompra a confirmar** vai no cadastro do app e no resumo, mas fica **fora da planilha do UP**: depois de decidir no
+Gera as mesmas duas planilhas do app (só as que têm linhas), o `cadastro-<pedido>.json` e o `resumo-<pedido>.md`:
+- `planilha-up-novos-<pedido>.xlsx` / `.csv` — **produtos novos**: cadastro completo no UP ("Cadastro de Produtos
+  Simplificado"). Peça nova vai **sem código de barras** — o UP Vendas cria no cadastro (é o código que a loja usa).
+- `planilha-up-recompras-<pedido>.xlsx` / `.csv` — **recompras**: entrada de estoque de produtos que JÁ existem no UP
+  (código de barras do UP + quantidade; linhas com o mesmo código somam a quantidade e o custo é a média ponderada;
+  quantidade 0 fica de fora). Recompra **não** vai na planilha de novos (duplicaria o produto no UP). Recompra sem o
+  código do UP vai sem código, pela referência: traga os códigos no app antes de dar a entrada.
+As células são protegidas como no app: texto que começa com = + - @ (ou tab/enter) ganha um apóstrofo na frente, para
+não virar fórmula no Excel; números continuam números. A quantidade 0 vai 0 no estoque.
+**Recompra a confirmar** vai no cadastro do app e no resumo, mas fica **fora das duas planilhas**: depois de decidir no
 app, baixe a planilha do UP pelo app.
-**Código de barras:** peça nova vai **sem código** — o UP Vendas cria no cadastro (é o código que a loja usa).
-Recompra vai com o código do UP da peça original. A planilha da skill vai sem o link da foto (as fotos ficam no app);
-com o app na internet, a planilha baixada pelo app (pedido → Planilha UP) leva o link para o UP baixar a foto.
+As planilhas da skill vão sem o link da foto (as fotos ficam no app); com o app na internet, a planilha baixada pelo
+app (pedido → Planilha UP) leva o link para o UP baixar a foto.
 
 ### 8. Enviar ao app
 ```
@@ -135,10 +152,11 @@ Sem conexão: entregue o `cadastro-<pedido>.json` e diga para importar no app em
 **Importar pedido → Cadastro feito no Claude**.
 
 ### 9. Entrega
-Apresente os arquivos (planilha do UP, cadastro, resumo) e um resumo curto: linhas, peças, total conferido,
+Apresente os arquivos (planilhas do UP, cadastro, resumo) e um resumo curto: linhas, peças, total conferido,
 cotação usada, frete, custo, venda potencial, recompras, **recompras a confirmar** (com as opções), alertas e avisos
 que precisam de decisão. Lembre os próximos passos:
-1. importar a planilha no UP Vendas (ele cria os códigos de barras);
+1. importar no UP Vendas a planilha de **produtos novos** (ele cria os códigos de barras) e dar a entrada de estoque das
+   **recompras** pela planilha de recompras;
 2. no app, trazer os códigos do UP (UP Vendas → Códigos de barras do UP, ou bipar em "Códigos do UP" no pedido);
 3. no app, criar as fotos com IA, aprovar e imprimir as etiquetas.
 
@@ -146,5 +164,6 @@ que precisam de decisão. Lembre os próximos passos:
 - Nunca invente preço, quantidade, moeda ou código: o documento manda. Na dúvida, alerta (e pergunte).
 - Recompra: na dúvida a skill não decide; a confirmação é no app ("Recompra a confirmar").
 - Não mude regras de preço por conta própria: fator, frete e arredondamento vêm de `precificacao.json` (ou do contexto do app).
+- Fator ou preço manual abaixo do mínimo: só a gestora usa no app (importando logada); avise a pessoa.
 - O nome do fornecedor fica **como está no documento** (em chinês): é por ele que a recompra reconhece as peças.
 - Não exponha a chave de `conexao.json` em respostas.

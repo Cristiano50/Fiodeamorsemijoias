@@ -25,6 +25,9 @@ SISTEMA_PADRAO: dict[str, Any] = {
     "cenarioCustoPadrao": "mercadoria_frete",
     "origemCodigoBarras": "upvendas",
     "tipoCotacao": "venda",
+    # Custos padrão da loja em pedido novo (Configurações do app): perdas e defeitos % e embalagem R$/peça; 0 = não usa.
+    "perdasPctPadrao": 0,
+    "embalagemPorPecaPadrao": 0,
 }
 
 # Cenário da regra da loja, sempre o primeiro da lista (igual a getCenarios() do app).

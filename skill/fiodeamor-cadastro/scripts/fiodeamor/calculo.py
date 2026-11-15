@@ -11,7 +11,12 @@ Opcionais (como no app, fora do contrato básico):
     "compra_importador_nacional" quando a moeda é BRL), ``custos`` ({componente: valor} por cima do cenário),
     ``rateio`` ("valor" — padrão — ou "peca").
 Campos da peça usados: ``precoOrigem``, ``quantidade``, ``tipo``, ``material``, ``ncm``, ``fator``, ``precoManual``,
-``alertas``.
+``alertas`` e, na recompra, ``recompraDe`` + ``precoVigente`` (preço atual da original no app, que o referencias.py
+guarda do contexto): a recompra fica com o preço vigente e ganha o alerta "Custo mudou" quando o preço pelo custo novo
+difere mais de 10% (como no app).
+Custos padrão da loja (``sistema.perdasPctPadrao`` e ``sistema.embalagemPorPecaPadrao``, do sistema.json do ZIP ou do
+contexto do app): entram como "perdas e defeitos" (%) e "embalagem e etiqueta" (R$/peça) quando o pedido não traz
+esses valores em ``custos`` — como o app faz nos pedidos novos.
 Campos da peça gravados: ``custoProdutoBrl``, ``custoAdicionalBrl``, ``custoTotalBrl``, ``fatorAplicado``,
 ``precoVenda``, ``precos``, ``ncm``, ``alertas``.
 
@@ -31,8 +36,13 @@ from .precos import (
     PREFIXOS_ALERTA_PRECO,
     calcular_custos,
     calcular_preco,
+    custos_iniciais,
     detalhar_custos,
+    fator_abaixo_do_minimo,
     numero_br,
+    numero_curto_br,
+    numero_js,
+    preco_manual_abaixo_do_minimo,
     round_js,
     soma,
     valores_do_cenario,
@@ -109,21 +119,86 @@ def escolher_cenario(pedido: dict, padrao: str, cenarios: dict) -> str:
     return padrao if padrao in cenarios else next(iter(cenarios))
 
 
-def custos_do_pedido(pedido: dict, componentes: list[dict], padrao: str, cenarios: dict) -> tuple[str, dict]:
-    """Valores dos componentes de custo: os do cenário + ``pedido.custos`` + o frete digitado (``pedido.frete``).
+def custos_do_pedido(
+    pedido: dict, componentes: list[dict], padrao: str, cenarios: dict, sis: dict | None = None
+) -> tuple[str, dict]:
+    """Valores dos componentes de custo, na ordem do app (importação + ``custosDoPedido``):
+
+    1. os do cenário de custo;
+    2. por cima, os iniciais do pedido (:func:`custos_iniciais`): o frete digitado (``pedido.frete``) e os padrões da
+       loja (``sis.perdasPctPadrao`` → perdas e defeitos %, ``sis.embalagemPorPecaPadrao`` → embalagem R$/peça),
+       só os maiores que zero;
+    3. por cima, ``pedido.custos`` (só componentes que existem e valores ≥ 0).
 
     :return: ``(id_do_cenario, {componente: valor})``
     """
+    sis = sis or {}
     cenario = escolher_cenario(pedido, padrao, cenarios)
     valores = valores_do_cenario(componentes, cenarios.get(cenario))
+    valores.update(
+        custos_iniciais(
+            numero(pedido.get("frete")),
+            numero(sis.get("perdasPctPadrao"), milhar=False),
+            numero(sis.get("embalagemPorPecaPadrao"), milhar=False),
+        )
+    )
+    existentes = {c["id"] for c in componentes}
     for k, v in (pedido.get("custos") or {}).items():
         n = numero(v)
-        if n is not None:
+        if k in existentes and n is not None and n >= 0:
             valores[k] = n
-    frete = numero(pedido.get("frete"))
-    if frete is not None:
-        valores["frete_internacional"] = max(frete, 0.0)
     return cenario, valores
+
+
+def preco_vigente(it: dict) -> float | None:
+    """Preço vigente da original (só na recompra): o ``precoVigente`` guardado pelo referencias.py; senão None."""
+    if not it.get("recompraDe"):
+        return None
+    v = numero(it.get("precoVigente"))
+    return v if v and v > 0 else None
+
+
+def aviso_fator_minimo(cadastro: dict, pol: dict) -> str | None:
+    """Fator abaixo do mínimo (do pedido ou da peça) e preço manual abaixo dele: no app, só valem se quem importar for
+    a gestora. Enviado pela skill (pela chave) ou importado por uma funcionária, o app usa o fator mínimo e descarta o
+    preço manual abaixo dele. Devolve o aviso para o resumo, ou None."""
+    minimo = numero_js(pol.get("fator_minimo") or 0)
+    if not minimo > 0:
+        return None
+    pedido = cadastro.get("pedido") or {}
+    itens = cadastro.get("itens") or []
+
+    def linhas(cond) -> str:
+        nums = [str(it.get("linha") or k) for k, it in enumerate(itens, start=1) if cond(it)]
+        return ", ".join(nums[:12]) + ("…" if len(nums) > 12 else "") if nums else ""
+
+    def fator_baixo(v) -> bool:
+        f = numero(v, milhar=False)
+        return bool(f and f > 0 and fator_abaixo_do_minimo(f, pol))
+
+    def manual_baixo(it: dict) -> bool:
+        pm = numero(it.get("precoManual"))
+        return bool(
+            pm and pm > 0 and not it.get("recompraDe")
+            and preco_manual_abaixo_do_minimo(pm, numero(it.get("custoTotalBrl")), pol)["abaixo"]
+        )
+
+    partes = []
+    if fator_baixo(pedido.get("fator")):
+        partes.append(f"fator do pedido ×{numero_curto_br(numero(pedido.get('fator'), milhar=False))}")
+    if l := linhas(lambda it: fator_baixo(it.get("fator"))):
+        partes.append(f"fator da peça na(s) linha(s) {l}")
+    if l := linhas(manual_baixo):
+        partes.append(f"preço manual abaixo do mínimo na(s) linha(s) {l}")
+    if not partes:
+        return None
+    m = numero_curto_br(minimo)
+    return (
+        f"Abaixo do fator mínimo da loja (×{m}): {'; '.join(partes)}. No app isso só vale se a gestora importar o "
+        "cadastro logada (Importar pedido → Cadastro feito no Claude). Enviado pela skill (app.py enviar) ou importado "
+        f"por uma funcionária, o app usa ×{m} e descarta o preço manual abaixo do mínimo: os preços do app ficam "
+        "diferentes da planilha da skill."
+    )
 
 
 def aviso_sem_cotacao(pedido: dict) -> str:
@@ -185,7 +260,7 @@ def calcular_cadastro(
         avisos.insert(0, f"Moeda {moeda} fora das moedas do app (CNY, USD, BRL): confira.")
     fator_pedido = numero(pedido.get("fator"), milhar=False)
     rateio = pedido.get("rateio") or "valor"
-    cenario, valores = custos_do_pedido(pedido, componentes, padrao, cenarios)
+    cenario, valores = custos_do_pedido(pedido, componentes, padrao, cenarios, sis)
     ncm_padrao = sis.get("ncmPadrao") or "71171900"
 
     if pendente:
@@ -196,14 +271,18 @@ def calcular_cadastro(
             for campo in CAMPOS_DE_PRECO:
                 it[campo] = None
             manual = numero(it.get("precoManual"))
-            if manual and manual > 0:
-                # Preço fixado à mão não depende da cotação: continua valendo (o custo é que fica pendente).
+            vigente = preco_vigente(it)
+            if (manual and manual > 0) or vigente:
+                # Preço fixado à mão ou vigente da recompra não depende da cotação: continua valendo (o custo é que
+                # fica pendente).
                 p = calcular_preco(0, it.get("tipo"), pol, fator_manual=numero(it.get("fator"), milhar=False),
-                                   fator_pedido=fator_pedido, preco_manual=manual)
+                                   fator_pedido=fator_pedido, preco_manual=manual, preco_vigente=vigente)
                 it["fatorAplicado"], it["precoVenda"], it["precos"] = p["fator"], p["preco"], p["precos"]
                 it["alertas"] = outros + ["Sem cotação: custo pendente."]
             else:
                 it["alertas"] = outros + ["Sem cotação: preço pendente."]
+        if aviso := aviso_fator_minimo(cadastro, pol):
+            avisos.append(aviso)
         return resumo_pedido(cadastro, pol, componentes, cenario, valores, cenarios, avisos=avisos, pendente=True)
 
     entradas = [
@@ -221,6 +300,7 @@ def calcular_cadastro(
             fator_manual=numero(it.get("fator"), milhar=False),
             fator_pedido=fator_pedido,
             preco_manual=numero(it.get("precoManual")),
+            preco_vigente=preco_vigente(it),  # recompra: fica o preço da original (alerta "Custo mudou" > 10%)
         )
         it["custoProdutoBrl"] = c["custoProdutoBrl"]
         it["custoAdicionalBrl"] = c["custoAdicionalBrl"]
@@ -232,6 +312,8 @@ def calcular_cadastro(
         antigos = [a for a in (it.get("alertas") or []) if not str(a).startswith(PREFIXOS_ALERTA_PRECO)]
         it["alertas"] = antigos + p["alertas"]
 
+    if aviso := aviso_fator_minimo(cadastro, pol):
+        avisos.append(aviso)
     return resumo_pedido(cadastro, pol, componentes, cenario, valores, cenarios, avisos=avisos)
 
 

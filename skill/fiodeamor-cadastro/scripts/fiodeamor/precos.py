@@ -32,6 +32,9 @@ FORMULA_CONHECIDA = {
     "icms_importacao", "frete_nacional", "perdas_defeitos", "embalagem_etiqueta",
 }
 
+# Diferença acima da qual a recompra avisa "Custo mudou" (preço calculado × preço vigente do original), em %.
+LIMITE_CUSTO_MUDOU_PCT = 10
+
 # Prefixos dos alertas criados pelo cálculo de preço (os demais alertas da peça são preservados no recálculo).
 # (mesma lista do app: src/lib/precos.ts)
 PREFIXOS_ALERTA_PRECO = ("Margem", "Tabela", "Sem custo", "Fator ×", "Preço manual abaixo", "Custo mudou", "Sem cotação")
@@ -93,6 +96,14 @@ def numero_curto_br(v: float) -> str:
     decimais = decimais.rstrip("0")
     sinal = "-" if v < 0 else ""
     return f"{sinal}{int(inteiro):,}".replace(",", ".") + (f",{decimais}" if decimais else "")
+
+
+def brl_js(v: float) -> str:
+    """``v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })``: ``R$ 1.234,50`` com espaço que não
+    quebra (U+00A0) depois do R$, sempre 2 casas, arredondando a partir do número escrito (como o JavaScript)."""
+    d = Decimal(texto_numero_js(abs(float(v)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    inteiro, _, decimais = f"{d:f}".partition(".")
+    return ("-" if v < 0 else "") + "R$\u00a0" + f"{int(inteiro):,}".replace(",", ".") + "," + (decimais or "00")
 
 
 def _positivo(v: Any) -> bool:
@@ -235,6 +246,19 @@ def calcular_custos(itens: list[dict], pedido: dict, componentes: list[dict]) ->
             "custoTotalBrl": r2(total),
         }
     return saida
+
+
+def custos_iniciais(frete: float | None = None, perdas_pct: float | None = None, embalagem_por_peca: float | None = None) -> dict:
+    """Valores iniciais dos componentes de custo de um pedido novo (porta de ``custosIniciais``): o frete digitado e os
+    padrões da loja (perdas e defeitos %, embalagem e etiqueta R$/peça). Só entra o que for maior que zero."""
+    c: dict[str, float] = {}
+    if frete is not None and frete > 0:
+        c["frete_internacional"] = frete
+    if perdas_pct is not None and perdas_pct > 0:
+        c["perdas_defeitos"] = perdas_pct
+    if embalagem_por_peca is not None and embalagem_por_peca > 0:
+        c["embalagem_etiqueta"] = embalagem_por_peca
+    return c
 
 
 def valores_do_cenario(componentes: list[dict], cenario: dict | None = None) -> dict[str, float]:
@@ -402,6 +426,17 @@ def preco_manual_abaixo_do_minimo(preco: float | None, custo: float | None, pol:
     return {"abaixo": preco < preco_minimo - 0.004, "fatorEfetivo": fator_efetivo, "precoMinimo": preco_minimo}
 
 
+def precos_das_tabelas(preco: float, pol: dict) -> dict[str, float]:
+    """Preços das tabelas (base e secundárias) a partir do preço da tabela base (porta de ``precosDasTabelas``)."""
+    precos: dict[str, float] = {}
+    for t in pol.get("tabelas_preco") or []:
+        if t["id"] == pol.get("tabela_base"):
+            precos[t["id"]] = preco
+        else:
+            precos[t["id"]] = arredondar(preco * t["multiplicador_sobre_tabela_base"], pol["arredondamento"], False)
+    return precos
+
+
 def calcular_preco(
     custo_total: float,
     tipo: str | None,
@@ -409,39 +444,46 @@ def calcular_preco(
     fator_manual: float | None = None,
     fator_pedido: float | None = None,
     preco_manual: float | None = None,
+    preco_vigente: float | None = None,
 ) -> dict:
     """Preço de venda de uma peça a partir do custo total (porta de ``calcularPreco``).
 
     Prioridade: preço manual → fator da peça → fator do pedido → faixas → tipo → padrão.
     Preço = custo × fator, arredondado pela regra da política (:func:`arredondar`: escada de preços ,99 com
     mínimo R$ 19,99); as outras tabelas usam a mesma regra sem o mínimo.
+    ``preco_vigente`` (recompra): o preço continua o do original (mesma referência/código no UP = um preço só); o
+    preço pelo custo novo é calculado mesmo assim e, se diferir mais de 10%, a peça recebe o alerta "Custo mudou".
 
-    :return: ``{fator, origemFator, precoBruto, preco, precos: {tabela: valor}, lucroPct, fatorEfetivo,
-              margemPct, alertas}``
+    :return: ``{fator, origemFator, precoBruto, preco, precoCalculado, custoMudouPct, precos: {tabela: valor},
+              lucroPct, fatorEfetivo, margemPct, alertas}``
     """
     alertas: list[str] = []
     escolha = escolher_fator(custo_total, tipo, pol, fator_manual, fator_pedido)
     fator, origem, piso = escolha["fator"], escolha["origem"], escolha["piso"]
     manual = r2(float(preco_manual)) if _positivo(preco_manual) else None
-    # O fator escolhido é comparado antes do arredondamento (arredondar para baixo na escada não gera alerta).
-    if manual is None and fator_abaixo_do_minimo(fator, pol):
-        alertas.append(f"Fator ×{texto_numero(fator)} abaixo do mínimo da loja (×{texto_numero(pol.get('fator_minimo'))}).")
-    if manual is not None:
-        m = preco_manual_abaixo_do_minimo(manual, custo_total, pol)
-        if m["abaixo"]:
-            alertas.append(
-                f"Preço manual abaixo do fator mínimo (×{numero_curto_br(numero_js(pol.get('fator_minimo')))}): "
-                f"fator efetivo ×{numero_curto_br(m['fatorEfetivo'])}."
-            )
+    vigente = r2(float(preco_vigente)) if _positivo(preco_vigente) else None
     preco_bruto = r2(max(custo_total * fator, piso))
-    preco = manual if manual is not None else arredondar(preco_bruto, pol["arredondamento"])
+    preco_calculado = manual if manual is not None else arredondar(preco_bruto, pol["arredondamento"])
+    preco = vigente if vigente is not None else preco_calculado
+    if vigente is None:
+        # O fator escolhido é comparado antes do arredondamento (arredondar para baixo na escada não gera alerta).
+        if manual is None and fator_abaixo_do_minimo(fator, pol):
+            alertas.append(f"Fator ×{texto_numero(fator)} abaixo do mínimo da loja (×{texto_numero(pol.get('fator_minimo'))}).")
+        if manual is not None:
+            m = preco_manual_abaixo_do_minimo(manual, custo_total, pol)
+            if m["abaixo"]:
+                alertas.append(
+                    f"Preço manual abaixo do fator mínimo (×{numero_curto_br(numero_js(pol.get('fator_minimo')))}): "
+                    f"fator efetivo ×{numero_curto_br(m['fatorEfetivo'])}."
+                )
+    custo_mudou_pct = r2(((preco_calculado - vigente) / vigente) * 100) if vigente is not None and custo_total > 0 else None
+    if custo_mudou_pct is not None and abs(custo_mudou_pct) > LIMITE_CUSTO_MUDOU_PCT:
+        alertas.append(
+            f"Custo mudou: preço vigente {brl_js(vigente)}, pelo custo novo {brl_js(preco_calculado)} "
+            f"({'+' if custo_mudou_pct > 0 else ''}{numero_curto_br(custo_mudou_pct)}%)."
+        )
 
-    precos: dict[str, float] = {}
-    for t in pol.get("tabelas_preco") or []:
-        if t["id"] == pol.get("tabela_base"):
-            precos[t["id"]] = preco
-        else:
-            precos[t["id"]] = arredondar(preco * t["multiplicador_sobre_tabela_base"], pol["arredondamento"], False)
+    precos = precos_das_tabelas(preco, pol)
 
     lucro_pct = r2((preco / custo_total - 1) * 100) if custo_total > 0 else 0
     liquido = preco * (1 - (pol.get("comissao_consignacao_pct") or 0) / 100)
@@ -461,6 +503,8 @@ def calcular_preco(
         "origemFator": origem,
         "precoBruto": preco_bruto,
         "preco": preco,
+        "precoCalculado": preco_calculado,
+        "custoMudouPct": custo_mudou_pct,
         "precos": precos,
         "lucroPct": lucro_pct,
         "fatorEfetivo": r2(preco / custo_total) if custo_total > 0 else 0,

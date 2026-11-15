@@ -1,9 +1,11 @@
 {
-  "descricao": "Regras do sistema da Fio de Amor que importam para preço e códigos (cópia de SISTEMA_PADRAO em src/lib/config.ts do app). referenciaModelo: {PREFIXO}=prefixo do tipo (taxonomia), {AA}{MM}=ano/mês, {SEQ:3}=sequência com 3 dígitos. origemCodigoBarras 'upvendas' = o UP Vendas cria o código de barras no cadastro. cenarioCustoPadrao 'mercadoria_frete' = regra da loja: custo = preço × cotação × (1 + frete ÷ mercadoria em R$). tipoCotacao: PTAX de venda ou de compra.",
+  "descricao": "Regras do sistema da Fio de Amor que importam para preço e códigos (cópia de SISTEMA_PADRAO em src/lib/config.ts do app). referenciaModelo: {PREFIXO}=prefixo do tipo (taxonomia), {AA}{MM}=ano/mês, {SEQ:3}=sequência com 3 dígitos. origemCodigoBarras 'upvendas' = o UP Vendas cria o código de barras no cadastro. cenarioCustoPadrao 'mercadoria_frete' = regra da loja: custo = preço × cotação × (1 + frete ÷ mercadoria em R$). tipoCotacao: PTAX de venda ou de compra. perdasPctPadrao (% de perdas e defeitos) e embalagemPorPecaPadrao (R$ de embalagem e etiqueta por peça): custos padrão da loja em pedido novo, aplicados quando o pedido não traz esses valores (0 = não usa).",
   "referenciaModelo": "{PREFIXO}_{AA}{MM}{SEQ:3}",
   "unidade": "UN",
   "ncmPadrao": "71171900",
   "cenarioCustoPadrao": "mercadoria_frete",
   "origemCodigoBarras": "upvendas",
-  "tipoCotacao": "venda"
+  "tipoCotacao": "venda",
+  "perdasPctPadrao": 0,
+  "embalagemPorPecaPadrao": 0
 }

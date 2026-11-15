@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import calcular  # noqa: E402
+from fiodeamor import config  # noqa: E402
 from fiodeamor.calculo import calcular_cadastro, ler_quantidade, numero, quantidade  # noqa: E402
 
 
@@ -54,7 +55,10 @@ class TestCalcularCadastro(unittest.TestCase):
         self.assertEqual(r["vendaPotencial"], 12799)  # 60 × 119,99 + 40 × 139,99
         self.assertEqual(r["fatorMedio"], 10.67)  # markup médio = venda ÷ custo
         self.assertFalse(r["cotacaoPendente"])
-        self.assertEqual(r["avisos"], ["Linha 3: quantidade 0: a peça fica com estoque 0 (não vira 1); confira no documento."])
+        self.assertEqual(r["avisos"][0], "Linha 3: quantidade 0: a peça fica com estoque 0 (não vira 1); confira no documento.")
+        # Preço manual 149,90 com custo 30 (30 × 10 = 300 → 299,99): no app, só a gestora mantém.
+        self.assertTrue(r["avisos"][1].startswith("Abaixo do fator mínimo da loja (×10): preço manual abaixo do mínimo na(s) linha(s) 3."))
+        self.assertEqual(len(r["avisos"]), 2)
 
     def test_fator_do_pedido_e_alerta_minimo(self):
         cad = cadastro_exemplo(fator=8)
@@ -114,13 +118,14 @@ class TestCalcularCadastro(unittest.TestCase):
         r = calcular_cadastro(cad)
         self.assertEqual(r["pecas"], 1)
         self.assertEqual(
-            r["avisos"],
+            r["avisos"][:3],
             [
                 "Linha 1: quantidade 0: a peça fica com estoque 0 (não vira 1); confira no documento.",
                 "Linha 2: sem quantidade: considerei 1 peça; confira no documento.",
                 "Linha 3: quantidade 0: a peça fica com estoque 0 (não vira 1); confira no documento.",
             ],
         )
+        self.assertTrue(r["avisos"][3].startswith("Abaixo do fator mínimo"))  # o preço manual da linha 3
         self.assertEqual(cad["itens"][0]["quantidade"], 0)  # o cadastro não é alterado
         self.assertEqual([quantidade(v) for v in (0, "0", None, "", "12", "1.000", 2.5, "abc", -3)], [0, 0, 1, 1, 12, 1000, 3, 1, 0])
         self.assertIsNone(ler_quantidade(12)[1])
@@ -130,6 +135,68 @@ class TestCalcularCadastro(unittest.TestCase):
         r = calcular_cadastro(cad)
         self.assertEqual(cad["pedido"]["cotacao"], 1)
         self.assertEqual(r["cenario"], "compra_importador_nacional")
+
+    def test_recompra_fica_com_o_preco_vigente(self):
+        # Como no app: a recompra fica com o preço atual da original (precoVigente, guardado pelo referencias.py);
+        # o preço pelo custo novo é calculado e, se diferir mais de 10%, a peça ganha o alerta "Custo mudou".
+        cad = cadastro_exemplo(frete=200)  # custo das peças 1 e 2: 12 (→ 119,99 com fator 10)
+        cad["itens"][0].update(recompraDe="BR_2609001", precoVigente=99.99)
+        cad["itens"][1].update(recompraDe="BR_2609002")  # sem preço vigente no contexto: calcula normal
+        r = calcular_cadastro(cad)
+        a, b, _ = cad["itens"]
+        self.assertEqual((a["precoVenda"], a["precos"]["consignado"], a["precos"]["atacado_revenda"]), (99.99, 99.99, 59.99))
+        self.assertIn("Custo mudou: preço vigente R$\u00a099,99, pelo custo novo R$\u00a0119,99 (+20%).", a["alertas"])
+        self.assertEqual(b["precoVenda"], 139.99)
+        self.assertEqual(r["vendaPotencial"], 11599)  # 60 × 99,99 + 40 × 139,99
+        # Sem cotação, o preço vigente continua valendo (só o custo fica pendente), como o preço manual.
+        cad = cadastro_exemplo(cotacao=None)
+        cad["itens"][0].update(recompraDe="BR_2609001", precoVigente=99.99)
+        calcular_cadastro(cad)
+        self.assertEqual((cad["itens"][0]["precoVenda"], cad["itens"][0]["alertas"][-1]), (99.99, "Sem cotação: custo pendente."))
+        # O preço vigente só vale na recompra.
+        cad = cadastro_exemplo(frete=200)
+        cad["itens"][0]["precoVigente"] = 99.99
+        calcular_cadastro(cad)
+        self.assertEqual(cad["itens"][0]["precoVenda"], 119.99)
+
+    def test_custos_padrao_da_loja(self):
+        # sistema.json (ou o contexto) com perdas 10% e embalagem R$ 0,50 por peça: entram quando o pedido não traz.
+        sis = {**config.sistema(), "perdasPctPadrao": 10, "embalagemPorPecaPadrao": 0.5}
+        cad = cadastro_exemplo()
+        r = calcular_cadastro(cad, sis=sis)
+        a = cad["itens"][0]
+        self.assertEqual((a["custoProdutoBrl"], a["custoAdicionalBrl"], a["custoTotalBrl"]), (10, 1.5, 11.5))  # 10 + 10% + 0,50
+        self.assertEqual([(l["id"], l["valor"]) for l in r["custosAdicionais"]], [("perdas_defeitos", 100)])
+        self.assertEqual(r["porPecaBrl"], 0.5)
+        # O pedido manda: custos do pedido vencem os padrões da loja.
+        cad = cadastro_exemplo(custos={"perdas_defeitos": 0, "embalagem_etiqueta": "0,25"})
+        r = calcular_cadastro(cad, sis=sis)
+        self.assertEqual((cad["itens"][0]["custoTotalBrl"], r["porPecaBrl"]), (10.25, 0.25))
+        # Padrões zerados (ou ausentes): nada muda.
+        cad = cadastro_exemplo()
+        calcular_cadastro(cad, sis={**config.sistema(), "perdasPctPadrao": 0})
+        self.assertEqual(cad["itens"][0]["custoTotalBrl"], 10)
+
+    def test_frete_como_no_app(self):
+        # Frete 0 = não informado (fica o do cenário); o frete em pedido.custos vence o campo frete.
+        cad = cadastro_exemplo(frete=0)
+        self.assertEqual(calcular_cadastro(cad)["freteBrl"], 0)
+        cad = cadastro_exemplo(frete=200, custos={"frete_internacional": 100})
+        self.assertEqual(calcular_cadastro(cad)["freteBrl"], 100)
+
+    def test_aviso_de_fator_abaixo_do_minimo(self):
+        r = calcular_cadastro(cadastro_exemplo(fator=8))
+        aviso = next(a for a in r["avisos"] if a.startswith("Abaixo do fator mínimo"))
+        self.assertTrue(aviso.startswith("Abaixo do fator mínimo da loja (×10): fator do pedido ×8; preço manual abaixo do mínimo na(s) linha(s) 3."))
+        self.assertIn("só vale se a gestora importar o cadastro logada", aviso)
+        self.assertIn("o app usa ×10 e descarta o preço manual abaixo do mínimo", aviso)
+        cad = cadastro_exemplo()
+        cad["itens"][2]["precoManual"] = None
+        cad["itens"][0]["fator"] = "9,5"
+        r = calcular_cadastro(cad)
+        self.assertTrue(any(a.startswith("Abaixo do fator mínimo da loja (×10): fator da peça na(s) linha(s) 1.") for a in r["avisos"]))
+        cad["itens"][0]["fator"] = 10
+        self.assertFalse(any(a.startswith("Abaixo do fator mínimo") for a in calcular_cadastro(cad)["avisos"]))
 
     def test_numero(self):
         self.assertEqual(numero("0,7745"), 0.7745)

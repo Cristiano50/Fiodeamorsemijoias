@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fiodeamor import config  # noqa: E402
 from fiodeamor.precos import (  # noqa: E402
     arredondar,
+    brl_js,
+    custos_iniciais,
     calcular_custos,
     calcular_preco,
     detalhar_custos,
@@ -158,6 +160,30 @@ class TestFator(unittest.TestCase):
         r = calcular_preco(4.73, "brinco", POL, fator_pedido=10)
         self.assertEqual(r["preco"], 44.99)  # 47,30 → 44,99: arredondar para baixo não gera alerta
         self.assertEqual([a for a in r["alertas"] if a.startswith(("Fator", "Preço manual"))], [])
+
+    def test_recompra_fica_com_o_preco_vigente(self):
+        # Os mesmos casos de tests/regras.test.ts: custo 7,90 × 10 = 79 → 79,99 pela escada; vigente 59,99 → +33%.
+        r = calcular_preco(7.9, "brinco", POL, fator_pedido=10, preco_vigente=59.99)
+        self.assertEqual((r["preco"], r["precoCalculado"], r["precos"]["consignado"]), (59.99, 79.99, 59.99))
+        self.assertGreater(r["custoMudouPct"], 10)
+        self.assertIn("Custo mudou: preço vigente R$\u00a059,99, pelo custo novo R$\u00a079,99 (+33,34%).", r["alertas"])
+        # Diferença pequena: sem alerta.
+        s = calcular_preco(6.1, "brinco", POL, fator_pedido=10, preco_vigente=59.99)
+        self.assertEqual(s["precoCalculado"], 59.99)
+        self.assertFalse(any(a.startswith("Custo mudou") for a in s["alertas"]))
+        # O fator abaixo do mínimo não alerta na recompra (o preço é o do original).
+        r8 = calcular_preco(6.1, "brinco", POL, fator_pedido=8, preco_vigente=59.99)
+        self.assertFalse(any(a.startswith("Fator") for a in r8["alertas"]))
+        # Para baixo também avisa; sem preço vigente, o preço é o calculado.
+        baixo = calcular_preco(5, "brinco", POL, fator_pedido=10, preco_vigente=59.99)
+        self.assertIn("Custo mudou: preço vigente R$\u00a059,99, pelo custo novo R$\u00a049,99 (-16,67%).", baixo["alertas"])
+        self.assertEqual(calcular_preco(7.9, "brinco", POL, fator_pedido=10, preco_vigente=None)["preco"], 79.99)
+        self.assertIsNone(calcular_preco(7.9, "brinco", POL)["custoMudouPct"])
+        self.assertEqual([brl_js(v) for v in (59.99, 1234.5, 79.995)], ["R$\u00a059,99", "R$\u00a01.234,50", "R$\u00a080,00"])
+
+    def test_custos_iniciais(self):
+        self.assertEqual(custos_iniciais(850, 2, 0.4), {"frete_internacional": 850, "perdas_defeitos": 2, "embalagem_etiqueta": 0.4})
+        self.assertEqual(custos_iniciais(0, None, -1), {})
 
     def test_sem_custo_alerta(self):
         r = calcular_preco(0, None, POL)

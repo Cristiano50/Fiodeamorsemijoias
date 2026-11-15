@@ -13,7 +13,8 @@ mesmo que a tela "Importar pedido" do app:
 - classifica (tipo, material, banho, pedra, tamanho), traduz o chinês e sugere os nomes no padrão do UP;
 - reconhece **recompras** (fornecedor + código + especificação) e gera as **referências** (BR_2611001…); quando há mais
   de um original possível, não decide: a peça vai como **recompra a confirmar** e a escolha é no app;
-- entrega a **planilha do UP Vendas**, o **cadastro para o app** e um **resumo**.
+- entrega as **planilhas do UP Vendas** (produtos novos e recompras, como as do app), o **cadastro para o app** e um
+  **resumo**.
 
 O app continua sendo a central: recebe o cadastro (sozinho ou por arquivo) e cuida do resto:
 
@@ -46,7 +47,8 @@ A skill pergunta só o que faltar (frete, fator diferente de ×10, data da compr
 
 | Arquivo | Para quê |
 | --- | --- |
-| `planilha-up-<pedido>.xlsx` / `.csv` | Importar no UP Vendas. Vai **sem código de barras**, porque o UP cria o dele. Texto com cara de fórmula (= + - @) ganha apóstrofo. |
+| `planilha-up-novos-<pedido>.xlsx` / `.csv` | **Produtos novos**: cadastrar no UP Vendas. Vai **sem código de barras**, porque o UP cria o dele. |
+| `planilha-up-recompras-<pedido>.xlsx` / `.csv` | **Recompras**: entrada de estoque de produtos que já existem no UP (código de barras do UP + quantidade; o mesmo código soma). |
 | `cadastro-<pedido>.json` | O cadastro completo, com fotos, para o app. |
 | `resumo-<pedido>.md` | Conferência: totais, recompras e alertas. |
 
@@ -54,7 +56,7 @@ A skill pergunta só o que faltar (frete, fator diferente de ×10, data da compr
 - **App só no computador da loja:** importe o `cadastro-<pedido>.json` no app em **Importar pedido → Cadastro feito no Claude**.
 
 Depois:
-1. Importe a planilha no **UP Vendas**. Ele cria os códigos de barras.
+1. No **UP Vendas**, importe a planilha de **produtos novos** (ele cria os códigos de barras) e dê a entrada de estoque das **recompras** pela planilha de recompras. Nas duas, texto com cara de fórmula (= + - @) ganha apóstrofo.
 2. No app, traga os códigos do UP: em **UP Vendas → Códigos de barras do UP**, ou bipando em **Códigos do UP**, no pedido.
 3. No app, crie as fotos com IA, aprove na fila e imprima as etiquetas.
 
@@ -66,8 +68,9 @@ Depois:
   - sem conexão, usa a lista de produtos do UP ou pergunta a última referência do mês;
   - se a mesma referência já existir no app, o app troca e avisa no pedido. Nesse caso, baixe a planilha do UP pelo app.
 - **Recompra:** a skill já marca a peça como recompra quando há exatamente um original com a mesma chave (fornecedor + código + especificação), e o app confere de novo com tudo o que já foi cadastrado. A recompra herda a referência e o código de barras do UP.
-- **Recompra a confirmar:** com mais de um original possível (ou sem o nome do fornecedor no pedido), a skill não decide: a peça vai com as candidatas, sem referência e fora da planilha do UP da skill. No app, abra o pedido, escolha "É esta" ou "Não é recompra" e baixe a planilha do UP pelo app.
-- **Preço:** o app recalcula com as regras atuais, que são as mesmas da skill.
+- **Recompra a confirmar:** com mais de um original possível (ou sem o nome do fornecedor no pedido), a skill não decide: a peça vai com as candidatas, sem referência e fora das planilhas do UP da skill. No app, abra o pedido, escolha "É esta" ou "Não é recompra" e baixe a planilha do UP pelo app.
+- **Preço:** o app recalcula com as regras atuais, que são as mesmas da skill. A recompra fica com o preço vigente da peça original (no UP é um preço só); se o custo novo der mais de 10% de diferença, a peça ganha o alerta "Custo mudou". Os custos padrão da loja (perdas e defeitos, embalagem) entram como no pedido novo do app.
+- **Fator abaixo do mínimo:** só vale se a **gestora** importar o cadastro, logada, em **Importar pedido → Cadastro feito no Claude**. Enviado pela skill ou importado por uma funcionária, o app usa o fator mínimo (×10) e descarta o preço manual abaixo dele; a skill avisa no resumo.
 - **Histórico:** tudo o que chega pela skill fica registrado como "Skill do Claude".
 - **Regras novas:** se mudar fator, taxonomia ou padrão de nomes em Configurações, baixe a skill de novo e reenvie no Claude. A skill conectada já usa as regras atuais do app automaticamente.
 

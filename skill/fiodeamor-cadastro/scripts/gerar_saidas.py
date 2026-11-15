@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
-"""Gera as saídas do cadastro: planilha do UP Vendas (XLSX e CSV), pacote para o app e resumo.
+"""Gera as saídas do cadastro: planilhas do UP Vendas (XLSX e CSV), pacote para o app e resumo.
 
 Uso:
     python3 scripts/gerar_saidas.py cadastro.json [--saida PASTA] [--sem-fotos]
 
-Saídas (na PASTA, padrão = pasta do cadastro.json):
-    planilha-up-<pedido>.xlsx / .csv   mesmas colunas e regras do app (tela "Cadastro de Produtos Simplificado")
-    cadastro-<pedido>.json             pacote para o app (fotos embutidas), formato referencias/formato-cadastro.md
-    resumo-<pedido>.md                 conferência rápida (linhas, peças, totais, alertas)
+Saídas (na PASTA, padrão = pasta do cadastro.json), as mesmas planilhas do app (src/lib/upvendas-planilha.ts):
+    planilha-up-novos-<pedido>.xlsx / .csv       PRODUTOS NOVOS: cadastro completo (tela "Cadastro de Produtos
+                                                 Simplificado" do UP); só as peças que ainda não existem no UP
+    planilha-up-recompras-<pedido>.xlsx / .csv   RECOMPRAS: entrada de estoque de produtos que JÁ existem no UP
+                                                 (código de barras do UP + quantidade; linhas com o mesmo código somam
+                                                 a quantidade e o custo é a média ponderada; quantidade 0 fica de fora)
+    cadastro-<pedido>.json                       pacote para o app (fotos embutidas), formato referencias/formato-cadastro.md
+    resumo-<pedido>.md                           conferência rápida (linhas, peças, totais, alertas)
+Cada planilha só é gerada quando tem linhas (mandar recompra no cadastro duplicaria o produto no UP).
 
 Regras do código de barras (padrão da loja): peça nova vai SEM código (o UP Vendas cria no cadastro);
 só vai preenchido o código criado pelo UP que já existe (recompra).
 
-Recompra a confirmar (``recompraCandidatas`` sem ``recompraDe``): vai no pacote e no resumo, mas fica FORA da
-planilha do UP — a skill não decide; a pessoa confirma no app e baixa a planilha do UP pelo app.
+Recompra a confirmar (``recompraCandidatas`` sem ``recompraDe``): vai no pacote e no resumo, mas fica FORA das duas
+planilhas do UP — a skill não decide; a pessoa confirma no app e baixa a planilha do UP pelo app.
 
 Células da planilha (CSV e XLSX) com o mesmo cuidado do app (src/lib/csv.ts): texto que começa com = + - @, tab
 ou enter ganha um apóstrofo na frente (não vira fórmula no Excel); números continuam números.
@@ -25,6 +30,7 @@ import argparse
 import base64
 import io
 import json
+import math
 import re
 import sys
 import uuid
@@ -33,7 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fiodeamor.calculo import avisos_de_quantidade, moeda_do_pedido, numero, quantidade  # noqa: E402
+from fiodeamor.calculo import avisos_de_quantidade, aviso_fator_minimo, moeda_do_pedido, numero, quantidade  # noqa: E402
 from fiodeamor.planilha import celula_csv, celula_planilha  # noqa: E402
 from fiodeamor.precos import round_js  # noqa: E402
 
@@ -80,6 +86,18 @@ COLUNAS = [
 ]
 MOEDA_COLUNAS = {"custoCompraBruto", "custoInsumo", "custoTotal", "valorTabela", "valorTabela2"}
 
+# Planilha de recompras (entrada de estoque): código de barras e quantidade primeiro; o resto é para conferir.
+COLUNAS_RECOMPRAS = [
+    ("codigoBarras", "Cód. Barras", 18),
+    ("quantidade", "Quantidade", 11),
+    ("referencia", "Referência", 14),
+    ("nome", "Nome do produto", 46),
+    ("custoUnitario", "Custo unitário", 13),
+]
+MOEDA_RECOMPRAS = {"custoUnitario"}
+ABA_NOVOS = "Produtos novos (cadastro)"
+ABA_RECOMPRAS = "Recompras (entrada de estoque)"
+
 
 def carregar_json(nome: str, contexto: dict | None = None) -> dict:
     """Regras: do contexto do app (se a skill consultou o app) ou da cópia em referencias/."""
@@ -103,8 +121,38 @@ def achar(lista: list, id_: str | None) -> dict | None:
     return next((x for x in lista or [] if x.get("id") == id_), None)
 
 
+def codigo_para_up(it: dict, sistema: dict) -> str:
+    """``codigoParaUp`` do app: o código criado pelo UP vai igual (o UP acha o produto); sem código do UP vai em branco
+    (o UP gera no cadastro); só no modo "app" (Configurações → Códigos) vai o EAN interno (Code128: 8 dígitos)."""
+    codigo = str(it.get("codigoBarras") or "")
+    if not codigo:
+        return ""
+    if it.get("codigoBarrasOrigem") == "up":
+        return codigo
+    if sistema.get("origemCodigoBarras", "upvendas") != "app":
+        return ""
+    return re.sub(r"^9100", "", codigo)[:-1] if sistema.get("codigoNoUp") == "code128" else codigo
+
+
+def estoque_entrada(it: dict) -> int:
+    """``estoqueEntrada`` do app: conferida = recebida − com defeito; sem conferência, a quantidade pedida.
+
+    Quantidade 0 continua 0; sem quantidade conta 1 (como na importação do app).
+    """
+    recebida = it.get("quantidadeRecebida")
+    if recebida is None:
+        return max(0, math.floor(quantidade(it.get("quantidade"))))
+    defeito = math.floor(numero(it.get("quantidadeDefeito")) or 0)
+    return max(0, math.floor(numero(recebida) or 0) - max(0, defeito))
+
+
+def eh_recompra_up(it: dict) -> bool:
+    """Recompra = o mesmo produto de um pedido anterior (mesma referência e código no UP): vai na planilha de recompras."""
+    return bool(it.get("recompraDe"))
+
+
 def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
-    """Porta de linhaUp() de src/lib/upvendas.ts (uma linha da planilha do UP)."""
+    """Porta de linhaUp() de src/lib/upvendas-planilha.ts (uma linha da planilha de produtos novos)."""
     tipo = achar(tax.get("tipos"), it.get("tipo"))
     material = achar(tax.get("materiais"), it.get("material"))
     banho = achar(tax.get("banhos"), it.get("banho"))
@@ -122,10 +170,8 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
     if it.get("variacao"):
         grade += f" - {str(it['variacao']).upper()}"
 
-    codigo = it.get("codigoBarras") or ""
     # Só o código criado pelo UP (recompra). No modo "app" (Configurações do app), o EAN interno também vai.
-    if codigo and it.get("codigoBarrasOrigem", "up") != "up" and sistema.get("origemCodigoBarras", "upvendas") != "app":
-        codigo = ""
+    codigo = codigo_para_up(it, sistema)
 
     cores = []
     for c in it.get("corPedra") or []:
@@ -156,7 +202,7 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
         "valorTabela2": valor2,
         "descricaoGrade": grade,
         "codigoBarras": codigo,
-        "estoque": quantidade(it.get("quantidade")),  # 0 continua 0; sem quantidade conta 1 (como no app)
+        "estoque": estoque_entrada(it),  # 0 continua 0; sem quantidade conta 1 (como no app)
         "ativo": True,
         "acabado": True,
         "compartilhar": True,
@@ -176,19 +222,55 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
 texto_csv = celula_csv
 
 
-def montar_csv(linhas: list[dict]) -> str:
+def linhas_recompra_up(itens: list[dict], sistema: dict) -> tuple[list[dict], int, int]:
+    """Porta de ``linhasRecompraUp``: uma linha por código de barras do UP (linhas com o mesmo código somam a quantidade;
+    o custo é a média ponderada). Peça sem nenhuma unidade que entrou fica de fora. Sem o código do UP, a linha vai sem
+    código (pela referência), uma por peça.
+
+    :return: ``(linhas, sem_codigo, sem_entrada)``
+    """
+    por_chave: dict[str, dict] = {}
+    sem_codigo = sem_entrada = 0
+    for k, it in enumerate(itens):
+        qtd = estoque_entrada(it)
+        if qtd <= 0:
+            sem_entrada += 1
+            continue
+        codigo = codigo_para_up(it, sistema)
+        if not codigo:
+            sem_codigo += 1
+        chave = f"c:{codigo}" if codigo else f"r:{it.get('referencia') or k}:{k}"
+        atual = por_chave.get(chave) or {
+            "codigoBarras": codigo,
+            "quantidade": 0,
+            "referencia": it.get("referencia") or "",
+            "nome": str(it.get("nome") or "").upper(),
+            "custoUnitario": 0,
+            "custoTotal": 0.0,
+        }
+        atual["quantidade"] += qtd
+        atual["custoTotal"] += _num(it.get("custoTotalBrl")) * qtd
+        atual["custoUnitario"] = r2(atual["custoTotal"] / atual["quantidade"]) if atual["quantidade"] > 0 else 0
+        por_chave[chave] = atual
+    linhas = [{c[0]: l[c[0]] for c in COLUNAS_RECOMPRAS} for l in por_chave.values()]
+    return linhas, sem_codigo, sem_entrada
+
+
+def montar_csv(linhas: list[dict], colunas: list = COLUNAS) -> str:
     """CSV com ";" e cabeçalho, linhas separadas por CRLF; cada célula passa por ``celula_csv`` (como o app)."""
     return "\r\n".join(
-        [";".join(celula_csv(c[1]) for c in COLUNAS)] + [";".join(celula_csv(l[c[0]]) for c in COLUNAS) for l in linhas]
+        [";".join(celula_csv(c[1]) for c in colunas)] + [";".join(celula_csv(l[c[0]]) for c in colunas) for l in linhas]
     )
 
 
-def gravar_csv(linhas: list[dict], destino: Path) -> None:
+def gravar_csv(linhas: list[dict], destino: Path, colunas: list = COLUNAS) -> None:
     # BOM no início: o Excel abre o CSV com os acentos certos.
-    destino.write_bytes(("\ufeff" + montar_csv(linhas)).encode("utf-8"))
+    destino.write_bytes(("\ufeff" + montar_csv(linhas, colunas)).encode("utf-8"))
 
 
-def gravar_xlsx(linhas: list[dict], destino: Path) -> bool:
+def gravar_xlsx(
+    linhas: list[dict], destino: Path, colunas: list = COLUNAS, aba: str = ABA_NOVOS, moeda: set = MOEDA_COLUNAS
+) -> bool:
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Alignment, Font, PatternFill
@@ -198,16 +280,16 @@ def gravar_xlsx(linhas: list[dict], destino: Path) -> bool:
         return False
     wb = Workbook()
     ws = wb.active
-    ws.title = "Produtos UP Vendas"
-    ws.append([c[1] for c in COLUNAS])
+    ws.title = aba
+    ws.append([c[1] for c in colunas])
     for l in linhas:
         # Sim/Não, números como números e texto protegido contra fórmula (o openpyxl grava "=…" como fórmula).
-        ws.append([celula_planilha(l[c[0]]) for c in COLUNAS])
-    for i, (chave, _, largura) in enumerate(COLUNAS, start=1):
+        ws.append([celula_planilha(l[c[0]]) for c in colunas])
+    for i, (chave, _, largura) in enumerate(colunas, start=1):
         letra = get_column_letter(i)
         ws.column_dimensions[letra].width = largura
         for cel in ws[letra][1:]:
-            if chave in MOEDA_COLUNAS:
+            if chave in moeda:
                 cel.number_format = '"R$" #,##0.00'
             if chave == "codigoBarras":
                 cel.number_format = "@"
@@ -217,7 +299,7 @@ def gravar_xlsx(linhas: list[dict], destino: Path) -> bool:
         cel.alignment = Alignment(vertical="center", wrap_text=True)
     ws.row_dimensions[1].height = 32
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUNAS))}1"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(colunas))}1"
     wb.save(destino)
     return True
 
@@ -254,8 +336,9 @@ def _br(v: float) -> str:
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def avisos_do_cadastro(cad: dict, itens: list[dict] | None = None) -> list[str]:
-    """Avisos para a conferência: moeda, cotação/preços pendentes, quantidades (0, vazia…) e recompras a confirmar."""
+def avisos_do_cadastro(cad: dict, itens: list[dict] | None = None, pol: dict | None = None) -> list[str]:
+    """Avisos para a conferência: moeda, cotação/preços pendentes, quantidades (0, vazia…), recompras a confirmar e
+    fator/preço manual abaixo do mínimo (``pol``: no app só valem se a gestora importar)."""
     p = cad.get("pedido") or {}
     itens = (cad.get("itens") or []) if itens is None else itens
     moeda = moeda_do_pedido(p)
@@ -268,14 +351,36 @@ def avisos_do_cadastro(cad: dict, itens: list[dict] | None = None) -> list[str]:
     n = sum(1 for i in itens if aguardando_recompra(i))
     if n:
         out.append(
-            f"{n} peça(s) com recompra a confirmar ficaram fora da planilha do UP: importe o cadastro no app, escolha o "
+            f"{n} peça(s) com recompra a confirmar ficaram fora das planilhas do UP: importe o cadastro no app, escolha o "
             "original (ou \"Não é recompra\") no pedido e baixe a planilha do UP pelo app."
         )
+    if pol and (aviso := aviso_fator_minimo({**cad, "itens": itens}, pol)):
+        out.append(aviso)
     return out
 
 
-def resumo_md(cad: dict, linhas_up: list[dict], itens: list[dict] | None = None) -> str:
-    """Resumo para conferência. ``itens`` na mesma ordem de ``linhas_up`` (padrão: os itens do cadastro)."""
+def avisos_das_planilhas(sem_codigo: int, sem_entrada: int) -> list[str]:
+    """Avisos da planilha de recompras (entrada de estoque)."""
+    out = []
+    if sem_codigo:
+        out.append(
+            f"{sem_codigo} recompra(s) sem o código de barras do UP: na planilha de recompras a linha vai sem código "
+            "(pela referência). Traga os códigos no app (UP Vendas → Códigos de barras do UP) antes de dar a entrada."
+        )
+    if sem_entrada:
+        out.append(f"{sem_entrada} recompra(s) com quantidade 0 ficaram fora da planilha de recompras (não há entrada de estoque).")
+    return out
+
+
+def resumo_md(
+    cad: dict,
+    linhas_up: list[dict],
+    itens: list[dict] | None = None,
+    avisos: list[str] | None = None,
+    planilhas: dict | None = None,
+) -> str:
+    """Resumo para conferência. ``itens`` na mesma ordem de ``linhas_up`` (padrão: os itens do cadastro);
+    ``avisos`` (padrão: :func:`avisos_do_cadastro`); ``planilhas``: ``{"novos": n, "recompras": n}`` linhas de cada."""
     p = cad.get("pedido", {})
     itens = cad.get("itens", []) if itens is None else itens
     qtds = [quantidade(i.get("quantidade")) for i in itens]
@@ -288,7 +393,7 @@ def resumo_md(cad: dict, linhas_up: list[dict], itens: list[dict] | None = None)
     sem_nome = [i for i in itens if not i.get("nome")]
     sem_tipo = [i for i in itens if not i.get("tipo")]
     alertas = [(i.get("linha"), a) for i in itens for a in (i.get("alertas") or [])]
-    avisos = avisos_do_cadastro(cad, itens)
+    avisos = avisos_do_cadastro(cad, itens) if avisos is None else avisos
     frete = numero(p.get("frete"))
     total_doc = numero(p.get("totalDocumento"))
     out = [
@@ -302,6 +407,11 @@ def resumo_md(cad: dict, linhas_up: list[dict], itens: list[dict] | None = None)
         f"- Custo total: {_br(custo)} · venda potencial: {_br(venda)}" + (f" · markup médio ×{venda / custo:.2f}" if custo else ""),
         f"- Recompras: {len(recompras)} · a confirmar: {len(a_confirmar)} · sem nome: {len(sem_nome)} · sem tipo: {len(sem_tipo)}",
     ]
+    if planilhas is not None:
+        out.append(
+            f"- Planilhas do UP: produtos novos {planilhas.get('novos', 0)} linha(s) · recompras (entrada de estoque) "
+            f"{planilhas.get('recompras', 0)} linha(s)"
+        )
     if avisos:
         out += ["", "## Avisos", ""] + [f"- {a}" for a in avisos]
     out += [
@@ -315,7 +425,7 @@ def resumo_md(cad: dict, linhas_up: list[dict], itens: list[dict] | None = None)
         elif it.get("recompraDe"):
             cod = "(recompra: falta o código do UP)"
         elif aguardando_recompra(it):
-            cod = "(recompra a confirmar no app; fora da planilha)"
+            cod = "(recompra a confirmar no app; fora das planilhas)"
         else:
             cod = "(o UP gera)"
         out.append(
@@ -370,17 +480,30 @@ def main() -> int:
     faltando = [i.get("linha") for i in itens if i.get("precoVenda") in (None, 0)]
     if faltando:
         print(f"Aviso: {len(faltando)} item(ns) sem preço de venda (rode scripts/calcular.py antes): linhas {faltando[:15]}", file=sys.stderr)
-    avisos = avisos_do_cadastro(cad, itens)
+    linhas = [linha_up(i, tax, pol, sistema) for i in itens]
+    # Como no app: produtos novos (cadastro) × recompras (entrada de estoque). Recompra a confirmar: nenhuma das duas.
+    novos = [l for i, l in zip(itens, linhas) if not eh_recompra_up(i) and not aguardando_recompra(i)]
+    recompras, sem_codigo, sem_entrada = linhas_recompra_up([i for i in itens if eh_recompra_up(i)], sistema)
+    avisos = avisos_do_cadastro(cad, itens, pol) + avisos_das_planilhas(sem_codigo, sem_entrada)
     for aviso in avisos:
         print(f"Aviso: {aviso}", file=sys.stderr)
-    linhas = [linha_up(i, tax, pol, sistema) for i in itens]
-    na_planilha = [l for i, l in zip(itens, linhas) if not aguardando_recompra(i)]
     nome = nome_arquivo(cad.get("pedido", {}).get("numero"))
 
-    csv_path = pasta / f"planilha-up-{nome}.csv"
-    gravar_csv(na_planilha, csv_path)
-    xlsx_path = pasta / f"planilha-up-{nome}.xlsx"
-    tem_xlsx = gravar_xlsx(na_planilha, xlsx_path)
+    planilhas: dict[str, str | None] = {}
+    for tipo, lista, colunas, aba, moeda in (
+        ("novos", novos, COLUNAS, ABA_NOVOS, MOEDA_COLUNAS),
+        ("recompras", recompras, COLUNAS_RECOMPRAS, ABA_RECOMPRAS, MOEDA_RECOMPRAS),
+    ):
+        csv_path = pasta / f"planilha-up-{tipo}-{nome}.csv"
+        xlsx_path = pasta / f"planilha-up-{tipo}-{nome}.xlsx"
+        if not lista:  # nada desse tipo: não gera (e apaga a de uma rodada anterior)
+            for velho in (csv_path, xlsx_path):
+                velho.unlink(missing_ok=True)
+            planilhas[tipo + "Csv"] = planilhas[tipo + "Xlsx"] = None
+            continue
+        gravar_csv(lista, csv_path, colunas)
+        planilhas[tipo + "Csv"] = str(csv_path)
+        planilhas[tipo + "Xlsx"] = str(xlsx_path) if gravar_xlsx(lista, xlsx_path, colunas, aba, moeda) else None
 
     # Pacote para o app: o mesmo cadastro com as fotos embutidas.
     cad.setdefault("formato", "fiodeamor-cadastro")
@@ -399,17 +522,23 @@ def main() -> int:
     pacote_path.write_text(json.dumps(pacote, ensure_ascii=False), encoding="utf-8")
 
     resumo_path = pasta / f"resumo-{nome}.md"
-    resumo_path.write_text(resumo_md(cad, linhas, itens), encoding="utf-8")
+    resumo_path.write_text(
+        resumo_md(cad, linhas, itens, avisos, {"novos": len(novos), "recompras": len(recompras)}), encoding="utf-8"
+    )
 
     print(json.dumps({
-        "planilhaXlsx": str(xlsx_path) if tem_xlsx else None,
-        "planilhaCsv": str(csv_path),
+        "planilhaNovosXlsx": planilhas["novosXlsx"],
+        "planilhaNovosCsv": planilhas["novosCsv"],
+        "planilhaRecomprasXlsx": planilhas["recomprasXlsx"],
+        "planilhaRecomprasCsv": planilhas["recomprasCsv"],
         "pacote": str(pacote_path),
         "pacoteMB": round(pacote_path.stat().st_size / 1_000_000, 2),
         "resumo": str(resumo_path),
         "itens": len(linhas),
-        "linhasNaPlanilha": len(na_planilha),
-        "semCodigoDeBarras": sum(1 for l in na_planilha if not l["codigoBarras"]),
+        "linhasNovos": len(novos),
+        "linhasRecompras": len(recompras),
+        "recomprasSemCodigo": sem_codigo,
+        "recomprasSemEntrada": sem_entrada,
         "recomprasAConfirmar": sum(1 for i in itens if aguardando_recompra(i)),
         "avisos": avisos,
     }, ensure_ascii=False, indent=1))

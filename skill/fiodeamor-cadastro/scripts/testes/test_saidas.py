@@ -193,6 +193,21 @@ class TestReferencias(unittest.TestCase):
         self.assertTrue(it["referencia"].startswith("BR_") and it["referencia"] != "BR_2609001")
         self.assertEqual(it["alertas"], [])
 
+    def test_recompra_guarda_o_preco_vigente_da_original(self):
+        ctx = self._contexto(
+            {"referencia": "BR_2609001", "codigoFornecedor": "ABC123A", "especificacao": "G", "precoVenda": 59.99},
+            {"referencia": "BR_2609002", "codigoFornecedor": "ABC124B", "especificacao": "G"},  # sem preço no contexto
+        )
+        cad = {"pedido": {"fornecedor": "Fornecedor Ficticio"}, "itens": [
+            {"linha": 1, "codigoFornecedor": "ABC123A", "especificacao": "G", "tipo": "brinco"},
+            {"linha": 2, "codigoFornecedor": "ABC124B", "especificacao": "G", "tipo": "brinco", "precoVigente": 10},
+        ]}
+        out, _ = self._rodar(cad, ctx)
+        a, b = out["itens"]
+        self.assertEqual((a["recompraDe"], a["precoVigente"]), ("BR_2609001", 59.99))
+        self.assertEqual(b["recompraDe"], "BR_2609002")
+        self.assertNotIn("precoVigente", b)  # sem preço vigente no contexto: o preço é calculado normalmente
+
     def test_normalizacao_da_chave(self):
         self.assertEqual(refs.normalizar_chave("abc-123 a"), "ABC123A")
         self.assertEqual(refs.normalizar_chave("ＡＢＣ１２３Ａ"), "ABC123A")
@@ -308,9 +323,77 @@ class TestPlanilhaUp(unittest.TestCase):
         self.assertIn("moeda não identificada", md)
         self.assertIn("a confirmar: 1", md)
         self.assertIn("- Linha 2 (GSH747A): pode ser BR_2609001", md)
-        self.assertIn("(recompra a confirmar no app; fora da planilha)", md)
+        self.assertIn("(recompra a confirmar no app; fora das planilhas)", md)
         self.assertIn("Linha 1: quantidade 0", md)
         self.assertIn("Linha 2: sem quantidade", md)
+
+    def test_planilha_de_recompras_como_no_app(self):
+        # Os mesmos casos de tests/operacao-upvendas.test.ts (linhasRecompraUp).
+        base = {"referencia": "BR_2611001", "nome": "brinco teste", "codigoBarrasOrigem": "up"}
+        linhas, sem_codigo, sem_entrada = gs.linhas_recompra_up(
+            [
+                {**base, "linha": 1, "recompraDe": "o1", "codigoBarras": "9000023019929", "quantidade": 13, "quantidadeRecebida": 12, "quantidadeDefeito": 1, "custoTotalBrl": 4},
+                {**base, "linha": 2, "recompraDe": "o1", "codigoBarras": "9000023019929", "quantidade": 6, "custoTotalBrl": 5},
+                {**base, "linha": 3, "recompraDe": "o2", "referencia": "BR_2611002", "codigoBarras": None, "quantidade": 4},
+                {**base, "linha": 4, "recompraDe": "o3", "codigoBarras": "9000000000017", "quantidadeRecebida": 0},
+            ],
+            {},
+        )
+        self.assertEqual(len(linhas), 2)
+        self.assertEqual(linhas[0], {"codigoBarras": "9000023019929", "quantidade": 17, "referencia": "BR_2611001", "nome": "BRINCO TESTE", "custoUnitario": 4.35})
+        self.assertEqual((linhas[1]["codigoBarras"], linhas[1]["quantidade"], linhas[1]["referencia"]), ("", 4, "BR_2611002"))
+        self.assertEqual((sem_codigo, sem_entrada), (1, 1))  # nada entrou na linha 4: fica de fora
+        # Quantidade 0 continua 0 (fica de fora); sem quantidade conta 1, como no app.
+        self.assertEqual(gs.linhas_recompra_up([{**base, "recompraDe": "o1", "codigoBarras": "9", "quantidade": 0}], {})[2], 1)
+        self.assertEqual(gs.linhas_recompra_up([{**base, "recompraDe": "o1", "codigoBarras": "9"}], {})[0][0]["quantidade"], 1)
+        csv_texto = gs.montar_csv(
+            [{"codigoBarras": "9000023019929", "quantidade": 3, "referencia": "=HYPERLINK(1)", "nome": "ANEL; DOURADO", "custoUnitario": 4.35}],
+            gs.COLUNAS_RECOMPRAS,
+        )
+        cab, linha = csv_texto.split("\r\n")
+        self.assertEqual(cab, "Cód. Barras;Quantidade;Referência;Nome do produto;Custo unitário")
+        self.assertEqual(linha, "9000023019929;3;'=HYPERLINK(1);\"ANEL; DOURADO\";4,35")
+
+    def test_gera_as_duas_planilhas_como_no_app(self):
+        cad = {"formato": "fiodeamor-cadastro", "versao": 1, "id": "teste-planilhas-0001",
+               "pedido": {"numero": "T-200", "moeda": "CNY", "cotacao": 1, "fator": None},
+               "itens": [
+                   self.item(linha=1),
+                   self.item(linha=2, referencia="BR_2609001", recompraDe="BR_2609001", codigoBarras="9000000000018", codigoBarrasOrigem="up", quantidade=5),
+                   self.item(linha=3, referencia="BR_2609001", recompraDe="BR_2609001", codigoBarras="9000000000018", codigoBarrasOrigem="up", quantidade=2, custoTotalBrl=8),
+                   self.item(linha=4, referencia=None, recompraCandidatas=["BR_2609002", "BR_2609003"]),
+               ]}
+        with tempfile.TemporaryDirectory() as tmp:
+            arq = Path(tmp) / "cadastro.json"
+            arq.write_text(json.dumps(cad, ensure_ascii=False), encoding="utf-8")
+            saida = subprocess.run([sys.executable, str(SCRIPTS / "gerar_saidas.py"), str(arq), "--saida", tmp, "--sem-fotos"],
+                                   capture_output=True, text=True, check=True)
+            r = json.loads(saida.stdout)
+            self.assertEqual((r["linhasNovos"], r["linhasRecompras"], r["recomprasAConfirmar"]), (1, 1, 1))
+            novos = Path(r["planilhaNovosCsv"]).read_bytes().decode("utf-8-sig").split("\r\n")  # CRLF, como o app
+            self.assertEqual(len(novos), 2)  # cabeçalho + a peça nova (nem recompra, nem a confirmar)
+            self.assertTrue(novos[1].startswith("BRINCO (SJ) BOTÃO;"))
+            recompras = Path(r["planilhaRecomprasCsv"]).read_bytes().decode("utf-8-sig").split("\r\n")
+            # As duas linhas da mesma recompra somam 7 peças; custo médio (5 × 7,74 + 2 × 8) ÷ 7 = 7,81.
+            self.assertEqual(recompras, ["Cód. Barras;Quantidade;Referência;Nome do produto;Custo unitário", "9000000000018;7;BR_2609001;BRINCO (SJ) BOTÃO;7,81"])
+            md = Path(r["resumo"]).read_text(encoding="utf-8")
+            self.assertIn("- Planilhas do UP: produtos novos 1 linha(s) · recompras (entrada de estoque) 1 linha(s)", md)
+            try:
+                from openpyxl import load_workbook
+            except ImportError:
+                return
+            ws = load_workbook(r["planilhaRecomprasXlsx"]).active
+            self.assertEqual(ws.title, "Recompras (entrada de estoque)")
+            self.assertEqual([c.value for c in ws[2]], ["9000000000018", 7, "BR_2609001", "BRINCO (SJ) BOTÃO", 7.81])
+            self.assertEqual(load_workbook(r["planilhaNovosXlsx"]).active.title, "Produtos novos (cadastro)")
+            # Sem recompras na rodada seguinte: a planilha de recompras não é gerada (e a antiga sai).
+            cad["itens"] = [cad["itens"][0]]
+            arq.write_text(json.dumps(cad, ensure_ascii=False), encoding="utf-8")
+            saida = subprocess.run([sys.executable, str(SCRIPTS / "gerar_saidas.py"), str(arq), "--saida", tmp, "--sem-fotos"],
+                                   capture_output=True, text=True, check=True)
+            r2 = json.loads(saida.stdout)
+            self.assertIsNone(r2["planilhaRecomprasCsv"])
+            self.assertFalse(Path(r["planilhaRecomprasCsv"]).exists())
 
     def test_codigo_de_barras_so_o_do_up(self):
         self.assertEqual(gs.linha_up(self.item(), self.tax, self.pol, {})["codigoBarras"], "")  # peça nova: o UP gera
