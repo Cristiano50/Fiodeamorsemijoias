@@ -5,18 +5,23 @@ import { api } from "@/lib/cliente";
 
 type Usuario = { id: string; nome: string; login: string; papel: "gestora" | "funcionario"; ativo: boolean; criadoEm: string };
 
+const SENHA_MINIMA = 8;
+const senhaCurta = (s: string) => s.length < SENHA_MINIMA;
+
 /** Usuários e permissões (Configurações → Usuários). */
 export function ConfigUsuarios() {
   const avisar = useAviso();
   const [modo, setModo] = useState<string | null>(null);
+  const [avisos, setAvisos] = useState<string[]>([]);
   const [lista, setLista] = useState<Usuario[]>([]);
   const [novo, setNovo] = useState({ nome: "", login: "", senha: "", papel: "funcionario" });
   const [salvando, setSalvando] = useState(false);
 
   const carregar = useCallback(
     () =>
-      api<{ modo: string }>("/api/sessao").then(async (s) => {
+      api<{ modo: string; avisos?: string[] }>("/api/sessao").then(async (s) => {
         setModo(s.modo);
+        setAvisos(s.avisos ?? []);
         if (s.modo === "usuarios") setLista(await api<Usuario[]>("/api/usuarios"));
       }),
     [],
@@ -26,6 +31,7 @@ export function ConfigUsuarios() {
   }, [carregar, avisar]);
 
   async function criar() {
+    if (senhaCurta(novo.senha)) return avisar(`A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`, "erro");
     setSalvando(true);
     try {
       const r = await api<{ primeiro?: boolean }>("/api/usuarios", { method: "POST", json: novo });
@@ -40,7 +46,7 @@ export function ConfigUsuarios() {
     }
   }
 
-  const alterar = async (id: string, dados: Partial<Usuario> & { senha?: string }, msg: string) => {
+  const alterar = async (id: string, dados: Partial<Usuario> & { senha?: string; desconectar?: boolean }, msg: string) => {
     try {
       await api("/api/usuarios", { method: "PATCH", json: { id, ...dados } });
       avisar(msg);
@@ -57,19 +63,29 @@ export function ConfigUsuarios() {
       <Cartao titulo="Permissões">
         <ul className="ml-5 list-disc text-sm text-[#6b5560]">
           <li>
-            <b>Gestora:</b> tudo, incluindo Configurações, fator abaixo do mínimo, excluir pedidos e produtos, enviar ao UP, histórico, gastos com IA e backup.
+            <b>Gestora:</b> tudo, incluindo Configurações, fator abaixo do mínimo, excluir pedidos, produtos e fotos, enviar ao UP, histórico, gastos com IA e backup.
           </li>
           <li>
             <b>Funcionário(a):</b> importar pedidos, revisar peças, escolher o fator (a partir do mínimo), gerar fotos, etiquetas, planilha, vendas e maleta.
           </li>
           <li>Toda alteração de fator, frete, cotação, preço, código e exclusão fica no Histórico, com o nome de quem fez.</li>
+          <li>
+            Cada aparelho fica logado por alguns dias e depois pede a senha de novo. <b>Trocar a senha, mudar o papel, desativar</b> ou <b>desconectar</b> tira a
+            pessoa de <b>todos os aparelhos</b> na hora. O botão <b>Sair</b> do menu também desconecta aquele login em todos os aparelhos.
+          </li>
+          <li>Senhas novas: pelo menos {SENHA_MINIMA} caracteres. Depois de 5 tentativas erradas, o login fica bloqueado por alguns minutos.</li>
         </ul>
         {primeiro && (
           <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-            Hoje o app está {modo === "senha" ? "com a senha única da equipe" : "aberto, sem login"}. Crie a <b>conta da gestora</b> abaixo: a partir daí cada pessoa entra com o seu
-            usuário e senha.
+            Hoje o app está {modo === "senha" ? "com a senha única da equipe" : "aberto, sem login (só funciona neste computador, o servidor)"}. Crie a <b>conta da gestora</b> abaixo: a
+            partir daí cada pessoa entra com o seu usuário e senha, também pelo celular.
           </p>
         )}
+        {avisos.map((a) => (
+          <p key={a} className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            {a}
+          </p>
+        ))}
       </Cartao>
 
       <Cartao titulo={primeiro ? "Criar a conta da gestora" : "Novo usuário"}>
@@ -80,7 +96,7 @@ export function ConfigUsuarios() {
           <Campo rotulo="Usuário (login)">
             <input value={novo.login} autoComplete="off" onChange={(e) => setNovo({ ...novo, login: e.target.value.toLowerCase().replace(/\s/g, "") })} />
           </Campo>
-          <Campo rotulo="Senha (mín. 6)">
+          <Campo rotulo={`Senha (mín. ${SENHA_MINIMA})`}>
             <input type="password" autoComplete="new-password" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} />
           </Campo>
           <Campo rotulo="Papel">
@@ -99,50 +115,68 @@ export function ConfigUsuarios() {
 
       {!primeiro && (
         <Cartao titulo={`Usuários (${lista.length})`}>
-          <table className="tabela w-full">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Login</th>
-                <th>Papel</th>
-                <th>Situação</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.nome}</td>
-                  <td className="font-mono text-xs">{u.login}</td>
-                  <td>
-                    <select
-                      value={u.papel}
-                      className="w-40"
-                      onChange={(e) => alterar(u.id, { papel: e.target.value as Usuario["papel"] }, "Papel alterado.")}
-                    >
-                      <option value="funcionario">Funcionário(a)</option>
-                      <option value="gestora">Gestora</option>
-                    </select>
-                  </td>
-                  <td>{u.ativo ? <Selo cor="verde">ativo</Selo> : <Selo cor="cinza">desativado</Selo>}</td>
-                  <td className="whitespace-nowrap">
-                    <Botao
-                      variante="fantasma"
-                      onClick={() => {
-                        const senha = prompt(`Nova senha para ${u.nome} (mín. 6 caracteres):`);
-                        if (senha) alterar(u.id, { senha }, "Senha trocada.");
-                      }}
-                    >
-                      Trocar senha
-                    </Botao>
-                    <Botao variante={u.ativo ? "perigo" : "secundario"} onClick={() => alterar(u.id, { ativo: !u.ativo }, u.ativo ? "Usuário desativado." : "Usuário reativado.")}>
-                      {u.ativo ? "Desativar" : "Reativar"}
-                    </Botao>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="tabela w-full">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Login</th>
+                  <th>Papel</th>
+                  <th>Situação</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {lista.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.nome}</td>
+                    <td className="font-mono text-xs">{u.login}</td>
+                    <td>
+                      <select
+                        value={u.papel}
+                        className="w-40"
+                        onChange={(e) => alterar(u.id, { papel: e.target.value as Usuario["papel"] }, "Papel alterado. A pessoa precisa entrar de novo.")}
+                      >
+                        <option value="funcionario">Funcionário(a)</option>
+                        <option value="gestora">Gestora</option>
+                      </select>
+                    </td>
+                    <td>{u.ativo ? <Selo cor="verde">ativo</Selo> : <Selo cor="cinza">desativado</Selo>}</td>
+                    <td className="whitespace-nowrap">
+                      <Botao
+                        variante="fantasma"
+                        onClick={() => {
+                          const senha = prompt(`Nova senha para ${u.nome} (mín. ${SENHA_MINIMA} caracteres). A pessoa sai de todos os aparelhos e entra com a senha nova:`);
+                          if (senha === null) return;
+                          if (senhaCurta(senha)) return avisar(`A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`, "erro");
+                          alterar(u.id, { senha }, "Senha trocada.");
+                        }}
+                      >
+                        Trocar senha
+                      </Botao>
+                      {u.ativo && (
+                        <Botao
+                          variante="fantasma"
+                          onClick={() => {
+                            if (confirm(`Desconectar ${u.nome} de todos os aparelhos? A pessoa vai precisar entrar de novo (use se um celular foi perdido).`))
+                              alterar(u.id, { desconectar: true }, `${u.nome} foi desconectado(a) de todos os aparelhos.`);
+                          }}
+                        >
+                          Desconectar
+                        </Botao>
+                      )}
+                      <Botao
+                        variante={u.ativo ? "perigo" : "secundario"}
+                        onClick={() => alterar(u.id, { ativo: !u.ativo }, u.ativo ? "Usuário desativado e desconectado de todos os aparelhos." : "Usuário reativado.")}
+                      >
+                        {u.ativo ? "Desativar" : "Reativar"}
+                      </Botao>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Cartao>
       )}
     </div>

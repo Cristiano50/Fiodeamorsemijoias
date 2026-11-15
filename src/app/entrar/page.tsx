@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Botao, Carregando } from "@/components/ui";
 import { api } from "@/lib/cliente";
+import { MENSAGEM_ABERTO_REMOTO, caminhoInterno } from "@/lib/acesso";
 
 function Entrar() {
   const router = useRouter();
@@ -12,11 +13,12 @@ function Entrar() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
-  const voltar = params.get("voltar") || "/";
+  // Só caminho do próprio app: "voltar=//outro-site" ou "voltar=https://…" vai para o início.
+  const voltar = caminhoInterno(params.get("voltar"));
 
   useEffect(() => {
-    api<{ modo: string }>("/api/sessao?modo=1")
-      .then((r) => (r.modo === "aberto" ? router.replace(voltar) : setModo(r.modo)))
+    api<{ modo: string; local?: boolean }>("/api/sessao?modo=1")
+      .then((r) => (r.modo === "aberto" && r.local ? router.replace(voltar) : setModo(r.modo)))
       .catch(() => setModo("usuarios"));
   }, [router, voltar]);
 
@@ -41,6 +43,9 @@ function Entrar() {
         <img src="/marca/logo-fiodeamor.png" alt="Fio de Amor Semijoias" className="mx-auto mb-6 w-56" />
         {!modo ? (
           <Carregando />
+        ) : modo === "aberto" ? (
+          // Acesso livre (sem usuários e sem senha): só o computador do servidor abre o app.
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{MENSAGEM_ABERTO_REMOTO}</p>
         ) : (
           <>
             {modo === "usuarios" && (
