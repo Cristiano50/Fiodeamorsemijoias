@@ -5,7 +5,8 @@ import { erro, ok } from "@/lib/api";
 import { detectarPecas } from "@/lib/ai/claude";
 import { getConfig } from "@/lib/config";
 import { lerLinha } from "@/lib/extracao";
-import { imagemParaIa, novoId, recortarImagem, salvarImagem } from "@/lib/servicos";
+import { agruparVariacoesAutomaticas, detectarRecompras, imagemParaIa, novoId, recalcularPedido, recortarImagem, salvarImagem } from "@/lib/servicos";
+import { reaplicarCotacaoEfetiva } from "@/lib/fornecedores";
 
 export const maxDuration = 300;
 type Ctx = { params: Promise<{ id: string }> };
@@ -17,6 +18,8 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
     const db = await getDb();
     const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, id));
     if (!pedido) return erro("Pedido não encontrado", 404);
+    // A IA só entra depois de a importação terminar (finalizar): senão as peças entram pela metade.
+    if (pedido.status === "importando") return erro("A importação deste pedido não terminou. Continue a importação em Importar pedido antes de usar a IA.", 409);
     const [pagina] = await db
       .select()
       .from(schema.paginas)
@@ -43,6 +46,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
         linha: linha++,
         textoOriginal: p.texto_visivel,
         codigoFornecedor: lida.codigo ?? null,
+        especificacao: lida.especificacao ?? null,
         precoOrigem: lida.preco ?? null,
         quantidade: lida.quantidade ?? 1,
         moeda: pedido.moeda,
@@ -57,6 +61,13 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
       .select({ id: schema.paginas.id })
       .from(schema.paginas)
       .where(and(eq(schema.paginas.pedidoId, id), eq(schema.paginas.processada, false)));
+    if (!pend.length) {
+      // Última página: as peças novas também passam pela recompra e pelo agrupamento de variações.
+      await detectarRecompras(id);
+      await agruparVariacoesAutomaticas(id);
+      await reaplicarCotacaoEfetiva(id); // peças novas mudam o total do pedido
+      await recalcularPedido(id);
+    }
     return ok({ criados, restantes: pend.length });
   } catch (e) {
     return erro(e);

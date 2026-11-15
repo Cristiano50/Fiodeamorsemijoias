@@ -11,6 +11,18 @@ import { calcularPreco, type PoliticaPreco } from "@/lib/precos";
 
 type Aba = "integracoes" | "skill" | "canais" | "usuarios" | "referencias" | "precificacao" | "codigos" | "custos" | "avancado";
 
+const ABAS: readonly (readonly [Aba, string])[] = [
+  ["integracoes", "Integrações e IA"],
+  ["skill", "Skill do Claude"],
+  ["canais", "WhatsApp, catálogo Meta e backup"],
+  ["usuarios", "Usuários"],
+  ["referencias", "Fotos de referência (estilo)"],
+  ["precificacao", "Precificação (fator)"],
+  ["custos", "Câmbio e custos"],
+  ["codigos", "Referência e código de barras"],
+  ["avancado", "Taxonomia, marca e fiscal"],
+];
+
 export default function ConfiguracoesPage() {
   const { config, recarregar } = useConfig();
   const [aba, setAba] = useState<Aba>("integracoes");
@@ -18,20 +30,19 @@ export default function ConfiguracoesPage() {
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-4xl font-semibold">Configurações</h1>
-      <div className="flex flex-wrap gap-1">
-        {(
-          [
-            ["integracoes", "Integrações e IA"],
-            ["skill", "Skill do Claude"],
-            ["canais", "WhatsApp, catálogo Meta e backup"],
-            ["usuarios", "Usuários"],
-            ["referencias", "Fotos de referência (estilo)"],
-            ["precificacao", "Precificação (fator)"],
-            ["custos", "Câmbio e custos"],
-            ["codigos", "Referência e código de barras"],
-            ["avancado", "Taxonomia, marca e fiscal"],
-          ] as const
-        ).map(([k, r]) => (
+      {/* Celular: as 9 abas não cabem lado a lado; uma lista de escolha ocupa uma linha só. */}
+      <label className="flex flex-col gap-1 md:hidden">
+        <span className="rotulo">Seção</span>
+        <select value={aba} onChange={(e) => setAba(e.target.value as Aba)} aria-label="Seção das configurações">
+          {ABAS.map(([k, r]) => (
+            <option key={k} value={k}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="hidden flex-wrap gap-1 md:flex">
+        {ABAS.map(([k, r]) => (
           <button key={k} onClick={() => setAba(k)} className={`rounded-full px-3 py-1 text-sm ${aba === k ? "bg-rose-escuro text-white" : "bg-rose-claro text-rose-escuro"}`}>
             {r}
           </button>
@@ -210,9 +221,11 @@ function Precificacao({ config, recarregar }: Props) {
               <option value="0">Não (fator por tipo)</option>
             </select>
           </Campo>
-          <Campo rotulo="Terminar preço em">
-            <input type="number" step="0.01" value={pol.arredondamento.centavos} onChange={(e) => setPol((p) => ({ ...p, arredondamento: { ...p.arredondamento, centavos: Number(e.target.value) } }))} />
-          </Campo>
+          {pol.arredondamento.modo !== "escada" && (
+            <Campo rotulo="Terminar preço em">
+              <input type="number" step="0.01" value={pol.arredondamento.centavos} onChange={(e) => setPol((p) => ({ ...p, arredondamento: { ...p.arredondamento, centavos: Number(e.target.value) } }))} />
+            </Campo>
+          )}
           <Campo rotulo="Preço mínimo">
             <input type="number" step="0.01" value={pol.arredondamento.minimo ?? 0} onChange={(e) => setPol((p) => ({ ...p, arredondamento: { ...p.arredondamento, minimo: Number(e.target.value) } }))} />
           </Campo>
@@ -225,8 +238,46 @@ function Precificacao({ config, recarregar }: Props) {
         </div>
         <div className="mt-4 rounded-xl bg-creme p-3 text-sm">
           Simular: custo de <input type="number" step="0.01" value={teste} onChange={(e) => setTeste(Number(e.target.value))} className="inline w-24" /> → fator ×{r.fator} ({r.origemFator}) →{" "}
-          <b>{brl(r.preco)}</b> · % lucro UP {r.lucroPct} · margem após comissão {r.margemPct}%
+          {brl(r.precoBruto)} → <b>{brl(r.preco)}</b> · % lucro UP {r.lucroPct} · margem após comissão {r.margemPct}%
         </div>
+        {pol.arredondamento.modo === "escada" && pol.arredondamento.degraus?.length ? (
+          <div className="mt-4">
+            <div className="rotulo">Escada de preços</div>
+            <p className="mb-2 text-sm text-[#8a6d78]">
+              O preço vai para o preço possível mais próximo de custo × fator (empate fica com o maior), sempre terminando em ,
+              {String(Math.round((pol.arredondamento.centavos ?? 0.99) * 100)).padStart(2, "0")}. Nunca abaixo do mínimo de{" "}
+              <b>{brl(pol.arredondamento.minimo ?? 0)}</b>. Arredondar para baixo na escada não gera alerta de fator mínimo.
+            </p>
+            <table className="tabela w-full max-w-xl text-sm">
+              <thead>
+                <tr>
+                  <th>Preço até</th>
+                  <th>De quanto em quanto</th>
+                  <th>Exemplos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pol.arredondamento.degraus.map((g, i, todos) => {
+                  const recuo = 1 - (pol.arredondamento.centavos ?? 0.99);
+                  const inicio = i > 0 ? (todos[i - 1].ate ?? 0) : 0;
+                  const exemplos: number[] = [];
+                  for (let k = Math.floor((inicio + recuo) / g.passo) + 1, voltas = 0; g.passo > 0 && exemplos.length < 3 && voltas < 50; k++, voltas++) {
+                    const ponto = Math.round((k * g.passo - recuo) * 100) / 100;
+                    if (g.ate != null && ponto > g.ate) break;
+                    if (ponto >= (pol.arredondamento.minimo ?? 0)) exemplos.push(ponto);
+                  }
+                  return (
+                    <tr key={i}>
+                      <td>{g.ate == null ? "acima disso" : brl(g.ate)}</td>
+                      <td>de {brl(g.passo)} em {brl(g.passo)}</td>
+                      <td className="text-xs text-[#8a6d78]">{exemplos.length ? `${exemplos.map((x) => brl(x)).join(", ")}…` : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </Cartao>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -537,7 +588,7 @@ function Referencias({ config }: { config: ConfigCliente }) {
             {lista.map((r) => (
               <div key={r.id} className="overflow-hidden rounded-xl border border-borda">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img(r.id, 400)!} alt="" className="aspect-[4/5] w-full object-cover" />
+                <img src={img(r.id, 400)!} alt="" loading="lazy" decoding="async" className="aspect-[4/5] w-full object-cover" />
                 <div className="flex flex-wrap gap-1 p-2">
                   {tiposTax.map((t) => {
                     const ativo = (r.meta?.tipos ?? []).includes(t.id);

@@ -9,7 +9,8 @@ import { ean13Valido } from "@/lib/codigos-up";
 /**
  * Bipar ou digitar o código de barras que o UP Vendas criou para cada peça do pedido.
  * O leitor de código de barras "digita" o número e aperta Enter: o app grava e pula para a próxima peça.
- * Recompras não aparecem: herdam o código da peça original.
+ * Recompras não aparecem: herdam o código da peça original. A especificação do fornecedor (G, MR, 金色…) e a variação
+ * ajudam a achar a etiqueta certa quando a mesma referência tem várias cores/tamanhos.
  */
 export function BiparCodigosUp({ produtos, aoGravar, aoFechar }: { produtos: Produto[]; aoGravar: () => void; aoFechar: () => void }) {
   const avisar = useAviso();
@@ -65,12 +66,13 @@ export function BiparCodigosUp({ produtos, aoGravar, aoFechar }: { produtos: Pro
           {pendentes.map((p, i) => (
             <div key={p.id} className="flex flex-wrap items-center gap-3 py-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              {p.imagemId ? <img src={img(p.imagemId, 120)!} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="h-12 w-12 rounded-lg bg-rose-claro" />}
+              {p.imagemId ? <img src={img(p.imagemId, 120)!} alt="" loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-cover" /> : <div className="h-12 w-12 rounded-lg bg-rose-claro" />}
               <div className="min-w-0 flex-1 text-sm">
                 <div className="truncate font-medium uppercase">{p.nome ?? p.traducao ?? "Peça"}</div>
                 <div className="font-mono text-xs text-[#9a8089]">
                   {p.referencia ?? "sem referência"}
-                  {p.variacao ? ` · ${p.variacao}` : ""} · linha {p.linha}
+                  {p.variacao ? ` · ${p.variacao}` : ""}
+                  {p.especificacao ? ` · ${p.especificacao}` : ""} · linha {p.linha}
                 </div>
               </div>
               {gravados[p.id] ? (
@@ -86,7 +88,7 @@ export function BiparCodigosUp({ produtos, aoGravar, aoFechar }: { produtos: Pro
                   className="w-48 font-mono"
                   value={valores[p.id] ?? ""}
                   disabled={salvando === p.id || !p.referencia}
-                  title={!p.referencia ? "Gere a referência antes" : undefined}
+                  title={!p.referencia ? ((p.recompraCandidatas?.length ?? 0) > 0 ? "Confirme a recompra antes (é recompra ou peça nova?)" : "Gere a referência antes") : undefined}
                   onChange={(e) => setValores((v) => ({ ...v, [p.id]: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {

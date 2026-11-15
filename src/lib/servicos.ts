@@ -1,15 +1,17 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "./db";
 import { getCenarios, getComponentesCusto, getConfig, ncmPara } from "./config";
-import { calcularCustos, calcularPreco, detalharCustos, valoresDoCenario } from "./precos";
-import { chaveSequenciaReferencia, montarEan13, montarReferencia } from "./codigos";
+import { LIMITE_CUSTO_MUDOU_PCT, calcularCustos, calcularPreco, detalharCustos, semAlertasDePreco, valoresDoCenario } from "./precos";
+import { chaveSequenciaReferencia, classificarRecompra, montarEan13, montarReferencia, normalizarChave, type OriginalRecompra } from "./codigos";
 import type { ItemAnalisado } from "./ai/claude";
 import { lerLinha } from "./extracao";
-import type { Produto } from "./db/schema";
+import type { Pedido, Produto } from "./db/schema";
 import { chaveFornecedor } from "./fornecedores";
+import { estoqueEntrada } from "./estoque";
+import { ehRecompraUp } from "./upvendas-planilha";
 
 export const novoId = () => randomUUID();
 
@@ -127,6 +129,36 @@ export async function aplicarAnalise(produtoId: string, a: ItemAnalisado, sobres
 
 /* ------------------------------------------- recalcular custos e preços */
 
+/** Preço vigente (do original) de cada cadeia de recompra: id do original → preço da tabela base. */
+async function precosVigentes(ids: string[]) {
+  if (!ids.length) return new Map<string, number | null>();
+  const db = await getDb();
+  const linhas = await db
+    .select({ id: schema.produtos.id, precoVenda: schema.produtos.precoVenda })
+    .from(schema.produtos)
+    .where(inArray(schema.produtos.id, [...new Set(ids)]));
+  return new Map(linhas.map((l) => [l.id, l.precoVenda]));
+}
+
+/** Os originais mudaram de preço: as recompras deles (outros pedidos) acompanham — no UP é um preço só por código. */
+async function propagarPrecoNaCadeia(mudaram: { id: string; preco: number; precos: Record<string, number> | null }[]) {
+  if (!mudaram.length) return;
+  const db = await getDb();
+  const comRecompra = new Set(
+    (
+      await db
+        .selectDistinct({ id: schema.produtos.recompraDe })
+        .from(schema.produtos)
+        .where(inArray(schema.produtos.recompraDe, mudaram.map((m) => m.id)))
+    ).map((x) => x.id),
+  );
+  for (const m of mudaram.filter((x) => comRecompra.has(x.id)))
+    await db
+      .update(schema.produtos)
+      .set({ precoVenda: m.preco, precos: m.precos, atualizadoEm: new Date().toISOString() })
+      .where(eq(schema.produtos.recompraDe, m.id));
+}
+
 export async function recalcularPedido(pedidoId: string) {
   const db = await getDb();
   const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, pedidoId));
@@ -143,25 +175,55 @@ export async function recalcularPedido(pedidoId: string) {
     { ...pedido, custos: await custosDoPedido(pedido) },
     componentes,
   );
+  // Moeda estrangeira sem cotação (cotação 0): custo e preço ficam pendentes; nunca vira cotação 1.
+  const semCotacao = pedido.moeda !== "BRL" && !(pedido.cotacao > 0);
+  // Recompra: o preço é o vigente do original (mesma referência/EAN = um preço só no UP).
+  const vigentes = await precosVigentes(itens.filter(ehRecompra).map((i) => i.recompraDe!));
+  const mudaram: { id: string; preco: number; precos: Record<string, number> }[] = [];
   for (const i of itens) {
     const c = custos.get(i.id)!;
-    const p = calcularPreco(c.custoTotalBrl, i.tipo, pol, { fatorManual: i.fator, fatorPedido: pedido.fator, precoManual: i.precoManual });
-    await db
-      .update(schema.produtos)
-      .set({
+    const vigente = i.recompraDe ? (vigentes.get(i.recompraDe) ?? null) : null;
+    const outros = semAlertasDePreco(i.alertas);
+    const ncm = i.ncm || ncmPara(fiscal, i.tipo, i.material, sistema.ncmPadrao);
+    let set: Partial<Produto>;
+    if (semCotacao && !vigente && !(i.precoManual && i.precoManual > 0)) {
+      set = {
         moeda: pedido.moeda,
-        custoProdutoBrl: c.custoProdutoBrl,
-        custoAdicionalBrl: c.custoAdicionalBrl,
-        custoTotalBrl: c.custoTotalBrl,
+        custoProdutoBrl: null,
+        custoAdicionalBrl: null,
+        custoTotalBrl: null,
+        fatorAplicado: null,
+        precoVenda: null,
+        precos: null,
+        ncm,
+        alertas: [...outros, "Sem cotação: preço pendente."],
+      };
+    } else {
+      const p = calcularPreco(semCotacao ? 0 : c.custoTotalBrl, i.tipo, pol, {
+        fatorManual: i.fator,
+        fatorPedido: pedido.fator,
+        precoManual: i.precoManual,
+        precoVigente: vigente,
+      });
+      set = {
+        moeda: pedido.moeda,
+        custoProdutoBrl: semCotacao ? null : c.custoProdutoBrl,
+        custoAdicionalBrl: semCotacao ? null : c.custoAdicionalBrl,
+        custoTotalBrl: semCotacao ? null : c.custoTotalBrl,
         fatorAplicado: p.fator,
         precoVenda: p.preco,
         precos: p.precos,
-        ncm: i.ncm || ncmPara(fiscal, i.tipo, i.material, sistema.ncmPadrao),
-        alertas: [...(i.alertas ?? []).filter((x) => !x.startsWith("Margem") && !x.startsWith("Tabela") && !x.startsWith("Sem custo") && !x.startsWith("Fator ×")), ...p.alertas],
-        atualizadoEm: new Date().toISOString(),
-      })
+        ncm,
+        alertas: [...outros, ...(semCotacao ? ["Sem cotação: custo pendente."] : p.alertas)],
+      };
+      if (!i.recompraDe && (p.preco !== i.precoVenda || JSON.stringify(p.precos) !== JSON.stringify(i.precos))) mudaram.push({ id: i.id, preco: p.preco, precos: p.precos });
+    }
+    await db
+      .update(schema.produtos)
+      .set({ ...set, atualizadoEm: new Date().toISOString() })
       .where(eq(schema.produtos.id, i.id));
   }
+  await propagarPrecoNaCadeia(mudaram);
 }
 
 /** Valores dos componentes de custo do pedido (salvos, ou os do cenário escolhido). */
@@ -181,11 +243,19 @@ export async function recalcularProduto(produtoId: string) {
   if (p.pedidoId) return recalcularPedido(p.pedidoId);
   const pol = await getConfig("precificacao");
   const custo = p.custoTotalBrl ?? 0;
-  const r = calcularPreco(custo, p.tipo, pol, { fatorManual: p.fator, precoManual: p.precoManual });
+  const vigente = p.recompraDe ? ((await precosVigentes([p.recompraDe])).get(p.recompraDe) ?? null) : null;
+  const r = calcularPreco(custo, p.tipo, pol, { fatorManual: p.fator, precoManual: p.precoManual, precoVigente: vigente });
   await db
     .update(schema.produtos)
-    .set({ fatorAplicado: r.fator, precoVenda: r.preco, precos: r.precos, atualizadoEm: new Date().toISOString() })
+    .set({
+      fatorAplicado: r.fator,
+      precoVenda: r.preco,
+      precos: r.precos,
+      alertas: [...semAlertasDePreco(p.alertas), ...r.alertas],
+      atualizadoEm: new Date().toISOString(),
+    })
     .where(eq(schema.produtos.id, produtoId));
+  if (!p.recompraDe && r.preco !== p.precoVenda) await propagarPrecoNaCadeia([{ id: p.id, preco: r.preco, precos: r.precos }]);
 }
 
 /* ------------------------------------------- referência e código de barras */
@@ -200,11 +270,23 @@ export async function gerarCodigos(produtoIds: string[], refazer = false) {
     .where(inArray(schema.produtos.id, produtoIds))
     .orderBy(asc(schema.produtos.linha));
   // Variações do mesmo modelo (mesmo "grupo") compartilham a referência; cada uma tem seu EAN.
+  // A referência do grupo pode estar numa peça do pedido que não veio nesta lista.
   const refPorGrupo = new Map<string, string>();
-  for (const p of itens) if (p.grupo && p.referencia && !refazer) refPorGrupo.set(`${p.pedidoId}:${p.grupo}`, p.referencia);
+  if (!refazer) {
+    const pedidosComGrupo = [...new Set(itens.filter((p) => p.grupo && p.pedidoId).map((p) => p.pedidoId!))];
+    if (pedidosComGrupo.length) {
+      const doGrupo = await db
+        .select({ pedidoId: schema.produtos.pedidoId, grupo: schema.produtos.grupo, referencia: schema.produtos.referencia })
+        .from(schema.produtos)
+        .where(and(inArray(schema.produtos.pedidoId, pedidosComGrupo), isNotNull(schema.produtos.grupo), isNotNull(schema.produtos.referencia)))
+        .orderBy(asc(schema.produtos.linha));
+      for (const g of doGrupo) if (!refPorGrupo.has(`${g.pedidoId}:${g.grupo}`)) refPorGrupo.set(`${g.pedidoId}:${g.grupo}`, g.referencia!);
+    }
+  }
   let n = 0;
   for (const p of itens) {
     if (p.recompraDe) continue; // recompra usa a referência e o EAN do produto original
+    if (aguardandoRecompra(p)) continue; // recompra a confirmar: a referência sai da decisão ("É esta" ou "Não é recompra")
     const set: Partial<Produto> = {};
     const chaveGrupo = p.grupo ? `${p.pedidoId}:${p.grupo}` : null;
     if (!p.referencia || refazer) {
@@ -235,93 +317,325 @@ export async function gerarCodigos(produtoIds: string[], refazer = false) {
 
 /* ------------------------------------------------------------- recompra */
 
-const normCodigo = (s: string | null | undefined) => (s ?? "").toUpperCase().replace(/\s+/g, "");
-/** Especificação do fornecedor (G, MR, 14K, MR粉油…) lida da linha original do documento — estável, a IA não altera. */
-const especificacao = (p: { textoOriginal: string | null; variacao: string | null }) =>
-  (p.textoOriginal ? (lerLinha(p.textoOriginal).especificacao ?? "") : (p.variacao ?? "")).trim().toUpperCase();
-// O nome original do fornecedor (não o apelido) identifica o fornecedor na recompra.
-const normFornecedor = chaveFornecedor;
+/**
+ * A peça é recompra (mesma referência e código de barras de um original de pedido anterior)?
+ * A mesma regra da planilha do UP (upvendas-planilha.ts → ehRecompraUp: recompraDe preenchido).
+ */
+export const ehRecompra = ehRecompraUp;
+
+/** Recompra a confirmar: há originais possíveis e ninguém decidiu ainda ("É esta" ou "Não é recompra"). */
+export const aguardandoRecompra = (p: { recompraDe: string | null; recompraCandidatas: string[] | null }) =>
+  p.recompraDe == null && (p.recompraCandidatas?.length ?? 0) > 0;
+
+/** "Não é recompra" confirmado: lista vazia (nunca mais é detectada como recompra). */
+const decididaComoNova = (p: { recompraDe: string | null; recompraCandidatas: string[] | null }) =>
+  p.recompraDe == null && Array.isArray(p.recompraCandidatas) && p.recompraCandidatas.length === 0;
 
 /**
- * Recompra: a linha cujo código do fornecedor (+ especificação/cor) já foi cadastrado em pedido anterior
- * reaproveita a referência, o EAN e a classificação do produto original (mesmo SKU no UP) — sem gastar IA.
- * Avisa quando o preço do fornecedor mudou. Regra do gestor de estoque (docs/especialistas/gestor-estoque.md).
+ * Especificação do fornecedor (G, MR, 14KF, 金色, 16…): a gravada na importação; nas peças antigas, lida de novo
+ * da linha original do documento (estável, a IA não altera). Sem linha original (cadastro avulso), a variação.
+ */
+export const especificacaoDe = (p: { especificacao?: string | null; textoOriginal: string | null; variacao: string | null }) =>
+  (p.especificacao ?? (p.textoOriginal ? (lerLinha(p.textoOriginal).especificacao ?? "") : (p.variacao ?? ""))).trim();
+
+/** O que a recompra herda do original (no UP é o mesmo produto). */
+const dadosDoOriginal = (o: Produto, it: Produto): Partial<Produto> => ({
+  referencia: o.referencia,
+  codigoBarras: o.codigoBarras,
+  codigoBarrasOrigem: o.codigoBarrasOrigem,
+  nome: o.nome,
+  nomeComercial: o.nomeComercial,
+  nomesSugeridos: o.nomesSugeridos,
+  traducao: it.traducao ?? o.traducao,
+  avaliacao: o.avaliacao,
+  legenda: o.legenda,
+  hashtags: o.hashtags,
+  destaque: o.destaque,
+  tipo: o.tipo,
+  subtipo: o.subtipo,
+  material: o.material,
+  banho: o.banho,
+  corPedra: o.corPedra,
+  tamanho: o.tamanho,
+  variacao: o.variacao ?? it.variacao,
+  ehConjunto: o.ehConjunto,
+  componentes: o.componentes,
+  estilo: o.estilo,
+  ncm: o.ncm,
+  status: "revisado",
+});
+
+const ehAlertaDeRecompra = (a: string) => a.startsWith("Recompra de") || a.startsWith("Preço do fornecedor");
+
+function alertasDaRecompra(orig: { produto: Produto; numero: string | null; dataCompra: string | null }, it: Produto, moeda: string, confirmada: boolean) {
+  const o = orig.produto;
+  const alertas = [
+    `Recompra de ${o.referencia} (pedido ${orig.numero ?? "?"}${orig.dataCompra ? ` de ${orig.dataCompra.split("-").reverse().join("/")}` : ""})${confirmada ? ", confirmada" : ""}.`,
+  ];
+  if (o.precoOrigem && it.precoOrigem && o.moeda === moeda && Math.abs(it.precoOrigem - o.precoOrigem) > 0.001) {
+    const pct = ((it.precoOrigem - o.precoOrigem) / o.precoOrigem) * 100;
+    alertas.push(`Preço do fornecedor ${pct > 0 ? "subiu" : "caiu"} ${Math.abs(pct).toFixed(0)}% (${o.precoOrigem} → ${it.precoOrigem}).`);
+  }
+  return [...alertas, ...(it.alertas ?? []).filter((a) => !ehAlertaDeRecompra(a))];
+}
+
+/**
+ * Recompra: a linha cujo fornecedor + código + especificação (chave da recompra, ver classificarRecompra) já foi
+ * cadastrado em pedido anterior reaproveita a referência, o EAN e a classificação do original (mesmo SKU no UP) — sem IA.
+ *  - Exatamente 1 original (e o pedido tem fornecedor): recompra automática.
+ *  - Mais de um original possível, ou pedido/original sem fornecedor: "recompra a confirmar" (recompraCandidatas).
+ *  - Decisões já tomadas (recompra, "Não é recompra") nunca são desfeitas por uma nova detecção;
+ *    sugestões pendentes só ganham candidatos novos.
+ * Roda no finalizar, depois da IA (detectar/analisar) e no "Gerar códigos". Devolve quantas recompras automáticas fez.
+ * Regra do gestor de estoque (docs/especialistas/gestor-estoque.md).
  */
 export async function detectarRecompras(pedidoId: string) {
   const db = await getDb();
   const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, pedidoId));
   if (!pedido) return 0;
   const itens = await produtosDoPedido(pedidoId);
-  const codigos = [...new Set(itens.map((i) => i.codigoFornecedor).filter(Boolean))] as string[];
-  if (!codigos.length) return 0;
-  const candidatos = await db
-    .select({ produto: schema.produtos, fornecedor: schema.pedidos.fornecedor, numero: schema.pedidos.numero, dataCompra: schema.pedidos.dataCompra })
-    .from(schema.produtos)
-    .leftJoin(schema.pedidos, eq(schema.produtos.pedidoId, schema.pedidos.id))
-    .where(and(inArray(schema.produtos.codigoFornecedor, codigos), isNull(schema.produtos.recompraDe)));
+  const abertas = itens.filter((i) => !i.recompraDe && !decididaComoNova(i) && normalizarChave(i.codigoFornecedor));
+  if (!abertas.length) return 0;
+  const codigos = new Set(abertas.map((i) => normalizarChave(i.codigoFornecedor)));
+  const p = schema.produtos;
+  // Originais já cadastrados (com referência; o código do UP pode chegar depois) de outros pedidos, com o mesmo código.
+  const comCodigo = await db
+    .select({ id: p.id, codigo: p.codigoFornecedor })
+    .from(p)
+    .where(and(isNull(p.recompraDe), isNotNull(p.referencia), isNotNull(p.codigoFornecedor), or(isNull(p.pedidoId), ne(p.pedidoId, pedidoId))));
+  const ids = comCodigo.filter((x) => codigos.has(normalizarChave(x.codigo))).map((x) => x.id);
+  const candidatos = ids.length
+    ? await db
+        .select({ produto: schema.produtos, fornecedor: schema.pedidos.fornecedor, numero: schema.pedidos.numero, dataCompra: schema.pedidos.dataCompra })
+        .from(p)
+        .leftJoin(schema.pedidos, eq(p.pedidoId, schema.pedidos.id))
+        .where(inArray(p.id, ids))
+    : [];
+  // O nome original do fornecedor (não o apelido) identifica o fornecedor na recompra.
+  const originais: OriginalRecompra[] = candidatos.map((c) => ({
+    id: c.produto.id,
+    codigo: c.produto.codigoFornecedor,
+    especificacao: especificacaoDe(c.produto),
+    fornecedorChave: chaveFornecedor(c.fornecedor),
+    criadoEm: c.produto.criadoEm,
+  }));
+  const fornecedor = chaveFornecedor(pedido.fornecedor);
+  const agora = new Date().toISOString();
   let n = 0;
-  for (const it of itens) {
-    if (!it.codigoFornecedor || it.recompraDe) continue;
-    const orig = candidatos
-      .filter(
-        (c) =>
-          c.produto.pedidoId !== pedidoId &&
-          normCodigo(c.produto.codigoFornecedor) === normCodigo(it.codigoFornecedor) &&
-          especificacao(c.produto) === especificacao(it) &&
-          !!c.produto.referencia && // o original já foi cadastrado (o código do UP pode chegar depois)
-          (!pedido.fornecedor || !c.fornecedor || normFornecedor(pedido.fornecedor) === normFornecedor(c.fornecedor)),
-      )
-      .sort((a, b) => a.produto.criadoEm.localeCompare(b.produto.criadoEm))[0];
-    if (!orig) continue;
-    const o = orig.produto;
-    const alertas = [`Recompra de ${o.referencia} (pedido ${orig.numero ?? "?"}${orig.dataCompra ? ` de ${orig.dataCompra.split("-").reverse().join("/")}` : ""}).`];
-    if (o.precoOrigem && it.precoOrigem && o.moeda === pedido.moeda && Math.abs(it.precoOrigem - o.precoOrigem) > 0.001) {
-      const pct = ((it.precoOrigem - o.precoOrigem) / o.precoOrigem) * 100;
-      alertas.push(`Preço do fornecedor ${pct > 0 ? "subiu" : "caiu"} ${Math.abs(pct).toFixed(0)}% (${o.precoOrigem} → ${it.precoOrigem}).`);
+  for (const it of abertas) {
+    const r = classificarRecompra({ codigo: it.codigoFornecedor, especificacao: especificacaoDe(it), fornecedorChave: fornecedor }, originais);
+    const pendentes = it.recompraCandidatas ?? [];
+    if (pendentes.length) {
+      // Já está "a confirmar": não vira automática sozinha; só junta originais novos.
+      const uniao = [...new Set([...pendentes, ...(r.automatico ? [r.automatico] : []), ...r.candidatas])];
+      if (uniao.length !== pendentes.length) await db.update(p).set({ recompraCandidatas: uniao, atualizadoEm: agora }).where(eq(p.id, it.id));
+      continue;
     }
-    await db
-      .update(schema.produtos)
-      .set({
-        recompraDe: o.id,
-        referencia: o.referencia,
-        codigoBarras: o.codigoBarras,
-        codigoBarrasOrigem: o.codigoBarrasOrigem,
-        nome: o.nome,
-        nomeComercial: o.nomeComercial,
-        nomesSugeridos: o.nomesSugeridos,
-        traducao: it.traducao ?? o.traducao,
-        avaliacao: o.avaliacao,
-        legenda: o.legenda,
-        hashtags: o.hashtags,
-        destaque: o.destaque,
-        tipo: o.tipo,
-        subtipo: o.subtipo,
-        material: o.material,
-        banho: o.banho,
-        corPedra: o.corPedra,
-        tamanho: o.tamanho,
-        ehConjunto: o.ehConjunto,
-        componentes: o.componentes,
-        estilo: o.estilo,
-        ncm: o.ncm,
-        status: "revisado",
-        alertas,
-        atualizadoEm: new Date().toISOString(),
-      })
-      .where(eq(schema.produtos.id, it.id));
-    n++;
+    if (r.automatico) {
+      const orig = candidatos.find((c) => c.produto.id === r.automatico)!;
+      await db
+        .update(p)
+        .set({
+          recompraDe: orig.produto.id,
+          recompraCandidatas: null,
+          ...dadosDoOriginal(orig.produto, it),
+          alertas: alertasDaRecompra(orig, it, pedido.moeda, false),
+          atualizadoEm: agora,
+        })
+        .where(eq(p.id, it.id));
+      n++;
+    } else if (r.candidatas.length) {
+      await db.update(p).set({ recompraCandidatas: r.candidatas, atualizadoEm: agora }).where(eq(p.id, it.id));
+    }
   }
   return n;
 }
 
-/** Desfaz a recompra: a linha vira produto novo (ganha referência e EAN próprios). */
-export async function desfazerRecompra(ids: string[]) {
+/**
+ * "É esta": a peça vira recompra do original escolhido (referência, EAN, código do UP, classificação e preço vigente).
+ * Escolha confirmada não é desfeita por uma nova detecção.
+ */
+export async function confirmarRecompra(produtoId: string, originalId: string) {
   const db = await getDb();
+  const [it] = await db.select().from(schema.produtos).where(eq(schema.produtos.id, produtoId));
+  if (!it) throw new Error("Peça não encontrada.");
+  const [escolhido] = await db.select({ id: schema.produtos.id, recompraDe: schema.produtos.recompraDe }).from(schema.produtos).where(eq(schema.produtos.id, originalId));
+  if (!escolhido) throw new Error("A peça original não existe mais.");
+  const raizId = escolhido.recompraDe ?? escolhido.id; // sempre aponta para o original da cadeia
+  const [orig] = await db
+    .select({ produto: schema.produtos, numero: schema.pedidos.numero, dataCompra: schema.pedidos.dataCompra })
+    .from(schema.produtos)
+    .leftJoin(schema.pedidos, eq(schema.produtos.pedidoId, schema.pedidos.id))
+    .where(eq(schema.produtos.id, raizId));
+  if (!orig?.produto.referencia) throw new Error("A peça original ainda não tem referência.");
+  if (orig.produto.id === it.id || (it.pedidoId && orig.produto.pedidoId === it.pedidoId)) throw new Error("O original tem que ser de outro pedido.");
+  const [pedido] = it.pedidoId ? await db.select({ moeda: schema.pedidos.moeda }).from(schema.pedidos).where(eq(schema.pedidos.id, it.pedidoId)) : [];
   await db
     .update(schema.produtos)
-    .set({ recompraDe: null, referencia: null, codigoBarras: null, codigoBarrasOrigem: null, alertas: [], atualizadoEm: new Date().toISOString() })
-    .where(inArray(schema.produtos.id, ids));
+    .set({
+      recompraDe: orig.produto.id,
+      recompraCandidatas: null,
+      ...dadosDoOriginal(orig.produto, it),
+      alertas: alertasDaRecompra(orig, it, pedido?.moeda ?? it.moeda, true),
+      atualizadoEm: new Date().toISOString(),
+    })
+    .where(eq(schema.produtos.id, it.id));
+  if (it.pedidoId) await recalcularPedido(it.pedidoId);
+  else await recalcularProduto(it.id);
+  return { referencia: orig.produto.referencia, original: orig.produto.id };
+}
+
+/**
+ * "Não é recompra": a peça vira produto novo (ganha referência e EAN próprios) e a decisão fica guardada
+ * (recompraCandidatas = []), para a próxima detecção não marcar de novo. Só a peça que era recompra perde a
+ * referência e o código herdados.
+ */
+export async function desfazerRecompra(ids: string[]) {
+  if (!ids.length) return;
+  const db = await getDb();
+  const itens = await db.select().from(schema.produtos).where(inArray(schema.produtos.id, ids));
+  const agora = new Date().toISOString();
+  for (const p of itens) {
+    const set: Partial<Produto> = { recompraCandidatas: [], atualizadoEm: agora };
+    if (p.recompraDe)
+      Object.assign(set, { recompraDe: null, referencia: null, codigoBarras: null, codigoBarrasOrigem: null, alertas: (p.alertas ?? []).filter((a) => !ehAlertaDeRecompra(a)) });
+    await db.update(schema.produtos).set(set).where(eq(schema.produtos.id, p.id));
+  }
   await gerarCodigos(ids);
+  for (const pedidoId of new Set(itens.map((p) => p.pedidoId).filter(Boolean) as string[])) await recalcularPedido(pedidoId);
+}
+
+/**
+ * "Usar o preço novo para todas" (gestora): o preço calculado pelo custo desta peça passa a valer para todas as peças
+ * com a mesma referência (o original, as variações e as recompras — no UP é um preço só). O original guarda o preço
+ * novo como preço fixado (o recálculo do pedido antigo não volta ao preço anterior).
+ * Devolve a lista para reetiquetar: peças da referência com estoque (saldo do UP quando importado; senão a entrada do pedido).
+ */
+export async function usarPrecoNovoNaCadeia(produtoId: string) {
+  const db = await getDb();
+  const [p] = await db.select().from(schema.produtos).where(eq(schema.produtos.id, produtoId));
+  if (!p) throw new Error("Peça não encontrada.");
+  if (!p.referencia) throw new Error("A peça ainda não tem referência.");
+  if (!(p.custoTotalBrl != null && p.custoTotalBrl > 0)) throw new Error("A peça ainda não tem custo: confira a cotação e o preço do fornecedor.");
+  const [pedido] = p.pedidoId ? await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, p.pedidoId)) : [];
+  const pol = await getConfig("precificacao");
+  const novo = calcularPreco(p.custoTotalBrl, p.tipo, pol, { fatorManual: p.fator, fatorPedido: pedido?.fator, precoManual: p.precoManual }).preco;
+  const mesmaReferencia = sql`upper(${schema.produtos.referencia}) = ${p.referencia.toUpperCase()}`;
+  const cadeia = await db.select().from(schema.produtos).where(mesmaReferencia);
+  const originais = cadeia.filter((x) => !x.recompraDe);
+  const antes = originais.find((x) => x.id === (p.recompraDe ?? p.id))?.precoVenda ?? p.precoVenda;
+  if (originais.length)
+    await db
+      .update(schema.produtos)
+      .set({ precoManual: novo, atualizadoEm: new Date().toISOString() })
+      .where(inArray(schema.produtos.id, originais.map((x) => x.id)));
+  // Primeiro os pedidos dos originais (o preço novo passa para as recompras), depois os das recompras (alertas).
+  for (const o of originais.filter((x) => !x.pedidoId)) await recalcularProduto(o.id);
+  const pedidosOriginais = [...new Set(originais.map((x) => x.pedidoId).filter(Boolean) as string[])];
+  const pedidosRecompras = [...new Set(cadeia.filter((x) => x.recompraDe && x.pedidoId).map((x) => x.pedidoId!))].filter((x) => !pedidosOriginais.includes(x));
+  for (const id of [...pedidosOriginais, ...pedidosRecompras]) await recalcularPedido(id);
+
+  const depois = await db
+    .select({ produto: schema.produtos, numero: schema.pedidos.numero })
+    .from(schema.produtos)
+    .leftJoin(schema.pedidos, eq(schema.produtos.pedidoId, schema.pedidos.id))
+    .where(mesmaReferencia)
+    .orderBy(asc(schema.produtos.criadoEm));
+  const codigos = [...new Set(depois.map((x) => x.produto.codigoBarras).filter(Boolean) as string[])];
+  const saldos = codigos.length ? await db.select().from(schema.saldosUp).where(inArray(schema.saldosUp.codigoBarras, codigos)) : [];
+  const saldoDoCodigo = new Map(saldos.map((x) => [x.codigoBarras, x.saldo]));
+  const contados = new Set<string>();
+  const reetiquetar: { id: string; referencia: string | null; nome: string | null; variacao: string | null; pedido: string | null; linha: number | null; pecas: number; fonte: "saldo do UP" | "entrada do pedido" }[] = [];
+  for (const { produto: x, numero } of depois) {
+    let pecas: number;
+    let fonte: "saldo do UP" | "entrada do pedido" = "entrada do pedido";
+    if (x.codigoBarras && saldoDoCodigo.has(x.codigoBarras)) {
+      // O saldo do UP é do código (a cadeia toda): conta uma vez só.
+      pecas = contados.has(x.codigoBarras) ? 0 : Math.max(0, saldoDoCodigo.get(x.codigoBarras)!);
+      contados.add(x.codigoBarras);
+      fonte = "saldo do UP";
+    } else pecas = estoqueEntrada(x);
+    if (pecas > 0) reetiquetar.push({ id: x.id, referencia: x.referencia, nome: x.nome, variacao: x.variacao, pedido: numero, linha: x.linha, pecas, fonte });
+  }
+  return { referencia: p.referencia, antes, novo, pecasNaReferencia: cadeia.length, reetiquetar };
+}
+
+/** Peças do pedido com recompra a confirmar, com os originais possíveis (foto, referência, preço vigente). */
+export async function recomprasAConfirmar(produtos: Produto[]) {
+  const pendentes = produtos.filter(aguardandoRecompra);
+  if (!pendentes.length) return [];
+  const ids = [...new Set(pendentes.flatMap((p) => p.recompraCandidatas ?? []))];
+  const db = await getDb();
+  const lista = await db
+    .select({ produto: schema.produtos, numero: schema.pedidos.numero, dataCompra: schema.pedidos.dataCompra })
+    .from(schema.produtos)
+    .leftJoin(schema.pedidos, eq(schema.produtos.pedidoId, schema.pedidos.id))
+    .where(inArray(schema.produtos.id, ids));
+  const porId = new Map(lista.map((x) => [x.produto.id, x]));
+  return pendentes.map((p) => ({
+    produtoId: p.id,
+    linha: p.linha,
+    codigoFornecedor: p.codigoFornecedor,
+    especificacao: especificacaoDe(p) || null,
+    nome: p.nome ?? p.traducao ?? p.descricaoOriginal,
+    imagemId: p.imagemId,
+    candidatos: (p.recompraCandidatas ?? [])
+      .map((id) => porId.get(id))
+      .filter((x): x is NonNullable<typeof x> => !!x && !x.produto.recompraDe)
+      .map(({ produto: o, numero, dataCompra }) => ({
+        id: o.id,
+        referencia: o.referencia,
+        nome: o.nome,
+        variacao: o.variacao,
+        especificacao: especificacaoDe(o) || null,
+        imagemId: o.imagemId,
+        precoVenda: o.precoVenda,
+        codigoBarras: o.codigoBarras,
+        codigoBarrasOrigem: o.codigoBarrasOrigem,
+        pedidoId: o.pedidoId,
+        pedidoNumero: numero,
+        dataCompra,
+      })),
+  }));
+}
+
+/** Recompras do pedido cujo preço pelo custo novo difere mais de 10% do preço vigente do original ("Custo mudou"). */
+export async function custoMudouDoPedido(pedido: Pedido, produtos: Produto[]) {
+  const recompras = produtos.filter(ehRecompra);
+  if (!recompras.length) return [];
+  const db = await getDb();
+  const raizes = await db
+    .select({ id: schema.produtos.id, referencia: schema.produtos.referencia, precoVenda: schema.produtos.precoVenda })
+    .from(schema.produtos)
+    .where(inArray(schema.produtos.id, [...new Set(recompras.map((p) => p.recompraDe!))]));
+  const raiz = new Map(raizes.map((r) => [r.id, r]));
+  const pol = await getConfig("precificacao");
+  const out: { produtoId: string; linha: number | null; referencia: string | null; nome: string | null; imagemId: string | null; originalId: string; vigente: number; calculado: number; diferencaPct: number; custo: number }[] = [];
+  for (const p of recompras) {
+    const r = raiz.get(p.recompraDe!);
+    if (!r?.precoVenda || !(p.custoTotalBrl != null && p.custoTotalBrl > 0)) continue;
+    const c = calcularPreco(p.custoTotalBrl, p.tipo, pol, { fatorManual: p.fator, fatorPedido: pedido.fator, precoManual: p.precoManual, precoVigente: r.precoVenda });
+    if (c.custoMudouPct != null && Math.abs(c.custoMudouPct) > LIMITE_CUSTO_MUDOU_PCT)
+      out.push({ produtoId: p.id, linha: p.linha, referencia: p.referencia, nome: p.nome, imagemId: p.imagemId, originalId: r.id, vigente: r.precoVenda, calculado: c.precoCalculado, diferencaPct: c.custoMudouPct, custo: p.custoTotalBrl });
+  }
+  return out;
+}
+
+/** Saldo de estoque informado pelo UP (lista de produtos exportada), por código de barras. Grava ou atualiza. */
+export async function gravarSaldosUp(saldos: { codigoBarras: string; saldo: number }[], arquivo: string | null) {
+  if (!saldos.length) return 0;
+  const db = await getDb();
+  const agora = new Date().toISOString();
+  for (let i = 0; i < saldos.length; i += 200) {
+    await db
+      .insert(schema.saldosUp)
+      .values(saldos.slice(i, i + 200).map((s) => ({ codigoBarras: s.codigoBarras, saldo: Math.round(s.saldo), arquivo, atualizadoEm: agora })))
+      .onConflictDoUpdate({
+        target: schema.saldosUp.codigoBarras,
+        set: { saldo: sql`excluded.saldo`, arquivo: sql`excluded.arquivo`, atualizadoEm: sql`excluded.atualizado_em` },
+      });
+  }
+  return saldos.length;
 }
 
 /* ------------------------------------------------- código de barras do UP */
@@ -363,8 +677,8 @@ export async function agruparVariacoesAutomaticas(pedidoId: string) {
   const itens = await produtosDoPedido(pedidoId);
   const porCodigo = new Map<string, Produto[]>();
   for (const p of itens) {
-    if (!p.codigoFornecedor) continue;
-    const k = p.codigoFornecedor.toUpperCase();
+    const k = normalizarChave(p.codigoFornecedor);
+    if (!k) continue;
     porCodigo.set(k, [...(porCodigo.get(k) ?? []), p]);
   }
   for (const [codigo, lista] of porCodigo) {
@@ -434,7 +748,8 @@ export async function resumoPedido(pedidoId: string) {
     margemBrutaPct: vendaPotencial > 0 ? r2(((vendaPotencial * (1 - comissao) - custoTotal) / (vendaPotencial * (1 - comissao))) * 100) : 0,
     fatorMedio: custoTotal > 0 ? r2(vendaPotencial / custoTotal) : 0,
     porTipo,
-    semCodigo: itens.filter((p) => !p.referencia).length, // sem referência (o app gera)
+    semCodigo: itens.filter((p) => !p.referencia && !aguardandoRecompra(p)).length, // sem referência (o app gera)
+    recompraAConfirmar: itens.filter(aguardandoRecompra).length, // a referência espera "É esta" / "Não é recompra"
     semCodigoUp: itens.filter((p) => p.codigoBarrasOrigem !== "up").length, // sem o código de barras criado pelo UP
     semAnalise: itens.filter((p) => !p.tipo).length,
     comAlerta: itens.filter((p) => (p.alertas ?? []).length > 0).length,

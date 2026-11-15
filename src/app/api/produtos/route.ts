@@ -4,6 +4,8 @@ import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { getConfig } from "@/lib/config";
 import { gerarCodigos, novoId, recalcularProduto, salvarImagem } from "@/lib/servicos";
+import { lerNumeroBr } from "@/lib/numeros";
+import { checarFator, checarPrecoManual, registrarAbaixoDoMinimo } from "@/lib/permissoes";
 import { fotosModeloPorProduto } from "@/lib/fotos";
 
 /**
@@ -67,11 +69,23 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const dados = JSON.parse(String(form.get("dados") ?? "{}"));
     const sistema = await getConfig("sistema");
+    // Números como na tela ("12,50", "8,5"); texto inválido não grava.
+    const vazio = (v: unknown) => v === null || v === undefined || v === "";
+    const custo = vazio(dados.custoTotalBrl) ? 0 : lerNumeroBr(dados.custoTotalBrl);
+    if (custo == null || custo < 0) return erro(`Custo inválido: "${dados.custoTotalBrl}". Digite só o valor, ex.: 12,50.`, 400);
+    const precoVenda = vazio(dados.precoVenda) ? null : lerNumeroBr(dados.precoVenda);
+    if (!vazio(dados.precoVenda) && !(precoVenda != null && precoVenda >= 0)) return erro(`Preço inválido: "${dados.precoVenda}".`, 400);
+    const fator = vazio(dados.fator) ? null : lerNumeroBr(dados.fator, { milhar: false });
+    if (!vazio(dados.fator) && !(fator != null && fator > 0)) return erro(`Fator inválido: "${dados.fator}". Digite um número, ex.: 10 ou 8,5.`, 400);
+    const quantidade = vazio(dados.quantidade) ? 1 : lerNumeroBr(dados.quantidade);
+    if (quantidade == null || quantidade < 0 || !Number.isInteger(quantidade)) return erro(`Quantidade inválida: "${dados.quantidade}".`, 400);
+    // Fator mínimo: funcionária recebe 403; a gestora pode (alerta na peça e histórico).
+    const minFator = await checarFator(req, fator);
+    const minPreco = precoVenda ? await checarPrecoManual(req, precoVenda, custo) : { abaixo: false, minimo: minFator.minimo, fatorEfetivo: null };
     const id = novoId();
     const foto = form.get("foto");
     const imagemId =
       foto instanceof File ? await salvarImagem({ dados: Buffer.from(await foto.arrayBuffer()), origem: "upload", produtoId: id }) : null;
-    const custo = Number(dados.custoTotalBrl ?? 0);
     const db = await getDb();
     await db.insert(schema.produtos).values({
       id,
@@ -83,7 +97,7 @@ export async function POST(req: NextRequest) {
       corPedra: dados.corPedra ?? [],
       tamanho: dados.tamanho ?? null,
       codigoFornecedor: dados.codigoFornecedor ?? null,
-      quantidade: Number(dados.quantidade ?? 1),
+      quantidade,
       moeda: "BRL",
       precoOrigem: custo,
       custoProdutoBrl: custo,
@@ -91,11 +105,18 @@ export async function POST(req: NextRequest) {
       custoTotalBrl: custo,
       unidade: sistema.unidade,
       imagemId,
-      precoManual: dados.precoVenda ? Number(dados.precoVenda) : null,
+      fator,
+      precoManual: precoVenda ? precoVenda : null,
       status: "revisado",
     });
     await recalcularProduto(id);
     await gerarCodigos([id]);
+    if (minFator.abaixo || minPreco.abaixo)
+      await registrarAbaixoDoMinimo(req, {
+        entidade: "produto",
+        entidadeId: id,
+        resumo: `Cadastro avulso ${dados.nome ?? ""} com ${minPreco.abaixo ? `preço R$ ${precoVenda} (fator ×${minPreco.fatorEfetivo})` : `fator ×${fator}`} abaixo do mínimo (×${minFator.minimo})`,
+      });
     return ok({ id });
   } catch (e) {
     return erro(e);
