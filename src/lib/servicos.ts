@@ -30,7 +30,7 @@ export async function proximaSequencia(nome: string): Promise<number> {
 /** Normaliza qualquer imagem recebida para JPEG (máx. 1600px) e grava no banco. */
 export async function salvarImagem(opts: {
   dados: Buffer;
-  origem: "catalogo" | "pagina" | "arte" | "ia" | "upload" | "referencia";
+  origem: "catalogo" | "pagina" | "arte" | "ia" | "upload" | "referencia" | "defeito"; // defeito = foto de peça com defeito (conferência; não é pública)
   produtoId?: string | null;
   pedidoId?: string | null;
   manterPng?: boolean;

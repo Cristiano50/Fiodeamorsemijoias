@@ -1,0 +1,43 @@
+{
+ "descricao": "Moeda lida do cabeçalho (lerCabecalho/ler_cabecalho). Prioridade: USD (USD, US$, 美元, 美金) > BRL (R$, BRL, 雷亚尔) > CNY (¥, RMB, CNY, 人民币, 元). Sem marca: null (a tela mantém CNY e avisa para conferir).",
+ "casos": [
+  {
+   "texto": "订单号: X1  币种: USD 美元  合计 US$ 1.234,00",
+   "moeda": "USD"
+  },
+  {
+   "texto": "Pedido 123 - total US$ 450.00",
+   "moeda": "USD"
+  },
+  {
+   "texto": "合计 ¥ 8225.90",
+   "moeda": "CNY"
+  },
+  {
+   "texto": "总金额 RMB 3,200.00",
+   "moeda": "CNY"
+  },
+  {
+   "texto": "金额(人民币) 1200",
+   "moeda": "CNY"
+  },
+  {
+   "texto": "合计: 1200元",
+   "moeda": "CNY"
+  },
+  {
+   "texto": "Total do pedido R$ 1.234,56",
+   "moeda": "BRL"
+  },
+  {
+   "texto": "订单 2026-09-26 广州某某饰品",
+   "moeda": null,
+   "obs": "sem marca de moeda: não adivinhar pelo chinês"
+  },
+  {
+   "texto": "美元 300 / 汇率参考 ¥",
+   "moeda": "USD",
+   "obs": "dólar tem prioridade sobre yuan"
+  }
+ ]
+}

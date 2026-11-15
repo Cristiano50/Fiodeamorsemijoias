@@ -1,0 +1,122 @@
+{
+ "descricao": "Leitura da especificação/cor do fornecedor (lerLinha no app e ler_linha na skill devem dar o mesmo resultado). Regra: célula imediatamente antes do trio preço×quantidade=total; vazia se for a 1ª célula (sequência), o próprio código repetido, ou a descrição (texto com caractere chinês sem outra célula de texto antes dela); texto latino até 16 caracteres ou número (tamanho) vale; texto com caractere chinês vale até 12 caracteres quando há uma descrição antes.",
+ "casos": [
+  {
+   "texto": "1 | ABC123A | 耳钉-21# | ABC123A | G | 10 | 12 | 120",
+   "codigo": "ABC123A",
+   "especificacao": "G",
+   "preco": 10,
+   "quantidade": 12
+  },
+  {
+   "texto": "2 | ABC124B | 耳环-7MM珠 | ABC124B | MR白油 | 9 | 12 | 108",
+   "codigo": "ABC124B",
+   "especificacao": "MR白油",
+   "preco": 9,
+   "quantidade": 12
+  },
+  {
+   "texto": "3 | ABC125C | 耳钉 | ABC125C | 10.5 | 13 | 136.5",
+   "codigo": "ABC125C",
+   "especificacao": "",
+   "preco": 10.5,
+   "quantidade": 13,
+   "obs": "célula antes do preço é o próprio código repetido: sem especificação"
+  },
+  {
+   "texto": "4 | ABC126D | 戒指 | 金色 | 6.5 | 12 | 78",
+   "codigo": "ABC126D",
+   "especificacao": "金色",
+   "preco": 6.5,
+   "quantidade": 12
+  },
+  {
+   "texto": "5 | ABC126D | 戒指 | 玫瑰金 | 6.5 | 12 | 78",
+   "codigo": "ABC126D",
+   "especificacao": "玫瑰金",
+   "preco": 6.5,
+   "quantidade": 12
+  },
+  {
+   "texto": "6 | ABC127E | 戒指 | 16 | 6.5 | 10 | 65",
+   "codigo": "ABC127E",
+   "especificacao": "16",
+   "preco": 6.5,
+   "quantidade": 10,
+   "obs": "tamanho numérico antes do preço"
+  },
+  {
+   "texto": "7 | ABC127E | 戒指 | 18号 | 6.5 | 10 | 65",
+   "codigo": "ABC127E",
+   "especificacao": "18号",
+   "preco": 6.5,
+   "quantidade": 10
+  },
+  {
+   "texto": "8 | ABC128F | 手链-爱心 | 10 | 12 | 120",
+   "codigo": "ABC128F",
+   "especificacao": "",
+   "preco": 10,
+   "quantidade": 12,
+   "obs": "a única célula de texto antes do preço é a descrição"
+  },
+  {
+   "texto": "9 | ABC129G | G | 10 | 12 | 120",
+   "codigo": "ABC129G",
+   "especificacao": "G",
+   "preco": 10,
+   "quantidade": 12,
+   "obs": "especificação latina curta sem descrição"
+  },
+  {
+   "texto": "10 | ABC130H | 项链 | 14KF | 20.5 | 11 | 225.5",
+   "codigo": "ABC130H",
+   "especificacao": "14KF",
+   "preco": 20.5,
+   "quantidade": 11
+  },
+  {
+   "texto": "11 | ABC131J | 耳钉 | 白金 | 8 | 12 | 96",
+   "codigo": "ABC131J",
+   "especificacao": "白金",
+   "preco": 8,
+   "quantidade": 12
+  },
+  {
+   "texto": "12 | ABC132K | 两件套项链手链 | 混款 | 25 | 6 | 150",
+   "codigo": "ABC132K",
+   "especificacao": "混款",
+   "preco": 25,
+   "quantidade": 6
+  },
+  {
+   "texto": "13 | ABC133L | 耳钉 | 金色+银色混发 | 8 | 12 | 96",
+   "codigo": "ABC133L",
+   "especificacao": "金色+银色混发",
+   "preco": 8,
+   "quantidade": 12
+  },
+  {
+   "texto": "14 | ABC134M | 耳钉 | 这是一个非常长的描述文字不是规格内容 | 8 | 12 | 96",
+   "codigo": "ABC134M",
+   "especificacao": "",
+   "preco": 8,
+   "quantidade": 12,
+   "obs": "mais de 12 caracteres: não é especificação"
+  },
+  {
+   "texto": "15 | ABC135N | 耳钉 | se | 8 | 12 | 96",
+   "codigo": "ABC135N",
+   "especificacao": "se",
+   "preco": 8,
+   "quantidade": 12
+  },
+  {
+   "texto": "16 | ABC136P | 耳钉-爱心 | ABC136P | 金色 | 7 | 12 | 84",
+   "codigo": "ABC136P",
+   "especificacao": "金色",
+   "preco": 7,
+   "quantidade": 12
+  }
+ ]
+}
