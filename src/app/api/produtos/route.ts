@@ -6,7 +6,10 @@ import { getConfig } from "@/lib/config";
 import { gerarCodigos, novoId, recalcularProduto, salvarImagem } from "@/lib/servicos";
 import { fotosModeloPorProduto } from "@/lib/fotos";
 
-/** GET /api/produtos?q=&tipo=&material=&cor=&status=&pedido=&up= */
+/**
+ * GET /api/produtos?q=&tipo=&material=&cor=&status=&pedido=&up=&limite=&offset=
+ * Com `offset` a tela pagina ("carregar mais"); o cabeçalho X-Total-Count traz o total dos filtros.
+ */
 export async function GET(req: NextRequest) {
   try {
     const p = req.nextUrl.searchParams;
@@ -37,15 +40,22 @@ export async function GET(req: NextRequest) {
     const cor = p.get("cor");
     if (cor) filtros.push(sql`exists (select 1 from json_each(${schema.produtos.corPedra}) where value = ${cor})`);
     const db = await getDb();
+    const onde = filtros.length ? and(...filtros) : undefined;
+    const limite = Math.min(Math.max(Number(p.get("limite") ?? 500) || 500, 1), 5000);
+    const offset = Math.max(Number(p.get("offset") ?? 0) || 0, 0);
     const lista = await db
       .select()
       .from(schema.produtos)
-      .where(filtros.length ? and(...filtros) : undefined)
-      .orderBy(desc(schema.produtos.criadoEm), schema.produtos.linha)
-      .limit(Number(p.get("limite") ?? 500));
+      .where(onde)
+      .orderBy(desc(schema.produtos.criadoEm), schema.produtos.linha, schema.produtos.id)
+      .limit(limite)
+      .offset(offset);
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(schema.produtos).where(onde);
     // Foto criada pela IA (mais recente aprovada) de cada produto — mostrada à frente no catálogo.
     const fotos = await fotosModeloPorProduto(lista.map((x) => x.id));
-    return ok(lista.map((x) => ({ ...x, fotoIa: fotos[x.id] ?? null })));
+    const res = ok(lista.map((x) => ({ ...x, fotoIa: fotos[x.id] ?? null })));
+    res.headers.set("X-Total-Count", String(total));
+    return res;
   } catch (e) {
     return erro(e);
   }

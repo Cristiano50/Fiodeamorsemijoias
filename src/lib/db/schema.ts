@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, blob, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, blob, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 const agora = sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
@@ -26,6 +26,15 @@ export const pedidos = sqliteTable("pedidos", {
   arquivoNome: text("arquivo_nome"),
   // Id do cadastro feito na skill do Claude (o app não importa o mesmo cadastro duas vezes).
   cadastroId: text("cadastro_id").unique(),
+  // Chegada e conferência da mercadoria (giro, "parado" e "novidade" contam da chegada).
+  dataChegada: text("data_chegada"), // AAAA-MM-DD
+  recebimento: text("recebimento"), // em_transito | recebido | conferido (vazio = não informado)
+  conferidoEm: text("conferido_em"),
+  conferidoPor: text("conferido_por"),
+  // Pagamento ao fornecedor e custo verdadeiro.
+  pagoEm: text("pago_em"), // AAAA-MM-DD
+  valorPagoBrl: real("valor_pago_brl"), // R$ efetivamente pagos pela mercadoria (cartão/agente)
+  cotacaoPtax: real("cotacao_ptax"), // PTAX guardada quando a cotação efetiva substitui a PTAX
   criadoEm: text("criado_em").notNull().default(agora),
 });
 
@@ -63,12 +72,21 @@ export const produtos = sqliteTable(
     corPedra: text("cor_pedra", { mode: "json" }).$type<string[]>(),
     tamanho: text("tamanho"),
     variacao: text("variacao"),
+    // Especificação/cor do fornecedor como veio no documento (G, MR, 金色, 玫瑰金, 16…); chave da recompra.
+    especificacao: text("especificacao"),
+    // Recompra a confirmar: originais possíveis quando a peça casa com mais de um (cor/tamanho ambíguo).
+    recompraCandidatas: text("recompra_candidatas", { mode: "json" }).$type<string[]>(),
     grupo: text("grupo"), // variações do mesmo modelo (mesmo grupo = mesma referência, um EAN por variação)
     recompraDe: text("recompra_de"), // produto original quando a linha é recompra (mesma referência e EAN)
     ehConjunto: integer("eh_conjunto", { mode: "boolean" }).notNull().default(false),
     componentes: text("componentes", { mode: "json" }).$type<string[]>(),
     estilo: text("estilo"),
-    quantidade: integer("quantidade").notNull().default(1),
+    quantidade: integer("quantidade").notNull().default(1), // quantidade pedida
+    // Conferência de recebimento (vazio = ainda não conferido: vale a quantidade pedida).
+    quantidadeRecebida: integer("quantidade_recebida"),
+    quantidadeDefeito: integer("quantidade_defeito").notNull().default(0),
+    defeitoImagemId: text("defeito_imagem_id"),
+    defeitoObs: text("defeito_obs"),
     precoOrigem: real("preco_origem"), // preço unitário na moeda do pedido
     moeda: text("moeda").notNull().default("CNY"),
     custoProdutoBrl: real("custo_produto_brl"), // preço × cotação
@@ -160,6 +178,8 @@ export const usuarios = sqliteTable(
     senhaHash: text("senha_hash").notNull(),
     papel: text("papel").notNull().default("funcionario"), // gestora | funcionario
     ativo: integer("ativo", { mode: "boolean" }).notNull().default(true),
+    // Sobe ao desativar, trocar senha/papel ou sair: derruba as sessões antigas.
+    versaoSessao: integer("versao_sessao").notNull().default(1),
     criadoEm: text("criado_em").notNull().default(agora),
   },
   (t) => [uniqueIndex("usuarios_login_uq").on(t.login)],
@@ -241,6 +261,86 @@ export const fornecedores = sqliteTable("fornecedores", {
   chave: text("chave").primaryKey(),
   nomeOriginal: text("nome_original").notNull(),
   apelido: text("apelido"),
+  loteMinimo: integer("lote_minimo"), // múltiplo que o fornecedor aceita na recompra (vazio = padrão)
+  atualizadoEm: text("atualizado_em").notNull().default(agora),
+});
+
+/** Cotações já buscadas (PTAX etc.), para não ir ao Banco Central a cada tela. */
+export const cotacoes = sqliteTable(
+  "cotacoes",
+  {
+    moeda: text("moeda").notNull(),
+    data: text("data").notNull(), // data pedida (AAAA-MM-DD)
+    tipo: text("tipo").notNull(), // venda | compra
+    cotacao: real("cotacao").notNull(),
+    dataEfetiva: text("data_efetiva"), // dia útil de onde veio a cotação
+    fonte: text("fonte"),
+    criadoEm: text("criado_em").notNull().default(agora),
+  },
+  (t) => [primaryKey({ columns: [t.moeda, t.data, t.tipo] })],
+);
+
+/** Créditos com o fornecedor (falta, defeito, troca) para abater no próximo pedido. */
+export const creditosFornecedor = sqliteTable(
+  "creditos_fornecedor",
+  {
+    id: text("id").primaryKey(),
+    fornecedorChave: text("fornecedor_chave").notNull(), // chaveFornecedor(nome original)
+    fornecedor: text("fornecedor"), // nome original
+    pedidoId: text("pedido_id"), // pedido onde surgiu
+    produtoId: text("produto_id"),
+    descricao: text("descricao").notNull(),
+    quantidade: integer("quantidade").notNull().default(0),
+    valorMoeda: real("valor_moeda").notNull().default(0), // na moeda do pedido
+    moeda: text("moeda").notNull().default("CNY"),
+    status: text("status").notNull().default("aberto"), // aberto | abatido | cancelado
+    abatidoPedidoId: text("abatido_pedido_id"),
+    criadoEm: text("criado_em").notNull().default(agora),
+    atualizadoEm: text("atualizado_em").notNull().default(agora),
+  },
+  (t) => [index("creditos_fornecedor_idx").on(t.fornecedorChave), index("creditos_pedido_idx").on(t.pedidoId)],
+);
+
+/** Saldo de estoque informado pelo UP Vendas (lido da lista de produtos exportada), por código de barras. */
+export const saldosUp = sqliteTable("saldos_up", {
+  codigoBarras: text("codigo_barras").primaryKey(),
+  saldo: integer("saldo").notNull(),
+  arquivo: text("arquivo"),
+  atualizadoEm: text("atualizado_em").notNull().default(agora),
+});
+
+/** Planilhas de consignado (maletas) importadas do UP. */
+export const lotesConsignado = sqliteTable("lotes_consignado", {
+  id: text("id").primaryKey(),
+  arquivoNome: text("arquivo_nome"),
+  linhas: integer("linhas").notNull().default(0),
+  criadoEm: text("criado_em").notNull().default(agora),
+});
+
+/** Peças em maletas: com a revendedora, devolvidas, vendidas, avariadas ou perdidas. */
+export const consignado = sqliteTable(
+  "consignado",
+  {
+    id: text("id").primaryKey(),
+    loteId: text("lote_id").notNull(),
+    data: text("data"), // AAAA-MM-DD
+    revendedora: text("revendedora"),
+    codigoBarras: text("codigo_barras"),
+    referencia: text("referencia"),
+    produtoId: text("produto_id"),
+    descricao: text("descricao"),
+    quantidade: integer("quantidade").notNull().default(1),
+    situacao: text("situacao").notNull().default("com_revendedora"), // com_revendedora | devolvida | vendida | avariada | perdida
+    criadoEm: text("criado_em").notNull().default(agora),
+  },
+  (t) => [index("consignado_lote_idx").on(t.loteId), index("consignado_revendedora_idx").on(t.revendedora), index("consignado_produto_idx").on(t.produtoId)],
+);
+
+/** Tentativas de login com falha (limite por IP e por login). */
+export const tentativasLogin = sqliteTable("tentativas_login", {
+  chave: text("chave").primaryKey(), // "ip:1.2.3.4" ou "login:ana"
+  falhas: integer("falhas").notNull().default(0),
+  bloqueadoAte: text("bloqueado_ate"),
   atualizadoEm: text("atualizado_em").notNull().default(agora),
 });
 

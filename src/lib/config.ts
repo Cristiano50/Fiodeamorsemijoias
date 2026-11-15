@@ -89,6 +89,17 @@ export interface Sistema {
   diasEstoqueParado: number;
   maletaValorAlvo: number; // R$ em etiqueta por maleta
   maletaPecasAlvo: number;
+  // Revisão de 15/11/2026 (itens aprovados 1–33)
+  validadeSessaoDias: number; // validade do login (sessões também caem ao desativar/trocar senha/sair)
+  backupPastaExterna: string; // pasta extra onde o backup diário é copiado (pen drive, Google Drive, OneDrive); vazio = não copia
+  maletasAtivas: number; // teto da recompra = maletas ativas + reserva da vitrine
+  reservaVitrine: number;
+  loteMinimoPadrao: number; // múltiplo de peças que o fornecedor aceita (1 = sem arredondar)
+  orcamentoMensalRecompra: number; // R$ por mês para a recompra (0 = sem orçamento)
+  perdasPctPadrao: number; // % de perdas e defeitos sugerido em pedido novo (componente perdas_defeitos)
+  embalagemPorPecaPadrao: number; // R$ por peça de embalagem e etiqueta sugerido em pedido novo (componente embalagem_etiqueta)
+  diasForaDaCurva: number; // peças com menos dias desde a chegada ficam fora da curva ABC ("novas")
+  faixasPrecoVenda: number[]; // limites das faixas de preço de venda (R$) na análise de vendas
   geminiModelo: string;
   openaiModelo: string;
 }
@@ -125,6 +136,16 @@ export const SISTEMA_PADRAO: Sistema = {
   diasEstoqueParado: 120,
   maletaValorAlvo: 4000,
   maletaPecasAlvo: 85,
+  validadeSessaoDias: 14,
+  backupPastaExterna: "",
+  maletasAtivas: 10,
+  reservaVitrine: 3,
+  loteMinimoPadrao: 1,
+  orcamentoMensalRecompra: 0,
+  perdasPctPadrao: 0,
+  embalagemPorPecaPadrao: 0,
+  diasForaDaCurva: 60,
+  faixasPrecoVenda: [60, 120, 250],
   geminiModelo: "gemini-3-pro-image", // Nano Banana Pro: o mais realista para foto comercial (alternativa mais barata: gemini-3.1-flash-image)
   openaiModelo: "gpt-image-2", // gpt-image-1 foi desativado pela OpenAI em 23/10/2026
 };

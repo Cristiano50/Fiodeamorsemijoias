@@ -43,6 +43,13 @@
       "when": 1794663731370,
       "tag": "0005_cadastro_da_skill",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794742411110,
+      "tag": "0006_revisao_seguranca_operacao",
+      "breakpoints": true
     }
   ]
 }

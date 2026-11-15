@@ -261,3 +261,34 @@ async function rodarDiario(hoje: string) {
     st.rodando = false;
   }
 }
+
+/* ------------------------------------------------------ estado (painel) */
+
+/** Registro da última cópia para a pasta externa (gravado em backups/.copia-externa.json). */
+export interface CopiaExterna {
+  em: string | null; // ISO da última cópia bem-sucedida
+  pasta: string | null;
+  arquivo: string | null;
+  erro: string | null; // última falha (vazio quando a última tentativa deu certo)
+  tentativaEm: string | null;
+}
+
+export const ARQUIVO_COPIA_EXTERNA = ".copia-externa.json";
+
+export async function lerCopiaExterna(): Promise<CopiaExterna> {
+  const vazio: CopiaExterna = { em: null, pasta: null, arquivo: null, erro: null, tentativaEm: null };
+  if (!bancoLocal()) return vazio;
+  try {
+    return { ...vazio, ...JSON.parse(await fs.readFile(path.join(pastaBackups(), ARQUIVO_COPIA_EXTERNA), "utf8")) };
+  } catch {
+    return vazio;
+  }
+}
+
+/** Resumo para o Painel: último backup e última cópia fora do computador. */
+export async function estadoBackup(): Promise<{ local: boolean; ultimoBackup: InfoBackup | null; copiaExterna: CopiaExterna }> {
+  const local = !!bancoLocal();
+  if (!local) return { local, ultimoBackup: null, copiaExterna: await lerCopiaExterna() };
+  const [ultimoBackup] = await listarBackups();
+  return { local, ultimoBackup: ultimoBackup ?? null, copiaExterna: await lerCopiaExterna() };
+}
