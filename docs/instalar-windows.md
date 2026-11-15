@@ -44,6 +44,11 @@ No computador-servidor, abra o app e vá ao menu **Celular e outros PCs**. A tel
 Se o roteador trocar o endereço do servidor, a tela **Celular e outros PCs** mostra o novo. Para o endereço ficar fixo,
 peça a quem cuida da internet para **reservar o IP** do computador-servidor no roteador.
 
+**De fora da loja (outra internet):** em casa, em outra loja ou no 4G. Há dois jeitos, ambos sem abrir portas no
+roteador: um **endereço próprio na internet** (Cloudflare Tunnel, instalado só no computador-servidor) ou uma **rede
+particular** (Tailscale, instalado em cada aparelho). O passo a passo está em [acesso-de-fora.md](acesso-de-fora.md).
+De fora da loja, o app só abre com usuário e senha.
+
 ## 3. Dados, backups e atualização
 
 | Pasta | O que tem |

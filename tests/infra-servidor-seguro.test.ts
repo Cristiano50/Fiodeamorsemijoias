@@ -13,8 +13,9 @@ import path from "node:path";
 const INVOLUCRO = path.resolve(__dirname, "..", "instalador", "servidor-seguro.cjs");
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { limparCabecalhos, proteger, CABECALHOS_DE_PROXY } = require(INVOLUCRO) as {
+const { limparCabecalhos, proteger, CABECALHOS_DE_PROXY, acessoPeloTunel } = require(INVOLUCRO) as {
   limparCabecalhos: (req: unknown) => unknown;
+  acessoPeloTunel: (req: unknown) => { ip: string; proto: string } | null;
   proteger: (classe: { prototype: { emit: (...a: unknown[]) => unknown } }) => void;
   CABECALHOS_DE_PROXY: string[];
 };
@@ -80,16 +81,16 @@ test("invólucro: apaga X-Forwarded-For/X-Real-IP/Forwarded falsos e grava o IP 
       Forwarded: "for=8.8.8.8",
       "X-Forwarded-Host": "site-falso.com",
       "X-Client-IP": "9.9.9.9",
-      "Cf-Connecting-Ip": "5.5.5.5",
+      "X-Forwarded-Proto": "https",
     });
     assert.equal(r.headers["x-forwarded-for"], "127.0.0.1");
-    for (const nome of ["x-real-ip", "forwarded", "x-forwarded-host", "x-client-ip", "cf-connecting-ip", "x-fda-ignorado"]) {
+    for (const nome of ["x-real-ip", "forwarded", "x-forwarded-host", "x-client-ip", "x-forwarded-proto", "x-fda-ignorado"]) {
       assert.equal(r.headers[nome], undefined, `${nome} devia ter sido apagado`);
     }
     assert.equal(r.confiavel, "1");
     // rawHeaders também sem os valores falsos (só o IP real aparece).
     const valores = r.raw.filter((_, i) => i % 2 === 1);
-    for (const falso of ["6.6.6.6", "7.7.7.7", "for=8.8.8.8", "site-falso.com", "9.9.9.9", "5.5.5.5"]) assert.ok(!valores.includes(falso), `${falso} ficou em rawHeaders`);
+    for (const falso of ["6.6.6.6", "7.7.7.7", "for=8.8.8.8", "site-falso.com", "9.9.9.9", "https"]) assert.ok(!valores.includes(falso), `${falso} ficou em rawHeaders`);
     assert.equal(r.raw.filter((v, i) => i % 2 === 0 && v.toLowerCase() === "x-forwarded-for").length, 1);
 
     const semNada = await pedir(s.porta, { Accept: "application/json" });
@@ -132,4 +133,46 @@ test("invólucro: proteger() não embrulha duas vezes e repassa os outros evento
   new Falso().emit("listening");
   assert.equal(vistos.length, 2);
   assert.deepEqual(vistos[1], ["listening"]);
+});
+
+test("invólucro: acesso pela internet (cloudflared neste computador) usa o IP de CF-Connecting-IP e https", async () => {
+  const s = await subir();
+  try {
+    // O cloudflared fala com o app por 127.0.0.1 e manda o IP de quem acessou.
+    const r = await pedir(s.porta, {
+      Host: "app.loja.com.br",
+      "Cf-Connecting-Ip": "200.1.2.3",
+      "X-Forwarded-For": "200.1.2.3",
+      "X-Forwarded-Proto": "https",
+      "Cf-Visitor": '{"scheme":"https"}',
+      "X-Real-IP": "7.7.7.7",
+    });
+    assert.equal(r.headers["x-forwarded-for"], "200.1.2.3");
+    assert.equal(r.headers["x-forwarded-proto"], "https");
+    assert.equal(r.headers.host, "app.loja.com.br");
+    for (const nome of ["cf-connecting-ip", "x-real-ip", "x-fda-ignorado"]) assert.equal(r.headers[nome], undefined, `${nome} devia ter sido apagado`);
+  } finally {
+    s.parar();
+  }
+});
+
+test("invólucro: CF-Connecting-IP só vale vindo deste computador e com IP válido", () => {
+  // Aparelho da rede da loja tentando se passar por acesso do túnel: ignorado.
+  const daRede = {
+    socket: { remoteAddress: "192.168.0.20" },
+    rawHeaders: ["Cf-Connecting-Ip", "127.0.0.1", "X-Forwarded-Proto", "https"],
+    headers: { "cf-connecting-ip": "127.0.0.1", "x-forwarded-proto": "https" } as Record<string, string>,
+  };
+  assert.equal(acessoPeloTunel(daRede), null);
+  limparCabecalhos(daRede);
+  assert.deepEqual(daRede.headers, { "x-forwarded-for": "192.168.0.20" });
+  // Deste computador, mas sem IP válido: vale o 127.0.0.1 e nada de https.
+  const invalido = { socket: { remoteAddress: "127.0.0.1" }, rawHeaders: ["Cf-Connecting-Ip", "x; drop"], headers: { "cf-connecting-ip": "x; drop" } as Record<string, string> };
+  limparCabecalhos(invalido);
+  assert.deepEqual(invalido.headers, { "x-forwarded-for": "127.0.0.1" });
+  // IPv6 do aparelho e o protocolo só pelo CF-Visitor.
+  const v6 = { socket: { remoteAddress: "::ffff:127.0.0.1" }, rawHeaders: ["CF-Connecting-IP", "2804:14c::1", "CF-Visitor", '{"scheme":"https"}'], headers: {} as Record<string, string> };
+  assert.deepEqual(acessoPeloTunel(v6), { ip: "2804:14c::1", proto: "https" });
+  // http (sem https em lugar nenhum) fica http.
+  assert.deepEqual(acessoPeloTunel({ socket: { remoteAddress: "127.0.0.1" }, rawHeaders: ["Cf-Connecting-Ip", "200.1.2.3"] }), { ip: "200.1.2.3", proto: "http" });
 });

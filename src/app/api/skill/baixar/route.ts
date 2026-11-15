@@ -7,7 +7,7 @@ import { exigirPapel } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
 import { registrar } from "@/lib/historico";
 import { garantirChaveSkill } from "@/lib/cadastro-skill";
-import { urlBaseDe } from "@/lib/feed-meta";
+import { urlDoApp } from "@/lib/url";
 
 export const maxDuration = 60;
 
@@ -68,12 +68,7 @@ export async function GET(req: NextRequest) {
       }),
     );
     if (conectada) {
-      const url = urlBaseDe({
-        publica: process.env.NEXT_PUBLIC_URL_PUBLICA,
-        host: req.headers.get("x-forwarded-host") ?? req.headers.get("host"),
-        proto: req.headers.get("x-forwarded-proto"),
-        origem: req.nextUrl.origin,
-      });
+      const url = await urlDoApp(req);
       raiz.file("conexao.json", json({ url, chave: await garantirChaveSkill(), geradoEm: new Date().toISOString() }));
       await registrar(req, { acao: "skill.baixar", entidade: "config", resumo: "Skill do Claude baixada já conectada ao app (com a chave)" });
     }

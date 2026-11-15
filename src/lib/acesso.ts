@@ -47,6 +47,7 @@ export const SO_GESTORA: { caminho: RegExp; metodos: string[] }[] = [
   { caminho: /^\/api\/upvendas\/testar/, metodos: ["POST"] },
   { caminho: /^\/api\/vendas\/lotes\/[^/]+$/, metodos: ["DELETE"] },
   { caminho: /^\/api\/consignado\/lotes\/[^/]+$/, metodos: ["DELETE"] },
+  { caminho: /^\/api\/rede$/, metodos: ["POST"] },
 ];
 
 const LEITURA = new Set(["GET", "HEAD", "OPTIONS"]);

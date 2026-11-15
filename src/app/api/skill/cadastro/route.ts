@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return erro("O corpo não é um JSON válido.", 400);
     }
     const r = await importarCadastro(pacote, req, quem);
-    return ok({ ...r, url: `${urlDoApp(req)}/pedidos/${r.pedidoId}` });
+    return ok({ ...r, url: `${await urlDoApp(req)}/pedidos/${r.pedidoId}` });
   } catch (e) {
     return erro(e, 400);
   }

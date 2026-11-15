@@ -13,8 +13,8 @@ No fim, há uma alternativa sem nuvem: deixar o app no computador da loja e abri
 
 | | Nuvem (Turso + Vercel) | Computador da loja (rede local) |
 | --- | --- | --- |
-| Acesso pelo celular | De qualquer lugar | Só no Wi-Fi da loja |
-| Catálogo no WhatsApp e no Instagram (feed agendado) | Funciona | Não funciona: a Meta não alcança o computador da loja |
+| Acesso pelo celular | De qualquer lugar | No Wi-Fi da loja; de fora, com o túnel do Cloudflare ou a Tailscale ([acesso-de-fora.md](acesso-de-fora.md)) |
+| Catálogo no WhatsApp e no Instagram (feed agendado) | Funciona | Só com o endereço na internet do Cloudflare Tunnel ([acesso-de-fora.md](acesso-de-fora.md)) |
 | Computador ligado | Não precisa | Precisa ficar ligado com o app aberto |
 | Custo | Mensalidades pequenas (veja "Custos") | Só a energia |
 | Backup | Histórico do Turso | Automático, 1 por dia, em `dados/backups` |
@@ -224,6 +224,6 @@ Assim, não há mensalidade de hospedagem. Em troca, o app só abre dentro da lo
 
 Limitações deste caminho:
 
-- O **feed agendado** do catálogo da Meta não funciona, porque a Meta precisa abrir o link pela internet. Use **Baixar CSV agora** (Configurações → aba **WhatsApp, catálogo Meta e backup**) e envie o arquivo à mão no Commerce Manager. Mesmo assim, as fotos do arquivo apontam para o computador da loja e a Meta não consegue baixá-las. Para o catálogo ficar completo, publique o app na nuvem.
+- O **feed agendado** do catálogo da Meta não funciona sem um endereço na internet, porque a Meta precisa abrir o link pela internet. Com o **Cloudflare Tunnel** ([acesso-de-fora.md](acesso-de-fora.md)), o computador da loja ganha esse endereço e o feed funciona. Use **Baixar CSV agora** (Configurações → aba **WhatsApp, catálogo Meta e backup**) e envie o arquivo à mão no Commerce Manager. Mesmo assim, as fotos do arquivo apontam para o computador da loja e a Meta não consegue baixá-las. Para o catálogo ficar completo, publique o app na nuvem.
 - Fora da loja, o app não abre. Uma saída é uma VPN simples, como o **Tailscale** (gratuito para uso pessoal; confirme), instalada no computador e no celular. Ela não resolve o catálogo da Meta.
 - Os backups automáticos continuam sendo feitos todo dia em `dados/backups` e copiados para a pasta de fora, se você indicou uma.

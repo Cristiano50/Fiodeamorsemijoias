@@ -296,3 +296,11 @@ test("Feed Meta: endereço base absoluto e detecção de endereço só da loja",
   assert.ok(enderecoPrivado("http://loja-pc:3000"));
   assert.ok(!enderecoPrivado("https://fiodeamor.vercel.app"));
 });
+
+test("endereço privado: rede da Tailscale (100.64/10 e *.ts.net) não serve para a Meta", async () => {
+  const { enderecoPrivado } = await import("../src/lib/feed-meta");
+  assert.equal(enderecoPrivado("http://100.101.102.103:3000"), true);
+  assert.equal(enderecoPrivado("https://servidor.tail1234.ts.net"), true);
+  assert.equal(enderecoPrivado("https://app.loja.com.br"), false);
+  assert.equal(enderecoPrivado("http://100.200.1.1"), false);
+});

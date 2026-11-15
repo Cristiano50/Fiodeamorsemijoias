@@ -201,8 +201,11 @@ export function enderecoPrivado(url: string): boolean {
   const ip = host.split(".").map(Number);
   if (ip.length === 4 && ip.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
     const [a, b] = ip;
-    return a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254);
+    // 100.64.0.0/10: rede particular da Tailscale (e CGNAT da operadora) — a Meta não alcança.
+    return a === 10 || a === 127 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
   }
+  // Nome da máquina na rede particular da Tailscale (servidor.tail1234.ts.net): também só para quem está nela.
+  if (host.endsWith(".ts.net")) return true;
   return !host.includes(".");
 }
 

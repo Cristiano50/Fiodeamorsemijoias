@@ -39,13 +39,13 @@ export async function GET(req: NextRequest) {
     let colunasMoeda: string[];
     let aba: string;
     if (tipo === "recompras") {
-      const ctx = await contextoUp(urlDoApp(req));
+      const ctx = await contextoUp(await urlDoApp(req));
       linhas = linhasRecompraUp(recompras, ctx).linhas as unknown as Record<string, unknown>[];
       cabecalhos = COLUNAS_RECOMPRAS;
       colunasMoeda = ["custoUnitario"];
       aba = "Recompras (entrada de estoque)";
     } else {
-      const ctx = await contextoUp(urlDoApp(req), novos.map((x) => x.id));
+      const ctx = await contextoUp(await urlDoApp(req), novos.map((x) => x.id));
       linhas = novos.map((x) => linhaUp(x, ctx)) as unknown as Record<string, unknown>[];
       cabecalhos = COLUNAS_NOVOS;
       colunasMoeda = ["custoCompraBruto", "custoInsumo", "custoTotal", "valorTabela", "valorTabela2"];

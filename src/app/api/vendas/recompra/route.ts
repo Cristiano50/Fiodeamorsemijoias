@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     const analise = await analiseVendas({ inicio: p.get("inicio"), fim: p.get("fim") });
     const itens = itensRecompra(analise);
     const nome = `fiodeamor-recompra-${hojeLocal()}`;
-    const origem = urlDoApp(req);
+    const origem = await urlDoApp(req);
     if (formato === "csv") {
       return new NextResponse(csvRecompra(itens, origem), {
         headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${nome}.csv"` },

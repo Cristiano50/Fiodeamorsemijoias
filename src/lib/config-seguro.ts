@@ -19,8 +19,32 @@ export function prepararSistema(salvo: unknown, valor: unknown, atual: { feedCha
   novo.feedChave = trocarFeedChave === true ? "" : (atual.feedChave ?? "");
   novo.skillChave = atual.skillChave ?? "";
   if ("validadeSessaoDias" in resto) novo.validadeSessaoDias = validadeDias(resto.validadeSessaoDias);
+  if ("urlPublica" in resto) novo.urlPublica = lerUrlPublica(resto.urlPublica) ?? "";
   return novo;
 }
+
+/**
+ * Endereço do app na internet (acesso de fora da loja): só protocolo + endereço (+ porta), sem caminho,
+ * usuário/senha nem barra no fim. "" (desligar) vale. Inválido → null.
+ *   "app.loja.com.br" → "https://app.loja.com.br"   "https://app.loja.com.br/" → "https://app.loja.com.br"
+ */
+export function lerUrlPublica(valor: unknown): string | null {
+  let t = typeof valor === "string" ? valor.trim() : "";
+  if (!t) return "";
+  if (!/^[a-z]+:\/\//i.test(t)) t = `https://${t}`;
+  try {
+    const u = new URL(t);
+    if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname || u.username || u.password) return null;
+    if ((u.pathname !== "/" && u.pathname !== "") || u.search || u.hash) return null;
+    if (!/^[a-z0-9.-]+$/i.test(u.hostname) && !/^\[[0-9a-f:.]+\]$/i.test(u.hostname)) return null;
+    return u.origin;
+  } catch {
+    return null;
+  }
+}
+
+export const ERRO_URL_PUBLICA =
+  "O endereço na internet precisa ser só o endereço do app, ex.: https://app.minhaloja.com.br (sem /pedidos ou outra coisa depois).";
 
 /** Origem (protocolo + endereço + porta) de uma URL http(s); senão null. */
 export function origemDe(url: unknown): string | null {

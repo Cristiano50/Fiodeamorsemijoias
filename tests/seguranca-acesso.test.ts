@@ -49,6 +49,7 @@ test("só a gestora: listas antigas e as áreas novas (fornecedores, créditos, 
     ["/api/config", "PUT"],
     ["/api/skill/info", "GET"],
     ["/api/consignado/lotes/l1", "DELETE"],
+    ["/api/rede", "POST"],
   ];
   for (const [c, m] of sim) assert.equal(exigeGestora(c, m), true, `${m} ${c}`);
   const nao: [string, string][] = [
@@ -63,6 +64,7 @@ test("só a gestora: listas antigas e as áreas novas (fornecedores, créditos, 
     ["/api/consignado/lotes/l1", "GET"],
     ["/api/consignado/importar", "POST"],
     ["/api/pedidos/p1/recebimento", "PATCH"],
+    ["/api/rede", "GET"],
   ];
   for (const [c, m] of nao) assert.equal(exigeGestora(c, m), false, `${m} ${c}`);
 });

@@ -5,7 +5,7 @@ import { erro, ok } from "@/lib/api";
 import { exigirPapel, usuarioDaRequisicao } from "@/lib/auth";
 import { registrar } from "@/lib/historico";
 import { getCenarios, getComponentesCusto, getConfig, getPadrao, restaurarPadrao, salvarConfig } from "@/lib/config";
-import { origemDe, prepararSistema, prepararUpvendas } from "@/lib/config-seguro";
+import { ERRO_URL_PUBLICA, lerUrlPublica, origemDe, prepararSistema, prepararUpvendas } from "@/lib/config-seguro";
 
 const PUBLICAS = ["precificacao", "taxonomia", "fiscal", "marca", "sistema", "upvendas"] as const;
 type Publica = (typeof PUBLICAS)[number];
@@ -80,6 +80,7 @@ export async function PUT(req: NextRequest) {
     let aviso: string | undefined;
     let resumo = `Configuração "${k}" alterada`;
     if (k === "sistema") {
+      if ("urlPublica" in valor && lerUrlPublica(valor.urlPublica) === null) return erro(ERRO_URL_PUBLICA, 400);
       salvar = prepararSistema(await salvoNoBanco(k), valor, await getConfig("sistema"));
       if (valor.trocarFeedChave === true) resumo += " (chave nova do feed da Meta)";
     } else if (k === "upvendas") {

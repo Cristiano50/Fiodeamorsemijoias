@@ -3,22 +3,14 @@ import { erro, ok } from "@/lib/api";
 import { exigirPapel } from "@/lib/auth";
 import { registrar } from "@/lib/historico";
 import { garantirChaveSkill } from "@/lib/cadastro-skill";
-import { enderecoPrivado, urlBaseDe } from "@/lib/feed-meta";
-
-function urlDoApp(req: NextRequest) {
-  return urlBaseDe({
-    publica: process.env.NEXT_PUBLIC_URL_PUBLICA,
-    host: req.headers.get("x-forwarded-host") ?? req.headers.get("host"),
-    proto: req.headers.get("x-forwarded-proto"),
-    origem: req.nextUrl.origin,
-  });
-}
+import { enderecoPrivado } from "@/lib/feed-meta";
+import { urlDoApp } from "@/lib/url";
 
 /** GET /api/skill/info (gestora) — endereço do app e chave da skill (cria a chave se ainda não houver). */
 export async function GET(req: NextRequest) {
   try {
     await exigirPapel(req, "gestora");
-    const url = urlDoApp(req);
+    const url = await urlDoApp(req);
     return ok({ url, chave: await garantirChaveSkill(), enderecoPrivado: enderecoPrivado(url), dominio: new URL(url).hostname });
   } catch (e) {
     return erro(e);

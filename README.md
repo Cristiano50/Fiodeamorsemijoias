@@ -58,6 +58,8 @@ O cadastro também pode ser feito **direto no Claude**, com a skill `fiodeamor-c
 
 Para a loja, use o **instalador** `FioDeAmor-Instalador-<versão>.exe`, que não precisa de programação nem de outros programas. Ele instala o app em **um computador Windows**, o **servidor**, que inicia o app sozinho junto com o Windows. Os outros computadores e os celulares **Android e iPhone** do mesmo Wi-Fi abrem o app pelo navegador, pelo menu **Celular e outros PCs**, que mostra o endereço e um QR code, e podem criar um atalho na tela inicial. O passo a passo está em [docs/instalar-windows.md](docs/instalar-windows.md).
 
+**De fora da loja (outra internet):** o mesmo app abre em casa, em outra loja ou no 4G, por um endereço próprio na internet (Cloudflare Tunnel, sem instalar nada nos outros aparelhos) ou por uma rede particular (Tailscale). Os dados continuam no computador da loja. Veja [docs/acesso-de-fora.md](docs/acesso-de-fora.md).
+
 ## Como rodar a partir do código (desenvolvimento)
 
 Requisitos: [Node.js 20 ou mais novo](https://nodejs.org).

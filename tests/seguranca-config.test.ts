@@ -69,3 +69,13 @@ test("upvendas: caminho que leva a senha para outro site é recusado", () => {
   const r2 = prepararUpvendas({}, { baseUrl: "ftp://x" }, { baseUrl: UP });
   assert.ok("erro" in r2);
 });
+
+test("sistema: endereço na internet (acesso de fora da loja) saneado ao salvar", async () => {
+  const { lerUrlPublica } = await import("../src/lib/config-seguro");
+  assert.equal(lerUrlPublica("app.loja.com.br"), "https://app.loja.com.br");
+  assert.equal(lerUrlPublica(" https://app.loja.com.br/ "), "https://app.loja.com.br");
+  assert.equal(lerUrlPublica("http://192.168.0.10:3000"), "http://192.168.0.10:3000");
+  assert.equal(lerUrlPublica(""), "");
+  for (const ruim of ["https://app.loja.com.br/pedidos", "ftp://x.com", "https://u:s@app.loja.com.br", "javascript:alert(1)", "https://app loja.com", "https://x.com/?a=1"]) assert.equal(lerUrlPublica(ruim), null, ruim);
+  assert.equal(prepararSistema({}, { urlPublica: "app.loja.com.br/" }, {}).urlPublica, "https://app.loja.com.br");
+});

@@ -7,7 +7,8 @@ import { exigirPapel, modoAcesso } from "@/lib/auth";
 import { getConfig, salvarConfig, type Sistema } from "@/lib/config";
 import { fotosModeloPorProduto } from "@/lib/fotos";
 import { registrar } from "@/lib/historico";
-import { enderecoPrivado, montarFeedMeta, urlBaseDe, whatsappValido, type EstoqueFeed, type FormatoFeed } from "@/lib/feed-meta";
+import { enderecoPrivado, montarFeedMeta, whatsappValido, type EstoqueFeed, type FormatoFeed } from "@/lib/feed-meta";
+import { urlDoApp, urlPublicaConfigurada } from "@/lib/url";
 import { analisarVendas, chegadaDe, estoqueDoCatalogo } from "@/lib/vendas-calculo";
 import { contextoAnalise } from "@/lib/vendas";
 
@@ -26,14 +27,8 @@ async function garantirChave(req: NextRequest | null, sistema: Sistema): Promise
   return feedChave;
 }
 
-function urlBase(req: NextRequest) {
-  return urlBaseDe({
-    publica: process.env.NEXT_PUBLIC_URL_PUBLICA,
-    host: req.headers.get("x-forwarded-host") ?? req.headers.get("host"),
-    proto: req.headers.get("x-forwarded-proto"),
-    origem: req.nextUrl.origin,
-  });
-}
+/** Endereço do app nos links do feed: o da internet, se houver (Meta precisa alcançar as fotos). */
+const urlBase = (req: NextRequest) => urlDoApp(req);
 
 /** Foto enviada pela loja (origem "upload") de cada produto: a principal, se for dela; senão a mais recente. */
 async function fotosDaLoja(produtos: { id: string; imagemId: string | null }[]) {
@@ -108,7 +103,7 @@ async function gerar(req: NextRequest, sistema: Sistema, opts: { formato: Format
   ]);
   return montarFeedMeta(
     produtos,
-    { urlBase: urlBase(req), marca: marca.nome, whatsapp: sistema.whatsappNumero, linkModelo: sistema.linkProdutoModelo, taxonomia, fotos, fotosLoja, estoque },
+    { urlBase: await urlBase(req), marca: marca.nome, whatsapp: sistema.whatsappNumero, linkModelo: sistema.linkProdutoModelo, taxonomia, fotos, fotosLoja, estoque },
     opts,
   );
 }
@@ -131,7 +126,7 @@ export async function GET(req: NextRequest) {
       await exigirPapel(req, "gestora");
       const modo = await modoAcesso();
       const chave = await garantirChave(req, sistema);
-      const base = urlBase(req);
+      const base = await urlBase(req);
       const url = `${base}/api/feed/meta?chave=${encodeURIComponent(chave)}`;
       const { itens, total, semFotoAprovada } = await gerar(req, sistema, { formato: "csv", todos: false });
       return ok({
@@ -140,7 +135,7 @@ export async function GET(req: NextRequest) {
         urlTsv: `${url}&formato=tsv`,
         urlBase: base,
         enderecoPrivado: enderecoPrivado(base),
-        urlPublicaDefinida: !!process.env.NEXT_PUBLIC_URL_PUBLICA,
+        urlPublicaDefinida: !!(await urlPublicaConfigurada()),
         whatsappValido: whatsappValido(sistema.whatsappNumero),
         modo,
         itens,

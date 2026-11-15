@@ -33,6 +33,17 @@ BACKUP FORA DO COMPUTADOR (importante)
   O servidor roda como a conta de servico LocalService do Windows: ele NAO grava nas pastas
   do seu usuario (C:\Users\...\Google Drive, OneDrive) nem enxerga a unidade G: do Google Drive.
 
+USAR DE FORA DA LOJA (OUTRA INTERNET)
+  No app, menu "Celular e outros PCs" > "Fora da loja". Dois jeitos:
+  1. Endereco proprio na internet (ex.: https://app.sualoja.com.br), com o Cloudflare Tunnel
+     instalado SO neste computador: abre em qualquer computador ou celular, sem instalar nada
+     neles. Precisa de um dominio. Depois de criar o tunel, escreva o endereco no app e clique
+     em "Testar" e "Salvar".
+  2. Rede particular Tailscale: instale o Tailscale neste computador (ligue "Run unattended")
+     e em cada computador/celular de fora, entrando com a mesma conta da loja.
+  De fora da loja o app so abre com usuario e senha (crie em Configuracoes > Usuarios).
+  Passo a passo: https://github.com/Cristiano50/Fiodeamorsemijoias/blob/main/docs/acesso-de-fora.md
+
 SE OS OUTROS APARELHOS NAO ABRIREM
   - Este computador precisa estar ligado e no mesmo Wi-Fi/rede.
   - A rede do Windows deve estar como "Privada" (Configuracoes > Rede e Internet).

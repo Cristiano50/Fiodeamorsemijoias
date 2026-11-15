@@ -100,6 +100,9 @@ export interface Sistema {
   embalagemPorPecaPadrao: number; // R$ por peça de embalagem e etiqueta sugerido em pedido novo (componente embalagem_etiqueta)
   diasForaDaCurva: number; // peças com menos dias desde a chegada ficam fora da curva ABC ("novas")
   faixasPrecoVenda: number[]; // limites das faixas de preço de venda (R$) na análise de vendas
+  // Acesso de fora da loja (docs/acesso-de-fora.md): endereço do app na internet, ex.: https://app.minhaloja.com.br
+  // (Cloudflare Tunnel). Vazio = só na rede da loja. Vale para links do feed da Meta, da skill e das planilhas.
+  urlPublica: string;
   geminiModelo: string;
   openaiModelo: string;
 }
@@ -146,6 +149,7 @@ export const SISTEMA_PADRAO: Sistema = {
   embalagemPorPecaPadrao: 0,
   diasForaDaCurva: 60,
   faixasPrecoVenda: [60, 120, 250],
+  urlPublica: "",
   geminiModelo: "gemini-3-pro-image", // Nano Banana Pro: o mais realista para foto comercial (alternativa mais barata: gemini-3.1-flash-image)
   openaiModelo: "gpt-image-2", // gpt-image-1 foi desativado pela OpenAI em 23/10/2026
 };

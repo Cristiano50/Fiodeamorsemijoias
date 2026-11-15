@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     if (!ids.length) return erro("Selecione os produtos", 400);
     if (ids.length > 2000) return erro("Envie no máximo 2.000 produtos por vez.", 400);
     const simular = corpo.simular === true;
-    const resultados = await enviarProdutos(ids, urlDoApp(req), simular);
+    const resultados = await enviarProdutos(ids, await urlDoApp(req), simular);
     if (!simular) {
       const enviados = resultados.filter((r) => r.ok).length;
       const recompras = resultados.filter((r) => r.recompra).length;
