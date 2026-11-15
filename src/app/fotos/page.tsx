@@ -140,11 +140,11 @@ function FilaFotos() {
                   <div className="flex flex-col gap-1">
                     <span className="rotulo px-1">peça real</span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {f.fotoReal && <img src={img(f.fotoReal, 300)!} alt="" className="aspect-square w-full rounded-lg object-cover" />}
+                    {f.fotoReal && <img src={img(f.fotoReal, 300)!} alt="" loading="lazy" decoding="async" className="aspect-square w-full rounded-lg object-cover" />}
                   </div>
                   <a href={img(f.id)!} target="_blank" rel="noreferrer" title="Abrir em tamanho real">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img(f.id, 700)!} alt="" className="aspect-[4/5] w-full rounded-lg object-cover" />
+                    <img src={img(f.id, 700)!} alt="" loading="lazy" decoding="async" className="aspect-[4/5] w-full rounded-lg object-cover" />
                   </a>
                   <input
                     type="checkbox"

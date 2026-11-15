@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Produto } from "@/lib/db/schema";
 import { Botao, Campo, Carregando, Cartao, Modal, Selo, useAviso } from "@/components/ui";
@@ -10,31 +10,91 @@ import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 
 type ProdutoCatalogo = Produto & { fotoIa: { id: string; aprovada: boolean | null; nota: number | null } | null };
 
+/** Produtos por vez (múltiplo de 2, 3, 4 e 6 colunas: as linhas da grade ficam completas). */
+const PAGINA = 60;
+
+/**
+ * GET da lista com o total do filtro (cabeçalho X-Total-Count, que a api() de lib/cliente não devolve).
+ * Mesmo tratamento da api(): sessão expirada leva ao login; erro vem com a mensagem do servidor.
+ */
+async function buscarPagina(url: string): Promise<{ itens: ProdutoCatalogo[]; total: number }> {
+  const res = await fetch(url);
+  if (res.status === 401 && !window.location.pathname.startsWith("/entrar")) {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- igual à api(): recarrega a página inteira no login
+    window.location.href = `/entrar?voltar=${encodeURIComponent(window.location.pathname)}`;
+  }
+  const dados = (await res.json().catch(() => null)) as ProdutoCatalogo[] | { erro?: string } | null;
+  if (!res.ok || !Array.isArray(dados)) throw new Error((dados as { erro?: string } | null)?.erro ?? `Erro ${res.status}`);
+  const total = Number(res.headers.get("X-Total-Count"));
+  return { itens: dados, total: Number.isFinite(total) && total >= dados.length ? total : dados.length };
+}
+
 function ProdutosConteudo() {
   const params = useSearchParams();
   const avisar = useAviso();
   const { config } = useConfig();
   const tax = config?.taxonomia;
   const [lista, setLista] = useState<ProdutoCatalogo[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [carregandoMais, setCarregandoMais] = useState(false);
   const [filtros, setFiltros] = useState({ q: "", tipo: "", material: "", cor: "", status: "" });
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [novo, setNovo] = useState(params.get("novo") === "1");
+  const ultimaBusca = useRef(0); // resposta atrasada de um filtro antigo não sobrescreve a do filtro atual
 
-  const carregar = useCallback(() => {
-    const qs = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v));
-    return api<ProdutoCatalogo[]>(`/api/produtos?${qs}`).then(setLista);
-  }, [filtros]);
+  const urlPagina = useCallback(
+    (offset: number, limite: number) => {
+      const qs = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v));
+      qs.set("limite", String(limite));
+      qs.set("offset", String(offset));
+      return `/api/produtos?${qs}`;
+    },
+    [filtros],
+  );
+
+  /** Busca de novo do começo, com os filtros atuais; `quantos` mantém na tela o que já tinha sido carregado. */
+  const carregar = useCallback(
+    async (quantos = PAGINA) => {
+      const n = ++ultimaBusca.current;
+      const r = await buscarPagina(urlPagina(0, Math.min(5000, Math.max(PAGINA, quantos))));
+      if (n !== ultimaBusca.current) return;
+      setLista(r.itens);
+      setTotal(r.total);
+    },
+    [urlPagina],
+  );
   useEffect(() => {
     const t = setTimeout(() => carregar().catch((e) => avisar(e.message, "erro")), 250);
     return () => clearTimeout(t);
   }, [carregar, avisar]);
+
+  /** "Carregar mais": a próxima página (offset = quantos já estão na tela), mantendo filtros e busca. */
+  async function carregarMais() {
+    if (!lista) return;
+    const n = ++ultimaBusca.current;
+    setCarregandoMais(true);
+    try {
+      const r = await buscarPagina(urlPagina(lista.length, PAGINA));
+      if (n !== ultimaBusca.current) return;
+      setLista((atual) => {
+        const vistos = new Set((atual ?? []).map((p) => p.id));
+        return [...(atual ?? []), ...r.itens.filter((p) => !vistos.has(p.id))];
+      });
+      setTotal(r.total);
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), "erro");
+    } finally {
+      setCarregandoMais(false);
+    }
+  }
+  const recarregar = () => carregar(lista?.length).catch((e) => avisar(e instanceof Error ? e.message : String(e), "erro"));
 
   const lote = async (acao: string, msg: string) => {
     try {
       await api("/api/produtos/lote", { method: "POST", json: { ids: [...sel], acao } });
       avisar(msg);
       if (acao === "excluir") setSel(new Set());
-      carregar();
+      recarregar();
     } catch (e) {
       avisar(e instanceof Error ? e.message : String(e), "erro");
     }
@@ -46,7 +106,7 @@ function ProdutosConteudo() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-4xl font-semibold">Produtos</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <a href="/api/exportar?formato=xlsx">
             <Botao variante="secundario">Exportar planilha UP</Botao>
           </a>
@@ -134,56 +194,77 @@ function ProdutosConteudo() {
           <p className="text-sm text-[#8a6d78]">Nenhum produto encontrado.</p>
         </Cartao>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {lista.map((p) => (
-            <div key={p.id} className={`group relative overflow-hidden rounded-2xl border bg-white transition ${sel.has(p.id) ? "border-rose-escuro ring-2 ring-rose" : "border-borda"}`}>
-              <input
-                type="checkbox"
-                className="absolute left-2 top-2 z-10 h-4 w-4"
-                checked={sel.has(p.id)}
-                onChange={() =>
-                  setSel((s) => {
-                    const n = new Set(s);
-                    if (n.has(p.id)) n.delete(p.id);
-                    else n.add(p.id);
-                    return n;
-                  })
-                }
-              />
-              <Link href={`/produtos/${p.id}`} className="relative block">
-                {/* Foto criada pela IA à frente; a do fornecedor só aparece se ainda não houver. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.fotoIa || p.imagemId ? <img src={img(p.fotoIa?.id ?? p.imagemId, 400)!} alt="" className="aspect-square w-full object-cover" /> : <div className="aspect-square w-full bg-rose-claro" />}
-                {p.fotoIa && (
-                  <span className={`absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold text-white ${p.fotoIa.aprovada ? "bg-emerald-600" : p.fotoIa.aprovada === false ? "bg-amber-600" : "bg-stone-500"}`}>
-                    {p.fotoIa.aprovada ? "✓ aprovada" : p.fotoIa.aprovada === false ? "não aprovada" : "IA"} {p.fotoIa.nota != null ? p.fotoIa.nota.toFixed(1) : ""}
-                  </span>
-                )}
-                <div className="p-3">
-                  <div className="line-clamp-2 text-xs font-medium uppercase leading-snug">{p.nome ?? p.traducao ?? "Sem nome"}</div>
-                  {p.nomeComercial && <div className="truncate font-script text-base text-rose-escuro">{p.nomeComercial}</div>}
-                  <div className="mt-1 flex items-end justify-between">
-                    <span className="font-titulo text-xl font-semibold text-rose-escuro">{brl(p.precoVenda)}</span>
-                    <span className="font-mono text-[0.65rem] text-[#9a8089]">{p.referencia}</span>
+        <>
+          <p className="-mb-2 text-sm text-[#8a6d78]">
+            {total === 1 ? "1 produto" : `${total.toLocaleString("pt-BR")} produtos`}
+            {Object.values(filtros).some(Boolean) ? " com estes filtros" : ""}
+            {lista.length < total ? ` · mostrando ${lista.length.toLocaleString("pt-BR")}` : ""}
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {lista.map((p) => (
+              <div key={p.id} className={`group relative overflow-hidden rounded-2xl border bg-white transition ${sel.has(p.id) ? "border-rose-escuro ring-2 ring-rose" : "border-borda"}`}>
+                <input
+                  type="checkbox"
+                  className="absolute left-2 top-2 z-10 h-4 w-4"
+                  checked={sel.has(p.id)}
+                  onChange={() =>
+                    setSel((s) => {
+                      const n = new Set(s);
+                      if (n.has(p.id)) n.delete(p.id);
+                      else n.add(p.id);
+                      return n;
+                    })
+                  }
+                />
+                <Link href={`/produtos/${p.id}`} className="relative block">
+                  {/* Foto criada pela IA à frente; a do fornecedor só aparece se ainda não houver. */}
+                  {p.fotoIa || p.imagemId ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img(p.fotoIa?.id ?? p.imagemId, 400)!} alt="" loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
+                  ) : (
+                    <div className="aspect-square w-full bg-rose-claro" />
+                  )}
+                  {p.fotoIa && (
+                    <span className={`absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold text-white ${p.fotoIa.aprovada ? "bg-emerald-600" : p.fotoIa.aprovada === false ? "bg-amber-600" : "bg-stone-500"}`}>
+                      {p.fotoIa.aprovada ? "✓ aprovada" : p.fotoIa.aprovada === false ? "não aprovada" : "IA"} {p.fotoIa.nota != null ? p.fotoIa.nota.toFixed(1) : ""}
+                    </span>
+                  )}
+                  <div className="p-3">
+                    <div className="line-clamp-2 text-xs font-medium uppercase leading-snug">{p.nome ?? p.traducao ?? "Sem nome"}</div>
+                    {p.nomeComercial && <div className="truncate font-script text-base text-rose-escuro">{p.nomeComercial}</div>}
+                    <div className="mt-1 flex flex-wrap items-end justify-between gap-x-2">
+                      <span className="whitespace-nowrap font-titulo text-xl font-semibold text-rose-escuro">{brl(p.precoVenda)}</span>
+                      <span className="min-w-0 truncate font-mono text-[0.65rem] text-[#9a8089]">{p.referencia}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Selo cor="cinza">{nomeDe(tax?.tipos, p.tipo)}</Selo>
+                      {p.status === "aprovado" && <Selo cor="verde">aprovado</Selo>}
+                      {p.upStatus === "enviado" && <Selo cor="verde">UP</Selo>}
+                      {p.upStatus === "erro" && <Selo cor="vermelho">UP erro</Selo>}
+                      {p.destaque && <Selo cor="dourado">★</Selo>}
+                    </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    <Selo cor="cinza">{nomeDe(tax?.tipos, p.tipo)}</Selo>
-                    {p.status === "aprovado" && <Selo cor="verde">aprovado</Selo>}
-                    {p.upStatus === "enviado" && <Selo cor="verde">UP</Selo>}
-                    {p.upStatus === "erro" && <Selo cor="vermelho">UP erro</Selo>}
-                    {p.destaque && <Selo cor="dourado">★</Selo>}
-                  </div>
+                </Link>
+                <div className="px-3 pb-3">
+                  <BotaoFotoIa produtoId={p.id} aoTerminar={() => recarregar()} />
                 </div>
-              </Link>
-              <div className="px-3 pb-3">
-                <BotaoFotoIa produtoId={p.id} aoTerminar={() => carregar()} />
               </div>
+            ))}
+          </div>
+          {lista.length < total && (
+            <div className="flex flex-col items-center gap-1">
+              <Botao variante="secundario" carregando={carregandoMais} onClick={carregarMais}>
+                Carregar mais {Math.min(PAGINA, total - lista.length)}
+              </Botao>
+              <span className="text-xs text-[#9a8089]">
+                {lista.length.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}
+              </span>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      <NovoProduto aberto={novo} aoFechar={() => setNovo(false)} aoCriar={() => carregar()} />
+      <NovoProduto aberto={novo} aoFechar={() => setNovo(false)} aoCriar={() => recarregar()} />
     </div>
   );
 }

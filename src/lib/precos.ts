@@ -25,6 +25,27 @@ export interface TabelaPreco {
   descricao?: string;
 }
 
+/** Degrau da escada de preços: até `ate` (null = sem limite), preços de `passo` em `passo` reais. */
+export interface DegrauEscada {
+  ate: number | null;
+  passo: number;
+}
+
+/**
+ * Arredondamento do preço de venda.
+ *  - "escada" (política da loja): preço possível mais próximo de custo × fator — 19,99 (mínimo); de 5 em 5 até 49,99;
+ *    de 10 em 10 até 99,99; de 20 em 20 até 199,99; de 50 em 50 até 399,99; de 100 em 100 acima (sempre ,99); empate fica com o maior.
+ *  - "terminar_em": sobe até terminar nos centavos (ex.: ,99). "inteiro": sobe para o real inteiro.
+ */
+export interface RegraArredondamento {
+  modo: string;
+  centavos: number;
+  minimo?: number;
+  direcao?: string;
+  degraus?: DegrauEscada[];
+  formula?: string;
+}
+
 export interface PoliticaPreco {
   fator_padrao: number;
   fator_minimo?: number;
@@ -32,7 +53,7 @@ export interface PoliticaPreco {
   usar_faixas: boolean;
   faixas_modo?: string;
   faixas_custo: FaixaCusto[];
-  arredondamento: { modo: string; centavos: number; minimo?: number; direcao?: string };
+  arredondamento: RegraArredondamento;
   tabela_base: string;
   tabelas_preco: TabelaPreco[];
   comissao_consignacao_pct: number;
@@ -184,19 +205,134 @@ export function valoresDoCenario(componentes: ComponenteCusto[], cenario?: { val
   return { ...out, ...(cenario?.valores ?? {}) };
 }
 
+/** Cenário de custo de um pedido novo (ou ao trocar a moeda): compra em real = importador nacional; senão o padrão da loja. */
+export function cenarioPadraoPara(moeda: string | null | undefined, cenarios: Record<string, unknown>, padrao: string): string {
+  return String(moeda ?? "").toUpperCase() === "BRL" && cenarios.compra_importador_nacional ? "compra_importador_nacional" : padrao;
+}
+
+/**
+ * Valores iniciais dos componentes de custo de um pedido novo: o frete digitado e os padrões da loja
+ * (Configurações → perdas e defeitos %, embalagem e etiqueta R$/peça). Só entra o que for maior que zero:
+ * com os padrões em 0, o pedido segue exatamente o cenário escolhido.
+ */
+export function custosIniciais(o: { frete?: number | null; perdasPct?: number | null; embalagemPorPeca?: number | null }): Record<string, number> | null {
+  const c: Record<string, number> = {};
+  if (o.frete != null && o.frete > 0) c.frete_internacional = o.frete;
+  if (o.perdasPct != null && o.perdasPct > 0) c.perdas_defeitos = o.perdasPct;
+  if (o.embalagemPorPeca != null && o.embalagemPorPeca > 0) c.embalagem_etiqueta = o.embalagemPorPeca;
+  return Object.keys(c).length ? c : null;
+}
+
 /* ------------------------------------------------------------------ preço */
 
-export function arredondar(valor: number, regra: PoliticaPreco["arredondamento"], aplicarMinimo = true): number {
-  let v = r2(valor);
-  if (regra.modo === "terminar_em") {
+/** Arredondamento antigo (até 15/11/2026): sobe até terminar em ,99, mínimo 19,99. */
+export const ARREDONDAMENTO_ANTIGO: RegraArredondamento = {
+  modo: "terminar_em",
+  centavos: 0.99,
+  direcao: "cima",
+  formula: "ceil(preco_bruto - centavos) + centavos",
+  minimo: 19.99,
+};
+
+/** A regra salva em Configurações é exatamente a antiga (ninguém personalizou)? Então passa para a escada nova. */
+export function ehArredondamentoAntigo(a: unknown): boolean {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return false;
+  const o = a as Record<string, unknown>;
+  if (Object.keys(o).some((k) => !(k in ARREDONDAMENTO_ANTIGO))) return false;
+  return (
+    o.modo === "terminar_em" &&
+    Number(o.centavos) === 0.99 &&
+    Number(o.minimo) === 19.99 &&
+    (o.direcao === undefined || o.direcao === "cima") &&
+    (o.formula === undefined || o.formula === ARREDONDAMENTO_ANTIGO.formula)
+  );
+}
+
+/**
+ * Preço possível da escada mais próximo de `valor` (empate fica com o maior), sem o mínimo.
+ * Pontos de cada degrau: k × passo − 0,01 (com centavos 0,99), acima do "ate" do degrau anterior e até o "ate" deste.
+ * Contas em centavos inteiros, para o empate ser exato.
+ */
+export function precoNaEscada(valor: number, degraus: DegrauEscada[], centavos = 0.99): number {
+  const alvo = Math.round(valor * 100);
+  const cent = Number.isFinite(centavos) && centavos >= 0 && centavos < 1 ? Math.round(centavos * 100) : 99;
+  const recuo = 100 - cent; // ponto = k × passo − recuo (centavos)
+  let melhor: number | null = null;
+  const considerar = (p: number) => {
+    if (melhor === null) {
+      melhor = p;
+      return;
+    }
+    const d = Math.abs(p - alvo);
+    const dm = Math.abs(melhor - alvo);
+    if (d < dm || (d === dm && p > melhor)) melhor = p;
+  };
+  let inicio = 0;
+  for (const g of degraus) {
+    const passo = Math.round(Number(g.passo) * 100);
+    const fim = g.ate == null ? Infinity : Math.round(Number(g.ate) * 100);
+    if (passo > 0 && fim > inicio) {
+      const kMin = Math.floor((inicio + recuo) / passo) + 1; // primeiro ponto acima do degrau anterior
+      const kMax = fim === Infinity ? Infinity : Math.floor((fim + recuo) / passo); // último ponto até o "ate"
+      const k = (alvo + recuo) / passo;
+      for (const kk of [Math.floor(k), Math.ceil(k), kMin, kMax])
+        if (Number.isFinite(kk) && kk >= kMin && kk <= kMax) considerar(kk * passo - recuo);
+    }
+    if (fim === Infinity) break;
+    inicio = Math.max(inicio, fim);
+  }
+  return melhor === null ? valor : melhor / 100;
+}
+
+export function arredondar(valor: number, regra: RegraArredondamento, aplicarMinimo = true): number {
+  const bruto = r2(valor);
+  let v = bruto;
+  const escada = regra.modo === "escada" && !!regra.degraus?.length;
+  if (escada) {
+    v = precoNaEscada(bruto, regra.degraus!, regra.centavos);
+  } else if (regra.modo === "terminar_em") {
     const c = r2(regra.centavos);
     v = r2(Math.ceil(r2(v - c)) + c);
   } else if (regra.modo === "inteiro") {
     v = Math.ceil(v);
   }
-  if (aplicarMinimo && regra.minimo && v < regra.minimo) v = regra.minimo;
+  // Mínimo da loja (só na tabela base): nunca abaixo dele; na escada, bruto até o mínimo = mínimo.
+  if (aplicarMinimo && regra.minimo && (v < regra.minimo || (escada && bruto <= regra.minimo))) v = regra.minimo;
   return r2(v);
 }
+
+/** O fator escolhido (antes do arredondamento) está abaixo do mínimo da loja? Arredondar para baixo na escada não conta. */
+export function fatorAbaixoDoMinimo(fator: number | null | undefined, pol: Pick<PoliticaPreco, "fator_minimo">): boolean {
+  const minimo = Number(pol.fator_minimo ?? 0);
+  return fator != null && fator > 0 && minimo > 0 && fator < minimo - 1e-9;
+}
+
+/**
+ * Preço manual abaixo do fator mínimo? Fator efetivo = preço ÷ custo. Para a escada não gerar alerta falso,
+ * compara com o preço que o próprio fator mínimo daria (custo × mínimo, arredondado na escada, sem o preço mínimo).
+ * Sem custo (0/desconhecido) não dá para saber: o recálculo confere quando o custo chegar.
+ */
+export function precoManualAbaixoDoMinimo(
+  preco: number | null | undefined,
+  custo: number | null | undefined,
+  pol: Pick<PoliticaPreco, "fator_minimo" | "arredondamento">,
+): { abaixo: boolean; fatorEfetivo: number | null; precoMinimo: number | null } {
+  const minimo = Number(pol.fator_minimo ?? 0);
+  if (!(preco != null && preco > 0) || !(custo != null && custo > 0)) return { abaixo: false, fatorEfetivo: null, precoMinimo: null };
+  const fatorEfetivo = r2(preco / custo);
+  if (!(minimo > 0)) return { abaixo: false, fatorEfetivo, precoMinimo: null };
+  const precoMinimo = arredondar(custo * minimo, pol.arredondamento, false);
+  return { abaixo: preco < precoMinimo - 0.004, fatorEfetivo, precoMinimo };
+}
+
+/** Diferença acima da qual a recompra avisa "Custo mudou" (preço calculado × preço vigente do original). */
+export const LIMITE_CUSTO_MUDOU_PCT = 10;
+
+/** Alertas de preço refeitos a cada recálculo (os demais alertas da peça ficam). */
+export const PREFIXOS_ALERTA_PRECO = ["Margem", "Tabela", "Sem custo", "Fator ×", "Preço manual abaixo", "Custo mudou", "Sem cotação"];
+export const semAlertasDePreco = (alertas: string[] | null | undefined) => (alertas ?? []).filter((a) => !PREFIXOS_ALERTA_PRECO.some((p) => a.startsWith(p)));
+
+const fmtNum = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
 /** Fator pela prioridade: da peça → do pedido (escolhido pelo funcionário) → faixas (se ativas) → por tipo → padrão. */
 export function escolherFator(
@@ -226,6 +362,8 @@ export interface ResultadoPreco {
   origemFator: string;
   precoBruto: number;
   preco: number; // tabela base
+  precoCalculado: number; // pelo custo desta peça (na recompra, o preço usado é o vigente do original)
+  custoMudouPct: number | null; // recompra: calculado × vigente, em %
   precos: Record<string, number>;
   lucroPct: number; // campo "% Lucro" do UP Vendas
   fatorEfetivo: number;
@@ -233,25 +371,46 @@ export interface ResultadoPreco {
   alertas: string[];
 }
 
+/** Preços das tabelas (base e secundárias) a partir do preço da tabela base. */
+export function precosDasTabelas(preco: number, pol: PoliticaPreco): Record<string, number> {
+  const precos: Record<string, number> = {};
+  for (const t of pol.tabelas_preco) {
+    precos[t.id] = t.id === pol.tabela_base ? preco : arredondar(preco * t.multiplicador_sobre_tabela_base, pol.arredondamento, false);
+  }
+  return precos;
+}
+
+/**
+ * Preço de venda. Prioridade: preço manual → fator da peça → fator do pedido → faixas → tipo → padrão.
+ * `precoVigente` (recompra): o preço continua o do original (mesma referência/EAN = um preço só no UP);
+ * o preço pelo custo novo é calculado mesmo assim e, se diferir mais de 10%, a peça recebe o alerta "Custo mudou".
+ */
 export function calcularPreco(
   custoTotal: number,
   tipo: string | null | undefined,
   pol: PoliticaPreco,
-  opcoes: { fatorManual?: number | null; fatorPedido?: number | null; precoManual?: number | null } = {},
+  opcoes: { fatorManual?: number | null; fatorPedido?: number | null; precoManual?: number | null; precoVigente?: number | null } = {},
 ): ResultadoPreco {
   const alertas: string[] = [];
   const { fator, origem, piso } = escolherFator(custoTotal, tipo, pol, opcoes.fatorManual, opcoes.fatorPedido);
-  if (pol.fator_minimo && fator < pol.fator_minimo && !(opcoes.precoManual && opcoes.precoManual > 0))
-    alertas.push(`Fator ×${fator} abaixo do mínimo da loja (×${pol.fator_minimo}).`);
+  const manual = opcoes.precoManual && opcoes.precoManual > 0 ? r2(opcoes.precoManual) : null;
+  const vigente = opcoes.precoVigente && opcoes.precoVigente > 0 ? r2(opcoes.precoVigente) : null;
   const precoBruto = r2(Math.max(custoTotal * fator, piso));
-  const preco =
-    opcoes.precoManual && opcoes.precoManual > 0 ? r2(opcoes.precoManual) : arredondar(precoBruto, pol.arredondamento);
-
-  const precos: Record<string, number> = {};
-  for (const t of pol.tabelas_preco) {
-    precos[t.id] =
-      t.id === pol.tabela_base ? preco : arredondar(preco * t.multiplicador_sobre_tabela_base, pol.arredondamento, false);
+  const precoCalculado = manual ?? arredondar(precoBruto, pol.arredondamento);
+  const preco = vigente ?? precoCalculado;
+  if (vigente == null) {
+    // O fator escolhido é comparado antes do arredondamento (arredondar para baixo na escada não gera alerta).
+    if (manual == null && fatorAbaixoDoMinimo(fator, pol)) alertas.push(`Fator ×${fator} abaixo do mínimo da loja (×${pol.fator_minimo}).`);
+    if (manual != null) {
+      const m = precoManualAbaixoDoMinimo(manual, custoTotal, pol);
+      if (m.abaixo) alertas.push(`Preço manual abaixo do fator mínimo (×${fmtNum(Number(pol.fator_minimo))}): fator efetivo ×${fmtNum(m.fatorEfetivo!)}.`);
+    }
   }
+  const custoMudouPct = vigente != null && custoTotal > 0 ? r2(((precoCalculado - vigente) / vigente) * 100) : null;
+  if (custoMudouPct != null && Math.abs(custoMudouPct) > LIMITE_CUSTO_MUDOU_PCT)
+    alertas.push(`Custo mudou: preço vigente ${brl(vigente)}, pelo custo novo ${brl(precoCalculado)} (${custoMudouPct > 0 ? "+" : ""}${fmtNum(custoMudouPct)}%).`);
+
+  const precos = precosDasTabelas(preco, pol);
 
   const lucroPct = custoTotal > 0 ? r2((preco / custoTotal - 1) * 100) : 0;
   const liquido = preco * (1 - (pol.comissao_consignacao_pct ?? 0) / 100);
@@ -270,6 +429,8 @@ export function calcularPreco(
     origemFator: origem,
     precoBruto,
     preco,
+    precoCalculado,
+    custoMudouPct,
     precos,
     lucroPct,
     fatorEfetivo: custoTotal > 0 ? r2(preco / custoTotal) : 0,

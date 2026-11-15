@@ -5,6 +5,7 @@ Este computador e o SERVIDOR da loja. O app inicia sozinho junto com o Windows.
 
 ABRIR O APP
   - Neste computador: atalho "Fio de Amor" na area de trabalho (abre http://localhost:3000).
+    Se o servidor estiver parado, o atalho liga de novo (pode levar ate 1 minuto).
   - Outros computadores e celulares (mesmo Wi-Fi): no app, menu "Celular e outros PCs"
     mostra o endereco (ex.: http://192.168.0.10:3000) e um QR code.
     Android: Chrome > menu > "Adicionar a tela inicial".
@@ -16,15 +17,26 @@ PRIMEIRO ACESSO
 
 ONDE FICAM OS DADOS
   C:\FioDeAmor\dados          banco de dados (produtos, pedidos, fotos)
-  C:\FioDeAmor\dados\backups  um backup automatico por dia (os 14 mais recentes)
+  C:\FioDeAmor\dados\backups  backups: 1 automatico por dia (os 14 mais recentes),
+                              os do botao "Baixar backup agora" (20) e uma copia
+                              antes de cada atualizacao do banco (3)
   C:\FioDeAmor\dados\logs     registro do servidor
-  De vez em quando, copie um backup para fora do computador (pen drive ou nuvem).
   Atualizar ou desinstalar o app NAO apaga essa pasta.
+  So os administradores do Windows abrem C:\FioDeAmor\dados (la ficam as chaves e senhas do app).
+
+BACKUP FORA DO COMPUTADOR (importante)
+  Em Configuracoes > "WhatsApp, catalogo Meta e backup", informe uma pasta para a copia diaria
+  e clique em "Testar pasta":
+  - um pen drive (ex.: E:\Backup Fio de Amor), que fique sempre conectado; ou
+  - a pasta C:\FioDeAmor-Backup (criada pelo instalador), sincronizada pelo Google Drive
+    (Google Drive > Preferencias > Meu computador > Adicionar pasta).
+  O servidor roda como a conta de servico LocalService do Windows: ele NAO grava nas pastas
+  do seu usuario (C:\Users\...\Google Drive, OneDrive) nem enxerga a unidade G: do Google Drive.
 
 SE OS OUTROS APARELHOS NAO ABRIREM
   - Este computador precisa estar ligado e no mesmo Wi-Fi/rede.
   - A rede do Windows deve estar como "Privada" (Configuracoes > Rede e Internet).
-  - O instalador ja liberou a porta 3000 no firewall para redes privadas.
+  - O instalador ja liberou a porta 3000 no firewall, so para a rede da loja (rede privada).
 
 ATUALIZAR
   Rode o instalador novo por cima. Os dados sao mantidos.

@@ -8,6 +8,7 @@ const MENU: { href: string; rotulo: string; icone: string; gestora?: boolean }[]
   { href: "/", rotulo: "Painel", icone: "◇" },
   { href: "/importar", rotulo: "Importar pedido", icone: "⇪" },
   { href: "/pedidos", rotulo: "Pedidos", icone: "▤" },
+  { href: "/fornecedores", rotulo: "Fornecedores", icone: "✈", gestora: true },
   { href: "/produtos", rotulo: "Produtos", icone: "✦" },
   { href: "/fotos", rotulo: "Fotos para aprovar", icone: "◐" },
   { href: "/etiquetas", rotulo: "Etiquetas", icone: "▥" },

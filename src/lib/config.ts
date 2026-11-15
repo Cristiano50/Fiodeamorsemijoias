@@ -5,7 +5,7 @@ import precificacaoPadrao from "@/config/precificacao.json";
 import taxonomiaPadrao from "@/config/taxonomia.json";
 import fiscalPadrao from "@/config/fiscal.json";
 import marcaPadrao from "@/config/marca.json";
-import type { ComponenteCusto, PoliticaPreco } from "./precos";
+import { ehArredondamentoAntigo, type ComponenteCusto, type PoliticaPreco } from "./precos";
 
 /* Tipos das configurações (os JSON em src/config foram escritos pelos especialistas). */
 
@@ -224,7 +224,14 @@ async function lerSobrescrita(chave: Chave): Promise<unknown | undefined> {
 export async function getConfig<K extends Chave>(chave: K): Promise<Configs[K]> {
   const salvo = await lerSobrescrita(chave);
   const padrao = PADROES[chave];
-  if (salvo && typeof salvo === "object" && !Array.isArray(salvo)) return { ...padrao, ...(salvo as object) } as Configs[K];
+  if (salvo && typeof salvo === "object" && !Array.isArray(salvo)) {
+    const efetiva = { ...padrao, ...(salvo as object) } as Configs[K];
+    // Precificação salva antes da escada de preços (item 33) com o arredondamento padrão antigo, sem personalizar:
+    // passa a usar a escada nova. Quem personalizou o arredondamento mantém o seu.
+    if (chave === "precificacao" && ehArredondamentoAntigo((salvo as { arredondamento?: unknown }).arredondamento))
+      (efetiva as unknown as PoliticaPreco).arredondamento = (padrao as unknown as PoliticaPreco).arredondamento;
+    return efetiva;
+  }
   return padrao;
 }
 

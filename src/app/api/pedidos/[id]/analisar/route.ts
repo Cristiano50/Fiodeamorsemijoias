@@ -3,7 +3,8 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
 import { analisarItens } from "@/lib/ai/claude";
-import { aplicarAnalise, imagemParaIa, produtosSemAnalise, recalcularPedido } from "@/lib/servicos";
+import { agruparVariacoesAutomaticas, aplicarAnalise, detectarRecompras, imagemParaIa, produtosSemAnalise, recalcularPedido } from "@/lib/servicos";
+import { reaplicarCotacaoEfetiva } from "@/lib/fornecedores";
 
 export const maxDuration = 300;
 type Ctx = { params: Promise<{ id: string }> };
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const db = await getDb();
     const [pedido] = await db.select().from(schema.pedidos).where(eq(schema.pedidos.id, id));
     if (!pedido) return erro("Pedido não encontrado", 404);
+    // A IA só entra depois de a importação terminar (finalizar).
+    if (pedido.status === "importando") return erro("A importação deste pedido não terminou. Continue a importação em Importar pedido antes de usar a IA.", 409);
 
     const lote = Math.min(Math.max(body.lote ?? 6, 1), 12);
     const alvo = body.ids?.length
@@ -46,10 +49,20 @@ export async function POST(req: NextRequest, { params }: Ctx) {
         // Números lidos pela heurística (preço × qtd = total) têm prioridade sobre a leitura da IA.
         if (p) await aplicarAnalise(p.id, r, p.precoOrigem == null);
       }
+      // A IA pode ter preenchido preço/quantidade: com a cotação efetiva em uso, ela é refeita.
+      await reaplicarCotacaoEfetiva(id);
       await recalcularPedido(id);
     }
     const restantes = body.ids?.length ? 0 : (await produtosSemAnalise(id)).length;
-    if (restantes === 0) await db.update(schema.pedidos).set({ status: "analisado" }).where(eq(schema.pedidos.id, id));
+    if (restantes === 0) {
+      // A IA terminou: o código lido por ela pode revelar recompras (e variações) que o documento não mostrava.
+      if (alvo.length) {
+        await detectarRecompras(id);
+        await agruparVariacoesAutomaticas(id);
+        await recalcularPedido(id);
+      }
+      if (pedido.status !== "concluido") await db.update(schema.pedidos).set({ status: "analisado" }).where(eq(schema.pedidos.id, id));
+    }
     return ok({ analisados: alvo.length, restantes });
   } catch (e) {
     return erro(e);

@@ -2,18 +2,29 @@ import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro, ok } from "@/lib/api";
-import { desfazerRecompra, gerarCodigos, recalcularProduto } from "@/lib/servicos";
+import { desfazerRecompra, gerarCodigos, recalcularPedido, recalcularProduto } from "@/lib/servicos";
+import { reaplicarCotacaoEfetiva } from "@/lib/fornecedores";
 import { exigirPapel } from "@/lib/auth";
 import { registrar } from "@/lib/historico";
-import { checarFator } from "@/lib/permissoes";
+import { checarFator, registrarAbaixoDoMinimo } from "@/lib/permissoes";
+import { lerNumeroBr } from "@/lib/numeros";
 
-/** Ações em lote: { ids, acao: "aprovar" | "rascunho" | "codigos" | "recalcular" | "excluir", dados? } */
+/** Ações em lote: { ids, acao: "aprovar" | "rascunho" | "codigos" | "recalcular" | "excluir" | "definir" | "agrupar" | "desagrupar" | "naoRecompra", dados? } */
 export async function POST(req: NextRequest) {
   try {
     const { ids, acao, dados } = (await req.json()) as { ids: string[]; acao: string; dados?: Record<string, unknown> };
     if (!ids?.length) return erro("Nenhum produto selecionado", 400);
     if (acao === "excluir") await exigirPapel(req, "gestora");
-    if (acao === "definir" && dados && "fator" in dados) await checarFator(req, dados.fator as number | null);
+    if (acao === "codigos" && dados?.refazer) await exigirPapel(req, "gestora"); // refazer referências: só a gestora
+    let minimo = { abaixo: false, minimo: 0 };
+    if (acao === "definir" && dados && "fator" in dados) {
+      // Fator digitado na tela ("8,5"): texto inválido não grava; abaixo do mínimo só a gestora.
+      const bruto = dados.fator;
+      const fator = bruto === null || bruto === undefined || bruto === "" ? null : lerNumeroBr(bruto, { milhar: false });
+      if (bruto !== null && bruto !== undefined && bruto !== "" && !(fator != null && fator > 0)) return erro(`Fator inválido: "${bruto}". Digite um número, ex.: 10 ou 8,5.`, 400);
+      dados.fator = fator;
+      minimo = await checarFator(req, fator);
+    }
     const db = await getDb();
     const agora = new Date().toISOString();
     switch (acao) {
@@ -53,15 +64,35 @@ export async function POST(req: NextRequest) {
       case "naoRecompra":
         await desfazerRecompra(ids);
         break;
-      case "excluir":
+      case "excluir": {
+        const pedidos = [
+          ...new Set(
+            (await db.select({ pedidoId: schema.produtos.pedidoId }).from(schema.produtos).where(inArray(schema.produtos.id, ids)))
+              .map((x) => x.pedidoId)
+              .filter(Boolean) as string[],
+          ),
+        ];
         await db.delete(schema.imagens).where(inArray(schema.imagens.produtoId, ids));
         await db.delete(schema.produtos).where(inArray(schema.produtos.id, ids));
+        // Os pedidos ficaram menores: cotação efetiva (se em uso) e rateio dos custos refeitos.
+        for (const pedidoId of pedidos) {
+          await reaplicarCotacaoEfetiva(pedidoId);
+          await recalcularPedido(pedidoId);
+        }
         break;
+      }
       default:
         return erro(`Ação desconhecida: ${acao}`, 400);
     }
     if (["excluir", "definir", "codigos", "naoRecompra", "agrupar", "desagrupar"].includes(acao))
       await registrar(req, { acao: `lote.${acao}`, entidade: "produto", resumo: `${acao} em ${ids.length} peça(s)${dados ? `: ${JSON.stringify(dados)}` : ""}`, dados: { ids } });
+    if (minimo.abaixo)
+      await registrarAbaixoDoMinimo(req, {
+        entidade: "produto",
+        entidadeId: null,
+        resumo: `Fator ×${dados?.fator} (abaixo do mínimo ×${minimo.minimo}) aplicado a ${ids.length} peça(s)`,
+        dados: { ids },
+      });
     return ok({ ok: true, total: ids.length });
   } catch (e) {
     return erro(e);

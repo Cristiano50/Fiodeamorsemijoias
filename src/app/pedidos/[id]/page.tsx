@@ -11,6 +11,10 @@ import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 import { RenomearFornecedor } from "@/components/Fornecedor";
 import { BiparCodigosUp } from "@/components/BiparCodigosUp";
 import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
+import { CampoNumero } from "@/components/CampoNumero";
+import { ConfirmarRecompra, type RecompraAConfirmar } from "@/components/ConfirmarRecompra";
+import { PrecoVigente, type CustoMudou } from "@/components/PrecoVigente";
+import { lerNumeroBr } from "@/lib/numeros";
 
 interface Cenario {
   nome: string;
@@ -41,6 +45,10 @@ interface Dados {
   componentesCusto: { id: string; nome: string; tipo: string; padrao: number; explicacao?: string }[];
   cenarios: { padrao: string; cenarios: Record<string, Cenario> };
   fotosModelo: Record<string, { id: string; aprovada: boolean | null; nota: number | null }>;
+  recompraAConfirmar: number;
+  recompraConfirmar: RecompraAConfirmar[];
+  custoMudou: CustoMudou[];
+  ehGestora: boolean;
 }
 type Parecer = { resumo: string; estoque: string; contador: string; administrador: string; marketing: string; pendencias: string[]; geradoEm?: string };
 
@@ -81,7 +89,11 @@ export default function PedidoPage() {
     }
   }
 
-  const salvarPedido = (campos: Record<string, unknown>) => acao("salvar", () => api(`/api/pedidos/${id}`, { method: "PATCH", json: campos }));
+  const salvarPedido = (campos: Record<string, unknown>) =>
+    acao("salvar", async () => {
+      const r = await api<{ avisos?: string[] }>(`/api/pedidos/${id}`, { method: "PATCH", json: campos });
+      r.avisos?.forEach((a) => avisar(a, "erro"));
+    });
 
   const analisar = (ids?: string[]) =>
     acao(
@@ -180,6 +192,13 @@ export default function PedidoPage() {
   const cenarioAtual = pedido.cenario ?? d.cenarios.padrao;
   const todosSel = produtos.length > 0 && produtos.every((p) => sel.has(p.id));
   const idsSel = [...sel].join(",");
+  const importando = pedido.status === "importando";
+  const gerarReferencias = (msg: string) =>
+    acao("codigos", async () => {
+      const r = await api<{ gerados: number; aConfirmar: number }>(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} });
+      avisar(msg);
+      if (r.aConfirmar) avisar(`${r.aConfirmar} peça(s) esperam a confirmação da recompra para ganhar a referência.`, "info");
+    });
 
   return (
     <div className="flex flex-col gap-5">
@@ -197,7 +216,7 @@ export default function PedidoPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(d.semAnalise > 0 || d.paginasPendentes > 0) && (
+          {!importando && (d.semAnalise > 0 || d.paginasPendentes > 0) && (
             <Botao onClick={() => analisar()} carregando={ocupado === "ia"}>
               ✦ Analisar com IA ({d.semAnalise + d.paginasPendentes})
             </Botao>
@@ -206,13 +225,13 @@ export default function PedidoPage() {
             ✦ Fotos com IA {sel.size ? `(${sel.size})` : pendentesFoto.length ? `(${pendentesFoto.length})` : ""}
           </Botao>
           {config?.sistema.origemCodigoBarras === "app" ? (
-            <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
+            <Botao variante="secundario" onClick={() => gerarReferencias("Referências e códigos de barras gerados.")} carregando={ocupado === "codigos"}>
               Gerar referências e EAN {d.semCodigo ? `(${d.semCodigo})` : ""}
             </Botao>
           ) : (
             <>
               {d.semCodigo > 0 && (
-                <Botao variante="secundario" onClick={() => acao("codigos", () => api(`/api/pedidos/${id}/codigos`, { method: "POST", json: {} }), "Referências geradas. O código de barras vem do UP.")} carregando={ocupado === "codigos"}>
+                <Botao variante="secundario" onClick={() => gerarReferencias("Referências geradas. O código de barras vem do UP.")} carregando={ocupado === "codigos"}>
                   Gerar referências ({d.semCodigo})
                 </Botao>
               )}
@@ -230,15 +249,31 @@ export default function PedidoPage() {
           <Link href={`/etiquetas?pedido=${id}`}>
             <Botao variante="secundario">Etiquetas</Botao>
           </Link>
-          <a href={`/api/exportar?formato=xlsx&pedido=${id}`}>
-            <Botao variante="secundario">Planilha UP</Botao>
-          </a>
+          {/* Planilhas do UP separadas: peças novas (cadastro) e recompras (entrada de estoque do produto que já existe). */}
+          {d.produtos.some((p) => !p.recompraDe) && (
+            <a href={`/api/exportar?formato=xlsx&tipo=novos&pedido=${id}`} title="Cadastro no UP só das peças novas deste pedido">
+              <Botao variante="secundario">Planilha UP (novas)</Botao>
+            </a>
+          )}
+          {d.produtos.some((p) => p.recompraDe) && (
+            <a href={`/api/exportar?formato=xlsx&tipo=recompras&pedido=${id}`} title="Entrada de estoque no UP das recompras (o produto já existe lá)">
+              <Botao variante="secundario">Planilha UP (recompras)</Botao>
+            </a>
+          )}
           <Link href={`/up-vendas?pedido=${id}`}>
             <Botao variante="secundario">Enviar ao UP</Botao>
           </Link>
         </div>
       </div>
 
+      {importando && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <b>Importação incompleta.</b> O envio deste pedido parou no meio: as peças podem estar faltando e a IA só roda depois que a importação terminar.{" "}
+          <Link href={`/importar?continuar=${id}`} className="underline">
+            Continuar a importação
+          </Link>
+        </div>
+      )}
       {progresso && <div className="rounded-xl bg-rose-claro px-4 py-2 text-sm text-rose-escuro">{progresso}</div>}
       {fotos && (
         <div className="rounded-xl border border-rose bg-white px-4 py-3 text-sm">
@@ -285,36 +320,29 @@ export default function PedidoPage() {
 
       {bipando && <BiparCodigosUp produtos={d.produtos} aoGravar={() => void carregar()} aoFechar={() => setBipando(false)} />}
 
+      <ConfirmarRecompra itens={d.recompraConfirmar ?? []} aoMudar={() => void carregar()} />
+      <PrecoVigente itens={d.custoMudou ?? []} ehGestora={!!d.ehGestora} aoMudar={() => void carregar()} />
+
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border-2 border-rose bg-white px-5 py-4">
         <div className="min-w-[220px]">
           <div className="rotulo">Fator multiplicador do pedido</div>
-          <input
-            key={`fator-${pedido.fator ?? ""}`}
-            inputMode="decimal"
+          <CampoNumero
+            valor={pedido.fator}
+            milhar={false}
+            positivo
+            rotulo="o fator do pedido"
             placeholder={`padrão × ${num(Number(config?.precificacao.fator_padrao ?? 10), 0)}`}
-            defaultValue={pedido.fator ?? ""}
-            onBlur={(e) => {
-              const v = e.target.value.trim().replace(",", ".");
-              const novo = v ? Number(v) : null;
-              if (novo !== pedido.fator && (novo === null || novo > 0)) salvarPedido({ fator: novo });
-            }}
-            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            aoSalvar={(novo) => salvarPedido({ fator: novo })}
             className="mt-1 w-40 border-rose font-titulo text-3xl font-semibold text-rose-escuro"
           />
         </div>
         <div className="min-w-[200px]">
           <div className="rotulo">Frete do pedido (R$)</div>
-          <input
-            key={`frete-${d.valoresCusto.frete_internacional ?? ""}`}
-            inputMode="decimal"
+          <CampoNumero
+            valor={d.valoresCusto.frete_internacional || null}
+            rotulo="o frete"
             placeholder="ex.: 850,00"
-            defaultValue={d.valoresCusto.frete_internacional || ""}
-            onBlur={(e) => {
-              const v = e.target.value.trim().replace(/\./g, "").replace(",", ".");
-              const novo = v ? Number(v) : 0;
-              if (novo !== (d.valoresCusto.frete_internacional ?? 0) && novo >= 0) salvarPedido({ frete: novo });
-            }}
-            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            aoSalvar={(novo) => salvarPedido({ frete: novo ?? 0 })}
             className="mt-1 w-40 border-rose font-titulo text-3xl font-semibold text-rose-escuro"
           />
           <div className="mt-1 text-xs text-[#8a6d78]">
@@ -324,7 +352,8 @@ export default function PedidoPage() {
           </div>
         </div>
         <p className="max-w-md text-sm text-[#6b5560]">
-          <b>Custo da peça</b> = valor em R$ × (1 + frete ÷ mercadoria). <b>Preço</b> = custo × fator, terminando em ,99. O fator vale para todas as peças; para uma
+          <b>Custo da peça</b> = valor em R$ × (1 + frete ÷ mercadoria). <b>Preço</b> = custo × fator, no preço da escada mais próximo (sempre ,99). Recompra fica com o
+          preço do original. O fator vale para todas as peças; para uma
           peça específica, use a coluna <b>Fator</b> (em branco = fator do pedido).
         </p>
         <div className="ml-auto text-right">
@@ -354,12 +383,16 @@ export default function PedidoPage() {
           </Campo>
           <Campo rotulo={`Cotação R$ / ${moedaSimbolo(pedido.moeda)}`} dica={`${pedido.cotacaoFonte ?? "—"}${pedido.cotacaoData ? ` · ${pedido.cotacaoData.split("-").reverse().join("/")}` : ""}`}>
             <div className="flex gap-1">
-              <input
-                key={pedido.cotacao}
-                type="number"
-                step="0.0001"
-                defaultValue={pedido.cotacao}
-                onBlur={(e) => Number(e.target.value) !== pedido.cotacao && salvarPedido({ cotacao: Number(e.target.value), dataCompra: pedido.dataCompra })}
+              <CampoNumero
+                valor={pedido.cotacao || null}
+                casas={4}
+                milhar={false}
+                positivo
+                vazio={false}
+                rotulo="a cotação"
+                placeholder="ex.: 0,7745"
+                disabled={pedido.moeda === "BRL"}
+                aoSalvar={(novo) => salvarPedido({ cotacao: novo, dataCompra: pedido.dataCompra })}
               />
               <Botao variante="secundario" title="Buscar PTAX do dia da compra" onClick={() => acao("ptax", () => api(`/api/pedidos/${id}/cotacao`, { method: "POST" }), "Cotação PTAX atualizada.")} carregando={ocupado === "ptax"}>
                 PTAX
@@ -393,13 +426,11 @@ export default function PedidoPage() {
           <div className="mt-4 grid grid-cols-1 gap-3 border-t border-borda pt-4 md:grid-cols-3 lg:grid-cols-5">
             {d.componentesCusto.map((c) => (
               <Campo key={c.id} rotulo={`${c.nome} ${c.tipo === "percentual" ? "(%)" : c.tipo === "valor_por_peca" ? "(R$/peça)" : "(R$)"}`} dica={d.detalheCustos?.linhas.find((l) => l.id === c.id) ? brl(d.detalheCustos.linhas.find((l) => l.id === c.id)!.valor) : undefined}>
-                <input
-                  type="number"
-                  step="0.01"
-                  key={`${c.id}-${d.valoresCusto[c.id]}`}
-                  defaultValue={d.valoresCusto[c.id] ?? c.padrao}
+                <CampoNumero
+                  valor={d.valoresCusto[c.id] ?? c.padrao}
                   title={c.explicacao}
-                  onBlur={(e) => Number(e.target.value) !== d.valoresCusto[c.id] && salvarPedido({ custos: { ...d.valoresCusto, [c.id]: Number(e.target.value) } })}
+                  rotulo={c.nome}
+                  aoSalvar={(novo) => salvarPedido({ custos: { ...d.valoresCusto, [c.id]: novo ?? 0 } })}
                 />
               </Campo>
             ))}
@@ -479,8 +510,10 @@ export default function PedidoPage() {
               title="Digite o fator e tecle Enter para aplicar às peças selecionadas"
               onKeyDown={(e) => {
                 if (e.key !== "Enter") return;
-                const v = (e.target as HTMLInputElement).value.trim().replace(",", ".");
-                lote("definir", { fator: v ? Number(v) : null }, "Fator aplicado às peças selecionadas.");
+                const v = (e.target as HTMLInputElement).value.trim();
+                const novo = v ? lerNumeroBr(v, { milhar: false }) : null;
+                if (v && !(novo != null && novo > 0)) return avisar(`Fator inválido: "${v}". Digite um número, ex.: 10 ou 8,5.`, "erro");
+                lote("definir", { fator: novo }, "Fator aplicado às peças selecionadas.");
               }}
             />
             <select className="w-44" value="" onChange={(e) => e.target.value && lote("definir", { banho: e.target.value }, "Banho alterado.")}>
@@ -526,7 +559,7 @@ export default function PedidoPage() {
                   <Link href={`/produtos/${p.id}`}>
                     {d.fotosModelo[p.id] || p.imagemId ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img(d.fotosModelo[p.id]?.id ?? p.imagemId, 200)!} alt="" className="h-20 w-20 rounded-lg object-cover" />
+                      <img src={img(d.fotosModelo[p.id]?.id ?? p.imagemId, 200)!} alt="" loading="lazy" decoding="async" className="h-20 w-20 rounded-lg object-cover" />
                     ) : (
                       <div className="h-20 w-20 rounded-lg bg-rose-claro" />
                     )}
@@ -552,30 +585,28 @@ export default function PedidoPage() {
               <div className="mt-2 grid grid-cols-3 gap-2">
                 <label className="text-xs">
                   <span className="rotulo">Qtd</span>
-                  <input type="number" defaultValue={p.quantidade} key={`mq${p.quantidade}`} onBlur={(e) => Number(e.target.value) !== p.quantidade && editar(p, { quantidade: Number(e.target.value) })} />
+                  <CampoNumero valor={p.quantidade} inteiro vazio={false} rotulo="a quantidade" aoSalvar={(novo) => editar(p, { quantidade: novo })} />
                 </label>
                 <label className="text-xs">
                   <span className="rotulo">Preço {moedaSimbolo(pedido.moeda)}</span>
-                  <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={`mp${p.precoOrigem}`} onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
+                  <CampoNumero valor={p.precoOrigem} rotulo="o preço do fornecedor" aoSalvar={(novo) => editar(p, { precoOrigem: novo })} />
                 </label>
                 <label className="text-xs">
                   <span className="rotulo">Fator</span>
-                  <input
-                    inputMode="decimal"
-                    key={`mf-${p.fator ?? ""}-${p.fatorAplicado}`}
-                    defaultValue={p.fator ?? ""}
+                  <CampoNumero
+                    valor={p.fator}
+                    milhar={false}
+                    positivo
+                    rotulo="o fator da peça"
                     placeholder={`×${num(p.fatorAplicado ?? 0, 1)}`}
-                    onBlur={(e) => {
-                      const v = e.target.value.trim().replace(",", ".");
-                      const novo = v ? Number(v) : null;
-                      if (novo !== p.fator) editar(p, { fator: novo });
-                    }}
+                    aoSalvar={(novo) => editar(p, { fator: novo })}
                   />
                 </label>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {p.referencia && <Selo cor="cinza">{p.referencia}</Selo>}
                 {p.recompraDe && <Selo cor="verde">↻ recompra</Selo>}
+                {!p.recompraDe && (p.recompraCandidatas?.length ?? 0) > 0 && <Selo cor="amarelo">↻ recompra a confirmar</Selo>}
                 {p.destaque && <Selo cor="dourado">★ destaque</Selo>}
                 {(p.alertas ?? []).slice(0, 2).map((a, i) => (
                   <Selo key={i} cor="amarelo">
@@ -628,7 +659,7 @@ export default function PedidoPage() {
                   <td>
                     <Link href={`/produtos/${p.id}`} className="relative block w-16">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      {p.imagemId ? <img src={img(p.imagemId, 160)!} alt="" className="h-16 w-16 rounded-lg object-cover" /> : <div className="h-16 w-16 rounded-lg bg-rose-claro" />}
+                      {p.imagemId ? <img src={img(p.imagemId, 160)!} alt="" loading="lazy" decoding="async" className="h-16 w-16 rounded-lg object-cover" /> : <div className="h-16 w-16 rounded-lg bg-rose-claro" />}
                     </Link>
                     <div className="mt-1">
                       <BotaoFotoIa produtoId={p.id} compacto aoTerminar={() => carregar()} />
@@ -636,7 +667,7 @@ export default function PedidoPage() {
                     {d.fotosModelo[p.id] && (
                       <Link href={`/produtos/${p.id}/estudio`} className="relative mt-1 block w-16" title={d.fotosModelo[p.id].aprovada ? "Foto com modelo aprovada pelo marketing" : "Foto com modelo (não aprovada)"}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img(d.fotosModelo[p.id].id, 160)!} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                        <img src={img(d.fotosModelo[p.id].id, 160)!} alt="" loading="lazy" decoding="async" className="h-16 w-16 rounded-lg object-cover" />
                         <span className={`absolute bottom-0.5 right-0.5 rounded-full px-1 text-[0.6rem] font-semibold text-white ${d.fotosModelo[p.id].aprovada ? "bg-emerald-600" : d.fotosModelo[p.id].aprovada === false ? "bg-amber-600" : "bg-stone-500"}`}>
                           {d.fotosModelo[p.id].aprovada ? "✓" : d.fotosModelo[p.id].aprovada === false ? "!" : "?"} {d.fotosModelo[p.id].nota != null ? d.fotosModelo[p.id].nota!.toFixed(1) : ""}
                         </span>
@@ -668,6 +699,7 @@ export default function PedidoPage() {
                           <Selo cor="verde">↻ recompra</Selo>
                         </Link>
                       )}
+                      {!p.recompraDe && (p.recompraCandidatas?.length ?? 0) > 0 && <Selo cor="amarelo">↻ recompra a confirmar</Selo>}
                       {p.grupo && <Selo cor="cinza">variação {p.grupo}</Selo>}
                       {p.status === "aprovado" && <Selo cor="verde">aprovado</Selo>}
                       {(p.alertas ?? []).map((a, i) => (
@@ -694,25 +726,22 @@ export default function PedidoPage() {
                     </div>
                   </td>
                   <td>
-                    <input type="number" defaultValue={p.quantidade} key={p.quantidade} className="w-20" onBlur={(e) => Number(e.target.value) !== p.quantidade && editar(p, { quantidade: Number(e.target.value) })} />
+                    <CampoNumero valor={p.quantidade} inteiro vazio={false} rotulo="a quantidade" className="w-20" aoSalvar={(novo) => editar(p, { quantidade: novo })} />
                   </td>
                   <td>
-                    <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={p.precoOrigem} className="w-24" onBlur={(e) => Number(e.target.value) !== p.precoOrigem && editar(p, { precoOrigem: Number(e.target.value) })} />
+                    <CampoNumero valor={p.precoOrigem} rotulo="o preço do fornecedor" className="w-24" aoSalvar={(novo) => editar(p, { precoOrigem: novo })} />
                   </td>
                   <td className="whitespace-nowrap">{brl(p.custoTotalBrl)}</td>
                   <td>
-                    <input
-                      inputMode="decimal"
-                      key={`f-${p.fator ?? ""}-${p.fatorAplicado}`}
-                      defaultValue={p.fator ?? ""}
+                    <CampoNumero
+                      valor={p.fator}
+                      milhar={false}
+                      positivo
+                      rotulo="o fator da peça"
                       placeholder={`×${num(p.fatorAplicado ?? 0, 1)}`}
                       title="Em branco = fator do pedido"
                       className="w-20"
-                      onBlur={(e) => {
-                        const v = e.target.value.trim().replace(",", ".");
-                        const novo = v ? Number(v) : null;
-                        if (novo !== p.fator) editar(p, { fator: novo });
-                      }}
+                      aoSalvar={(novo) => editar(p, { fator: novo })}
                     />
                   </td>
                   <td className="whitespace-nowrap font-titulo text-lg font-semibold text-rose-escuro">

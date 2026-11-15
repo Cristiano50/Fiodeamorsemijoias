@@ -106,110 +106,121 @@ export default function GastosPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Cartao titulo="Por finalidade">
-          <table className="tabela w-full">
-            <thead>
-              <tr>
-                <th>Uso</th>
-                <th>Chamadas</th>
-                <th>Custo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.porFinalidade.map((r) => (
-                <tr key={r.chave}>
-                  <td>{FINALIDADE[r.chave ?? ""] ?? r.chave}</td>
-                  <td>
-                    {r.chamadas}
-                    {r.imagens ? ` · ${r.imagens} img` : ""}
-                  </td>
-                  <td className="whitespace-nowrap">
-                    {usd(r.custo)} <span className="text-xs text-[#9a8089]">{real(r.custo)}</span>
-                  </td>
-                </tr>
-              ))}
-              {!d.porFinalidade.length && (
+        <Cartao titulo="Por finalidade" className="min-w-0">
+          <div className="overflow-x-auto">
+            <table className="tabela w-full">
+              <thead>
                 <tr>
-                  <td colSpan={3} className="text-[#8a6d78]">
-                    Nenhum uso neste mês.
-                  </td>
+                  <th>Uso</th>
+                  <th>Chamadas</th>
+                  <th>Custo</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {d.porFinalidade.map((r) => (
+                  <tr key={r.chave}>
+                    <td>{FINALIDADE[r.chave ?? ""] ?? r.chave}</td>
+                    <td>
+                      {r.chamadas}
+                      {r.imagens ? ` · ${r.imagens} img` : ""}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      {usd(r.custo)} <span className="text-xs text-[#9a8089]">{real(r.custo)}</span>
+                    </td>
+                  </tr>
+                ))}
+                {!d.porFinalidade.length && (
+                  <tr>
+                    <td colSpan={3} className="text-[#8a6d78]">
+                      Nenhum uso neste mês.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </Cartao>
-        <Cartao titulo="Por pedido">
-          <table className="tabela w-full">
-            <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Peças</th>
-                <th>Custo</th>
-                <th>Por peça</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.porPedido.map((r) => (
-                <tr key={r.pedidoId ?? "avulso"}>
-                  <td>{r.pedidoId ? <Link href={`/pedidos/${r.pedidoId}`} className="text-rose-escuro hover:underline">{r.numero ?? r.pedidoId.slice(0, 8)}</Link> : "Avulso"}</td>
-                  <td>{r.pecas}</td>
-                  <td>{usd(r.custo)}</td>
-                  <td>{r.pecas ? usd(r.custo / r.pecas) : "—"}</td>
+        <Cartao titulo="Por pedido" className="min-w-0">
+          <div className="overflow-x-auto">
+            <table className="tabela w-full">
+              <thead>
+                <tr>
+                  <th>Pedido</th>
+                  <th>Peças</th>
+                  <th>Custo</th>
+                  <th>Por peça</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {d.porPedido.map((r) => (
+                  <tr key={r.pedidoId ?? "avulso"}>
+                    <td>{r.pedidoId ? <Link href={`/pedidos/${r.pedidoId}`} className="text-rose-escuro hover:underline">{r.numero ?? r.pedidoId.slice(0, 8)}</Link> : "Avulso"}</td>
+                    <td>{r.pecas}</td>
+                    <td className="whitespace-nowrap">{usd(r.custo)}</td>
+                    <td className="whitespace-nowrap">{r.pecas ? usd(r.custo / r.pecas) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Cartao>
       </div>
 
       <Cartao titulo="Por dia">
-        <div className="flex h-32 items-end gap-1">
-          {d.porDia.map((x) => (
-            <div key={x.dia} className="flex flex-1 flex-col items-center gap-1" title={`${x.dia.split("-").reverse().join("/")}: ${usd(x.custo)}`}>
-              <div className="w-full rounded-t bg-rose" style={{ height: `${(x.custo / maxDia) * 100}%`, minHeight: 2 }} />
-              <span className="text-[0.6rem] text-[#9a8089]">{x.dia.slice(8)}</span>
-            </div>
-          ))}
-          {!d.porDia.length && <p className="text-sm text-[#8a6d78]">Sem uso no período.</p>}
+        {/* Até 31 barras: no celular o gráfico rola de lado dentro do quadro em vez de alargar a página. */}
+        <div className="overflow-x-auto">
+          <div className="flex h-32 items-end gap-1">
+            {d.porDia.map((x) => (
+              <div key={x.dia} className="flex h-full min-w-[14px] flex-1 flex-col items-center gap-1" title={`${x.dia.split("-").reverse().join("/")}: ${usd(x.custo)}`}>
+                <div className="flex w-full flex-1 items-end">
+                  <div className="w-full rounded-t bg-rose" style={{ height: `${(x.custo / maxDia) * 100}%`, minHeight: 2 }} />
+                </div>
+                <span className="text-[0.6rem] text-[#9a8089]">{x.dia.slice(8)}</span>
+              </div>
+            ))}
+            {!d.porDia.length && <p className="text-sm text-[#8a6d78]">Sem uso no período.</p>}
+          </div>
         </div>
       </Cartao>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Cartao titulo="Limite mensal">
+        <Cartao titulo="Limite mensal" className="min-w-0">
           <p className="mb-3 text-sm text-[#6b5560]">Ao atingir o limite, o app para de chamar a IA até o mês seguinte (ou até você aumentar). 0 = sem limite.</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input inputMode="decimal" placeholder={d.limite ? String(d.limite) : "ex.: 30"} value={limite} onChange={(e) => setLimite(e.target.value)} className="w-40" />
             <Botao onClick={salvarLimite}>Salvar limite (US$)</Botao>
           </div>
         </Cartao>
-        <Cartao titulo="Tabela de preços usada (US$)" acoes={<Botao variante="secundario" onClick={salvarPrecos}>Salvar preços</Botao>}>
-          <table className="tabela w-full text-xs">
-            <thead>
-              <tr>
-                <th>Modelo</th>
-                <th>Entrada / 1M tokens</th>
-                <th>Saída / 1M tokens</th>
-                <th>Por imagem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(precos).map(([m, p]) => (
-                <tr key={m}>
-                  <td className="font-mono">{m}</td>
-                  {(["entradaPorMilhao", "saidaPorMilhao", "porImagem"] as const).map((k) => (
-                    <td key={k}>
-                      <input
-                        inputMode="decimal"
-                        className="w-20"
-                        value={p[k] ?? ""}
-                        onChange={(e) => setPrecos((x) => ({ ...x, [m]: { ...x[m], [k]: e.target.value === "" ? undefined : Number(e.target.value.replace(",", ".")) } }))}
-                      />
-                    </td>
-                  ))}
+        <Cartao titulo="Tabela de preços usada (US$)" className="min-w-0" acoes={<Botao variante="secundario" onClick={salvarPrecos}>Salvar preços</Botao>}>
+          <div className="overflow-x-auto">
+            <table className="tabela w-full text-xs">
+              <thead>
+                <tr>
+                  <th>Modelo</th>
+                  <th>Entrada / 1M tokens</th>
+                  <th>Saída / 1M tokens</th>
+                  <th>Por imagem</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {Object.entries(precos).map(([m, p]) => (
+                  <tr key={m}>
+                    <td className="font-mono">{m}</td>
+                    {(["entradaPorMilhao", "saidaPorMilhao", "porImagem"] as const).map((k) => (
+                      <td key={k}>
+                        <input
+                          inputMode="decimal"
+                          className="w-20"
+                          value={p[k] ?? ""}
+                          onChange={(e) => setPrecos((x) => ({ ...x, [m]: { ...x[m], [k]: e.target.value === "" ? undefined : Number(e.target.value.replace(",", ".")) } }))}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <p className="mt-2 text-xs text-[#9a8089]">Valores de referência. Confira os preços atuais nas páginas da Anthropic, do Google e da OpenAI.</p>
         </Cartao>
       </div>
