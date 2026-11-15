@@ -124,7 +124,7 @@ def main() -> int:
         print(f"parte {i}/{len(partes)}: {r.get('recebidos')} de {len(itens)} recebidas", file=sys.stderr)
         if r.get("jaImportado"):
             break
-    print(json.dumps({k: r.get(k) for k in ("url", "pedidoId", "numero", "recebidos", "recompras", "jaImportado", "referenciasTrocadas", "avisos")}, ensure_ascii=False, indent=1))
+    print(json.dumps({k: r.get(k) for k in ("url", "pedidoId", "numero", "recebidos", "recompras", "aConfirmar", "jaImportado", "referenciasTrocadas", "avisos")}, ensure_ascii=False, indent=1))
     return 0
 
 

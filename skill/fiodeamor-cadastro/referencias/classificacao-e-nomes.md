@@ -12,12 +12,14 @@ revendedoras) e no varejo, com cadastro no ERP **UP Vendas**. Ao classificar, co
 - **Olhe a foto** para decidir tipo, subtipo, cor da pedra, banho aparente e estilo. O **texto do documento manda** nos
   códigos, preços e quantidades.
 - Traduza o chinês com `taxonomia.json → glossario_chines`; termo fora do glossário: traduza pelo contexto e ponha um alerta.
-- Especificação do fornecedor (G, MR, 14K, 14KF, se, 白金, 粉油…): consulte `taxonomia.json → codigos_fornecedor` para o
-  banho. Código desconhecido: banho `a_definir` e alerta.
+- Especificação do fornecedor (G, MR, 14K, 14KF, se, 白金, 粉油, 金色, 玫瑰金…; tamanhos como 16 ou 18号): consulte
+  `taxonomia.json → codigos_fornecedor` para o banho. Código desconhecido: banho `a_definir` e alerta. Não altere o
+  campo `especificacao`: ele é a chave da recompra (o que você entendeu da cor vai em `variacao` e `banho`).
 - 两件套 / 三件套 / 四件套 = **conjunto** (`ehConjunto: true`, tipo `conjunto`) com os `componentes`
   (ex.: "colar 43cm", "pulseira 17cm", "brinco").
 - Mesmo código do fornecedor em várias linhas com cores diferentes = **variações**: preencha `variacao`
-  (ex.: "esmalte rosa"); o script de referências agrupa.
+  (ex.: "esmalte rosa"); o script de referências agrupa (recompras incluídas: a variação nova usa a referência da
+  original).
 - Fotos de fornecedor mostram cartela com marca do fornecedor (ex.: "Delicate"), QR code e etiqueta: **não fazem parte da peça**.
 - Na dúvida, escolha a melhor hipótese e escreva em `alertas` o que precisa ser conferido na peça física.
 
@@ -50,4 +52,6 @@ Exemplos: `BRINCO (SJ) FLOR PEROLADA COM PÉROLA E ZIRCÔNIAS` · `BRINCO (SJ) K
 
 - Linhas, peças e total iguais ao documento.
 - Todo item com `tipo`, `material`, `banho` e `nome`.
-- Recompras marcadas (o resumo mostra) e preços sem alerta de fator abaixo do mínimo, salvo decisão da gestora.
+- Recompras marcadas (o resumo mostra), **recompras a confirmar** mostradas à pessoa (a decisão é no app) e preços sem
+  alerta de fator abaixo do mínimo, salvo decisão da gestora.
+- Moeda confirmada (sem marca no documento, pergunte) e quantidade 0 conferida.

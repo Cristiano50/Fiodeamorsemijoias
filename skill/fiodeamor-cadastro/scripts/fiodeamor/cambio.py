@@ -21,6 +21,8 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
+from .numeros import ler_numero_br
+
 URL_BOLETIM = "https://www4.bcb.gov.br/Download/fechamento/{aaaammdd}.csv"
 FONTE_BOLETIM = "PTAX Banco Central (boletim de fechamento)"
 TIMEOUT_BCB = 12
@@ -96,10 +98,9 @@ def ler_boletim(texto: str, moeda: str, tipo: str = "venda") -> dict | None:
         c = linha.split(";")
         if len(c) > 3 and c[3].strip().upper() == moeda:
             bruto = (c[5] if tipo == "venda" else c[4]) if len(c) > 5 else ""
-            try:
-                valor = float(bruto.strip().replace(",", ".", 1))
-            except ValueError as e:
-                raise ErroFonte(f"valor inválido no boletim para {moeda}: {bruto!r}") from e
+            valor = ler_numero_br(bruto, milhar=False)  # "0,77450000" → 0.7745 (cotação nunca tem milhar)
+            if valor is None:
+                raise ErroFonte(f"valor inválido no boletim para {moeda}: {bruto!r}")
             dd, mm, aaaa = c[0].strip().split("/")
             return {"moeda": moeda, "cotacao": valor, "data": f"{aaaa}-{mm}-{dd}", "fonte": FONTE_BOLETIM, "tipo": tipo}
     return None

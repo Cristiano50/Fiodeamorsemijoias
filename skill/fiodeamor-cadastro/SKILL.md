@@ -47,6 +47,16 @@ python3 scripts/extrair_pdf.py pedido.pdf --saida /tmp/cadastro
 Cria `cadastro.json` (pedido + itens com código, especificação, descrição, quantidade, preço e foto) e `fotos/`.
 Confira o resumo: **linhas, peças e total devem bater com o documento**. Se não bater, olhe as páginas e corrija o
 `cadastro.json` antes de seguir (avise o que corrigiu).
+- **Especificação/cor do fornecedor** (G, MR, 14KF, 金色, 玫瑰金, MR白油, tamanho 16 ou 18号…): é a célula logo antes do
+  preço. Não é especificação a sequência, o código repetido nem a descrição. Ela entra na chave da recompra: não mude.
+- **Moeda**: só vale com marca no documento — dólar (US$, USD, 美元) > real (R$, BRL) > yuan (¥, RMB, 元, 人民币).
+  Sem marca, `pedido.moeda` fica vazia e o resumo avisa: **pergunte à pessoa** (yuan, dólar ou real) e grave
+  `CNY`, `USD` ou `BRL` (ou use `--moeda` no passo 6). Não adivinhe pelo chinês.
+- **Quantidade 0 continua 0** (não vira 1): confirme com a pessoa se a peça veio mesmo. Linha sem preço × quantidade
+  legível fica com quantidade 1 e sem preço, com aviso: corrija pelo documento.
+- **Números escritos como texto** valem do jeito brasileiro ou não: "10,5" ou "10.5"; "1.234,56" ou "1,234.56";
+  "R$", "¥", "US$", "RMB" e espaços são ignorados. Ponto de milhar só no formato 1.234 e só em dinheiro: em cotação e
+  fator o ponto é sempre decimal ("0.775" é 0,775).
 Fotos de catálogo (sem tabela): o script copia as imagens para `paginas/`; identifique as peças olhando as fotos e
 preencha os itens você mesmo (recorte com Pillow e salve em `fotos/linha-NNN.jpg`).
 
@@ -54,11 +64,14 @@ preencha os itens você mesmo (recorte com Pillow e salve em `fotos/linha-NNN.jp
 ```
 python3 scripts/ptax.py AAAA-MM-DD --moeda CNY > /tmp/cadastro/ptax.json
 ```
-PTAX de venda do boletim de fechamento do Banco Central na data da compra (fim de semana/feriado = último dia útil).
+PTAX de venda do boletim de fechamento do Banco Central na data da compra (fim de semana/feriado = último dia útil),
+na moeda do pedido (`--moeda CNY` ou `USD`).
 Guarde a saída (JSON) em `/tmp/cadastro/ptax.json`: ela entra no passo 6.
 Se a rede bloquear (código 2), abra com a ferramenta de busca da web a URL que o script mostrar
 (`https://www4.bcb.gov.br/Download/fechamento/AAAAMMDD.csv`) e passe o arquivo baixado com `--csv arquivo.csv`,
 ou peça a cotação à pessoa e use `--cotacao` no passo 6.
+**A cotação nunca vira 1** (só o real, BRL, é 1). Se faltar, o `calcular.py` tenta buscar a PTAX da data da compra;
+sem conseguir, deixa os preços **pendentes** (código 2) e diz o que fazer.
 
 ### 4. Classificar e dar nome (você)
 Para cada item, olhando a **foto** e a linha do documento, preencha no `cadastro.json`:
@@ -71,23 +84,44 @@ Para cada item, olhando a **foto** e a linha do documento, preencha no `cadastro
 ```
 python3 scripts/referencias.py /tmp/cadastro/cadastro.json [--contexto contexto.json | --lista-up produtos-up.xlsx]
 ```
-Peça já comprada antes usa a referência, o nome e o **código de barras do UP** da original. As variações (mesmo código
-do fornecedor) dividem a referência. As novas seguem `BR_2611001` (prefixo do tipo + ano + mês + sequência).
+Peça já comprada antes usa a referência, o nome e o **código de barras do UP** da original. A chave da recompra é a
+mesma do app: **fornecedor** (nome original, sem espaços, minúsculas) + **código do fornecedor** + **especificação**
+(os dois em maiúsculas, sem espaço, hífen ou ponto; letras de largura total viram normais: "abc-123 a" = "ＡＢＣ１２３Ａ").
+- Exatamente **um** original com a mesma chave → recompra (`recompraDe` = referência do original).
+- Mais de um original possível (ou especificação/fornecedor vazios de um dos lados) → **recompra a confirmar**:
+  a peça ganha `recompraCandidatas` (as referências possíveis), fica sem referência e fora da planilha do UP.
+  **Na dúvida a skill não decide; o app mostra "Recompra a confirmar"**: mostre as opções à pessoa (a saída do script
+  traz cada uma) e peça para escolher no app ("É esta" ou "Não é recompra").
+- Pedido **sem o nome do fornecedor** → só candidatas, nunca recompra automática. Com a lista do UP (sem o app), tudo o
+  que ela achar fica "a confirmar" (a lista não tem fornecedor nem especificação).
+
+As variações (mesmo código do fornecedor, **recompras incluídas**) dividem a referência; o grupo com recompra usa a
+referência da original. As novas seguem `BR_2611001` (prefixo do tipo + ano + mês + sequência).
 
 ### 6. Preço
 ```
 python3 scripts/calcular.py /tmp/cadastro/cadastro.json --ptax /tmp/cadastro/ptax.json --frete 850 [--fator 10] [--contexto /tmp/cadastro/contexto.json]
 ```
-(`--cotacao 0,7745` no lugar de `--ptax` quando a cotação veio da pessoa; `--contexto` quando o app respondeu no passo 1.)
-Custo da peça = preço × cotação × (1 + frete ÷ mercadoria em R$). Preço = custo × fator (padrão ×10), arredondado para
-cima terminando em ,99. Preço digitado pela loja vai em `precoManual`; fator só de uma peça vai em `fator`.
-Mostre os alertas (ex.: fator abaixo do mínimo).
+(`--cotacao 0,7745` no lugar de `--ptax` quando a cotação veio da pessoa; `--contexto` quando o app respondeu no passo 1;
+`--moeda CNY|USD|BRL` quando o documento não mostrava a moeda.)
+Custo da peça = preço × cotação × (1 + frete ÷ mercadoria em R$). Preço = custo × fator (padrão ×10), levado ao
+**preço possível mais próximo da escada** (sempre ,99): 19,99 (mínimo); de 5 em 5 até 49,99; de 10 em 10 até 99,99;
+de 20 em 20 até 199,99; de 50 em 50 até 399,99; de 100 em 100 acima; empate fica com o maior. Ex.: 27,30 → 24,99;
+87,80 → 89,99; 355,50 → 349,99. As outras tabelas (atacado, liquidação) usam a mesma escada, sem o mínimo.
+Preço digitado pela loja vai em `precoManual`; fator só de uma peça vai em `fator`.
+Mostre os alertas (ex.: fator abaixo do mínimo — o fator escolhido, não o arredondado: a escada arredondar para baixo
+não gera alerta) e os avisos (moeda, cotação pendente, quantidade 0).
+Códigos de saída: 0 = ok; 2 = preços pendentes (falta a cotação ou a moeda); 1 = erro.
 
 ### 7. Saídas
 ```
 python3 scripts/gerar_saidas.py /tmp/cadastro/cadastro.json --saida /tmp/cadastro/saida [--contexto /tmp/cadastro/contexto.json]
 ```
 Gera `planilha-up-<pedido>.xlsx` e `.csv`, `cadastro-<pedido>.json` e `resumo-<pedido>.md`.
+As células da planilha são protegidas como no app: texto que começa com = + - @ (ou tab/enter) ganha um apóstrofo
+na frente, para não virar fórmula no Excel; números continuam números. A quantidade 0 vai 0 no estoque.
+**Recompra a confirmar** vai no cadastro do app e no resumo, mas fica **fora da planilha do UP**: depois de decidir no
+app, baixe a planilha do UP pelo app.
 **Código de barras:** peça nova vai **sem código** — o UP Vendas cria no cadastro (é o código que a loja usa).
 Recompra vai com o código do UP da peça original. A planilha da skill vai sem o link da foto (as fotos ficam no app);
 com o app na internet, a planilha baixada pelo app (pedido → Planilha UP) leva o link para o UP baixar a foto.
@@ -102,13 +136,15 @@ Sem conexão: entregue o `cadastro-<pedido>.json` e diga para importar no app em
 
 ### 9. Entrega
 Apresente os arquivos (planilha do UP, cadastro, resumo) e um resumo curto: linhas, peças, total conferido,
-cotação usada, frete, custo, venda potencial, recompras, alertas que precisam de decisão. Lembre os próximos passos:
+cotação usada, frete, custo, venda potencial, recompras, **recompras a confirmar** (com as opções), alertas e avisos
+que precisam de decisão. Lembre os próximos passos:
 1. importar a planilha no UP Vendas (ele cria os códigos de barras);
 2. no app, trazer os códigos do UP (UP Vendas → Códigos de barras do UP, ou bipar em "Códigos do UP" no pedido);
 3. no app, criar as fotos com IA, aprovar e imprimir as etiquetas.
 
 ## Cuidados
-- Nunca invente preço, quantidade ou código: o documento manda. Na dúvida, alerta.
+- Nunca invente preço, quantidade, moeda ou código: o documento manda. Na dúvida, alerta (e pergunte).
+- Recompra: na dúvida a skill não decide; a confirmação é no app ("Recompra a confirmar").
 - Não mude regras de preço por conta própria: fator, frete e arredondamento vêm de `precificacao.json` (ou do contexto do app).
 - O nome do fornecedor fica **como está no documento** (em chinês): é por ele que a recompra reconhece as peças.
 - Não exponha a chave de `conexao.json` em respostas.

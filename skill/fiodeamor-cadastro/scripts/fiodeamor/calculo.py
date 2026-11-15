@@ -4,8 +4,8 @@ Porta de ``recalcularPedido``, ``custosDoPedido`` e ``resumoPedido`` (``src/lib/
 pelo ``cadastro.json`` (contrato em ``referencias/formato-cadastro.md``).
 
 Campos do pedido usados:
-    ``moeda``, ``cotacao`` (R$ por unidade; BRL = 1), ``frete`` (R$ do frete do pedido, ou null),
-    ``fator`` (fator do pedido; null = padrão da loja).
+    ``moeda`` (CNY | USD | BRL; vazio = não identificada), ``cotacao`` (R$ por unidade; BRL = 1),
+    ``frete`` (R$ do frete do pedido, ou null), ``fator`` (fator do pedido; null = padrão da loja).
 Opcionais (como no app, fora do contrato básico):
     ``cenario`` (id do cenário de custo; padrão ``sistema.cenarioCustoPadrao`` = "mercadoria_frete", ou
     "compra_importador_nacional" quando a moeda é BRL), ``custos`` ({componente: valor} por cima do cenário),
@@ -14,52 +14,85 @@ Campos da peça usados: ``precoOrigem``, ``quantidade``, ``tipo``, ``material``,
 ``alertas``.
 Campos da peça gravados: ``custoProdutoBrl``, ``custoAdicionalBrl``, ``custoTotalBrl``, ``fatorAplicado``,
 ``precoVenda``, ``precos``, ``ncm``, ``alertas``.
+
+Números que vêm como texto ("10,5", "R$ 1.234,56", "0,7745") são lidos com :func:`numero` (``lerNumeroBr`` do app):
+dinheiro aceita ponto de milhar no formato 1.234; cotação e fator não ("0.775" é 0,775, nunca 775).
+Quantidade 0 continua 0 (com aviso); sem quantidade conta 1, como no app (com aviso).
+Sem cotação (moeda diferente de BRL) os preços ficam pendentes, com aviso: a cotação nunca vira 1.
 """
 
 from __future__ import annotations
 
-import math
-import re
 from typing import Any
 
 from . import config
+from .numeros import ler_numero_br
 from .precos import (
     PREFIXOS_ALERTA_PRECO,
     calcular_custos,
     calcular_preco,
     detalhar_custos,
+    numero_br,
     round_js,
     soma,
     valores_do_cenario,
 )
+
+MOEDAS = ("CNY", "USD", "BRL")
+CAMPOS_DE_PRECO = ("custoProdutoBrl", "custoAdicionalBrl", "custoTotalBrl", "fatorAplicado", "precoVenda", "precos")
 
 
 class ErroCadastro(ValueError):
     """Cadastro sem algum dado necessário para o cálculo (mensagem em português, pronta para mostrar)."""
 
 
-def numero(v: Any) -> float | None:
-    """Converte número escrito de qualquer jeito (``10``, ``"10,5"``, ``"R$ 1.234,56"``, ``"0.7745"``).
+def numero(v: Any, milhar: bool = True) -> float | None:
+    """Converte número escrito de qualquer jeito (``10``, ``"10,5"``, ``"R$ 1.234,56"``, ``"0,7745"``).
 
-    Vazio ou inválido → ``None``.
+    Porta de ``lerNumeroBr``. Vazio ou inválido → ``None``. Use ``milhar=False`` para cotação e fator.
     """
-    if v is None or isinstance(v, bool):
-        return None
-    if isinstance(v, (int, float)):
-        return None if isinstance(v, float) and math.isnan(v) else float(v)
-    s = re.sub(r"[^\d,.\-]", "", str(v))
-    if not s:
-        return None
-    if "," in s and "." in s:  # 1.234,56 (padrão brasileiro)
-        s = s.replace(".", "").replace(",", ".")
-    elif "," in s:
-        s = s.replace(",", ".")
-    elif re.fullmatch(r"-?\d{1,3}(?:\.\d{3})+", s):  # 1.500 = mil e quinhentos (como o campo Frete do app)
-        s = s.replace(".", "")
-    try:
-        return float(s)
-    except ValueError:
-        return None
+    return ler_numero_br(v, milhar=milhar)
+
+
+def moeda_do_pedido(pedido: dict) -> str | None:
+    """Moeda do pedido em maiúsculas (``CNY``, ``USD``, ``BRL``…) ou ``None`` quando não foi identificada."""
+    m = str(pedido.get("moeda") or "").strip().upper()
+    return m or None
+
+
+def ler_quantidade(v: Any) -> tuple[int, str | None]:
+    """Quantidade da peça para as contas e o aviso que ela pede (ou ``None``).
+
+    0 continua 0 (aviso); vazia ou ilegível conta 1, como no app (aviso); fracionada arredonda como o app.
+    """
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return 1, "sem quantidade: considerei 1 peça; confira no documento."
+    n = ler_numero_br(v)
+    if n is None:
+        return 1, f"quantidade ilegível ({v}): considerei 1 peça; confira no documento."
+    if n < 0:
+        return 0, f"quantidade negativa ({numero_br(n, 0)}): considerei 0; confira no documento."
+    q = int(round_js(n))
+    if q != n:
+        return q, f"quantidade {numero_br(n, 3).rstrip('0').rstrip(',')} arredondada para {q}; confira no documento."
+    if q == 0:
+        return 0, "quantidade 0: a peça fica com estoque 0 (não vira 1); confira no documento."
+    return q, None
+
+
+def quantidade(v: Any) -> int:
+    """Quantidade usada nas contas (0 continua 0; vazia conta 1) — a mesma no cálculo, na planilha e no resumo."""
+    return ler_quantidade(v)[0]
+
+
+def avisos_de_quantidade(itens: list[dict]) -> list[str]:
+    """Avisos das peças com quantidade 0, vazia, ilegível ou fracionada."""
+    out = []
+    for k, it in enumerate(itens, start=1):
+        _, aviso = ler_quantidade(it.get("quantidade"))
+        if aviso:
+            out.append(f"Linha {it.get('linha') or k}: {aviso}")
+    return out
 
 
 def _r2_simples(v: float) -> float:
@@ -71,7 +104,7 @@ def escolher_cenario(pedido: dict, padrao: str, cenarios: dict) -> str:
     """Cenário de custo do pedido: o informado (se existir) → BRL usa "compra_importador_nacional" → padrão."""
     if pedido.get("cenario") in cenarios:
         return pedido["cenario"]
-    if (pedido.get("moeda") or "").upper() == "BRL" and "compra_importador_nacional" in cenarios:
+    if moeda_do_pedido(pedido) == "BRL" and "compra_importador_nacional" in cenarios:
         return "compra_importador_nacional"
     return padrao if padrao in cenarios else next(iter(cenarios))
 
@@ -83,11 +116,29 @@ def custos_do_pedido(pedido: dict, componentes: list[dict], padrao: str, cenario
     """
     cenario = escolher_cenario(pedido, padrao, cenarios)
     valores = valores_do_cenario(componentes, cenarios.get(cenario))
-    valores.update(pedido.get("custos") or {})
+    for k, v in (pedido.get("custos") or {}).items():
+        n = numero(v)
+        if n is not None:
+            valores[k] = n
     frete = numero(pedido.get("frete"))
     if frete is not None:
         valores["frete_internacional"] = max(frete, 0.0)
     return cenario, valores
+
+
+def aviso_sem_cotacao(pedido: dict) -> str:
+    """Explica o que fazer quando falta a cotação (os preços ficam pendentes)."""
+    moeda = moeda_do_pedido(pedido)
+    data = pedido.get("dataCompra") or "AAAA-MM-DD"
+    if not moeda:
+        return (
+            "Moeda e cotação pendentes: o documento não mostra a moeda (¥/RMB/元, US$ ou R$). Pergunte à pessoa, "
+            "rode calcular.py com --moeda CNY|USD|BRL e a cotação (--ptax ou --cotacao). Preços pendentes."
+        )
+    return (
+        f"Falta a cotação do pedido ({moeda} → R$): preços pendentes (a cotação nunca vira 1). "
+        f"Rode scripts/ptax.py {data} --moeda {moeda} e calcular.py com --ptax, ou informe --cotacao (ex.: 0,7745)."
+    )
 
 
 def calcular_cadastro(
@@ -100,10 +151,13 @@ def calcular_cadastro(
     """Calcula custo e preço de todas as peças do cadastro (altera ``cadastro`` no lugar) e devolve o resumo.
 
     Regra da loja (cenário "mercadoria_frete"): custo = preço × cotação × (1 + frete ÷ mercadoria em R$);
-    preço = custo × fator, para cima terminando em ,99. Prioridade do fator: preço manual → fator da peça →
-    fator do pedido → faixas → tipo → padrão. Alertas que não são de preço são preservados.
+    preço = custo × fator, arredondado na escada de preços (,99; mínimo R$ 19,99). Prioridade do fator:
+    preço manual → fator da peça → fator do pedido → faixas → tipo → padrão. Alertas que não são de preço são
+    preservados.
 
-    :raises ErroCadastro: quando falta a cotação (moeda diferente de BRL).
+    Sem cotação (moeda diferente de BRL, ou moeda não identificada), como no app: custos pendentes (vazios); o preço
+    fica pendente (alerta "Sem cotação: preço pendente."), salvo o preço manual, que continua valendo (alerta
+    "Sem cotação: custo pendente."). O resumo vem com ``cotacaoPendente: True`` e o aviso do que fazer.
     """
     pol = config.precificacao() if pol is None else pol
     fis = config.fiscal() if fis is None else fis
@@ -113,26 +167,49 @@ def calcular_cadastro(
 
     pedido = cadastro.setdefault("pedido", {})
     itens = cadastro.setdefault("itens", [])
-    moeda = (pedido.get("moeda") or "CNY").upper()
-    cotacao = numero(pedido.get("cotacao"))
-    if moeda == "BRL" and not cotacao:
-        cotacao = 1.0
+    moeda = moeda_do_pedido(pedido)
+    if moeda == "BRL":
+        cotacao: float | None = 1.0
         pedido["cotacao"] = 1
-    if not cotacao or cotacao <= 0:
-        raise ErroCadastro(
-            f"Falta a cotação do pedido ({moeda} → R$). Rode scripts/ptax.py com a data da compra "
-            "ou informe a cotação (ex.: calcular.py cadastro.json --cotacao 0,7745)."
+    else:
+        cotacao = numero(pedido.get("cotacao"), milhar=False)
+    pendente = not cotacao or cotacao <= 0
+    avisos = avisos_de_quantidade(itens)
+    if not moeda:
+        avisos.insert(
+            0,
+            "Moeda do pedido não identificada no documento (sem ¥/RMB/元, US$ ou R$): confirme com a pessoa e use "
+            "calcular.py --moeda CNY|USD|BRL.",
         )
-    fator_pedido = numero(pedido.get("fator"))
+    elif moeda not in MOEDAS:
+        avisos.insert(0, f"Moeda {moeda} fora das moedas do app (CNY, USD, BRL): confira.")
+    fator_pedido = numero(pedido.get("fator"), milhar=False)
     rateio = pedido.get("rateio") or "valor"
     cenario, valores = custos_do_pedido(pedido, componentes, padrao, cenarios)
+    ncm_padrao = sis.get("ncmPadrao") or "71171900"
 
-    entradas = []
-    for k, it in enumerate(itens):
-        preco = numero(it.get("precoOrigem"))
-        qtd = it.get("quantidade")
-        qtd = 1 if qtd is None else int(numero(qtd) or 0)
-        entradas.append({"id": k, "precoOrigem": preco, "quantidade": qtd})
+    if pendente:
+        avisos.insert(0, aviso_sem_cotacao(pedido))
+        for it in itens:
+            outros = [a for a in (it.get("alertas") or []) if not str(a).startswith(PREFIXOS_ALERTA_PRECO)]
+            it["ncm"] = it.get("ncm") or config.ncm_para(fis, it.get("tipo"), it.get("material"), ncm_padrao)
+            for campo in CAMPOS_DE_PRECO:
+                it[campo] = None
+            manual = numero(it.get("precoManual"))
+            if manual and manual > 0:
+                # Preço fixado à mão não depende da cotação: continua valendo (o custo é que fica pendente).
+                p = calcular_preco(0, it.get("tipo"), pol, fator_manual=numero(it.get("fator"), milhar=False),
+                                   fator_pedido=fator_pedido, preco_manual=manual)
+                it["fatorAplicado"], it["precoVenda"], it["precos"] = p["fator"], p["preco"], p["precos"]
+                it["alertas"] = outros + ["Sem cotação: custo pendente."]
+            else:
+                it["alertas"] = outros + ["Sem cotação: preço pendente."]
+        return resumo_pedido(cadastro, pol, componentes, cenario, valores, cenarios, avisos=avisos, pendente=True)
+
+    entradas = [
+        {"id": k, "precoOrigem": numero(it.get("precoOrigem")), "quantidade": quantidade(it.get("quantidade"))}
+        for k, it in enumerate(itens)
+    ]
     custos = calcular_custos(entradas, {"cotacao": cotacao, "custos": valores, "rateio": rateio}, componentes)
 
     for k, it in enumerate(itens):
@@ -141,7 +218,7 @@ def calcular_cadastro(
             c["custoTotalBrl"],
             it.get("tipo"),
             pol,
-            fator_manual=numero(it.get("fator")),
+            fator_manual=numero(it.get("fator"), milhar=False),
             fator_pedido=fator_pedido,
             preco_manual=numero(it.get("precoManual")),
         )
@@ -151,11 +228,11 @@ def calcular_cadastro(
         it["fatorAplicado"] = p["fator"]
         it["precoVenda"] = p["preco"]
         it["precos"] = p["precos"]
-        it["ncm"] = it.get("ncm") or config.ncm_para(fis, it.get("tipo"), it.get("material"), sis.get("ncmPadrao") or "71171900")
+        it["ncm"] = it.get("ncm") or config.ncm_para(fis, it.get("tipo"), it.get("material"), ncm_padrao)
         antigos = [a for a in (it.get("alertas") or []) if not str(a).startswith(PREFIXOS_ALERTA_PRECO)]
         it["alertas"] = antigos + p["alertas"]
 
-    return resumo_pedido(cadastro, pol, componentes, cenario, valores, cenarios)
+    return resumo_pedido(cadastro, pol, componentes, cenario, valores, cenarios, avisos=avisos)
 
 
 def resumo_pedido(
@@ -165,25 +242,28 @@ def resumo_pedido(
     cenario: str,
     valores: dict,
     cenarios: dict | None = None,
+    avisos: list[str] | None = None,
+    pendente: bool = False,
 ) -> dict:
-    """Resumo numérico do pedido (porta de ``resumoPedido``): linhas, peças, mercadoria, frete, custo, venda, markup."""
+    """Resumo numérico do pedido (porta de ``resumoPedido``): linhas, peças, mercadoria, frete, custo, venda, markup.
+
+    Mais ``cotacaoPendente`` (preços não calculados por falta de cotação) e ``avisos`` (cotação, moeda e
+    quantidades que precisam de conferência).
+    """
     pedido = cadastro.get("pedido") or {}
     itens = cadastro.get("itens") or []
     comissao = (pol.get("comissao_consignacao_pct") or 0) / 100
-    cotacao = numero(pedido.get("cotacao")) or 0.0
+    cotacao = 0.0 if pendente else (numero(pedido.get("cotacao"), milhar=False) or 0.0)
 
-    def qtd(p: dict) -> int:
-        q = p.get("quantidade")
-        return 1 if q is None else int(numero(q) or 0)
-
+    qtds = [quantidade(p.get("quantidade")) for p in itens]
     pecas = 0
-    for p in itens:
-        pecas += qtd(p)
-    total_origem = soma((numero(p.get("precoOrigem")) or 0) * qtd(p) for p in itens)
-    custo_total = soma((p.get("custoTotalBrl") or 0) * qtd(p) for p in itens)
-    venda = soma((p.get("precoVenda") or 0) * qtd(p) for p in itens)
+    for q in qtds:
+        pecas += q
+    total_origem = soma((numero(p.get("precoOrigem")) or 0) * q for p, q in zip(itens, qtds))
+    custo_total = soma((p.get("custoTotalBrl") or 0) * q for p, q in zip(itens, qtds))
+    venda = soma((p.get("precoVenda") or 0) * q for p, q in zip(itens, qtds))
     detalhe = detalhar_custos(
-        [{"id": k, "precoOrigem": numero(p.get("precoOrigem")), "quantidade": qtd(p)} for k, p in enumerate(itens)],
+        [{"id": k, "precoOrigem": numero(p.get("precoOrigem")), "quantidade": q} for k, (p, q) in enumerate(zip(itens, qtds))],
         {"cotacao": cotacao, "custos": valores},
         componentes,
     )
@@ -195,8 +275,9 @@ def resumo_pedido(
     return {
         "numero": pedido.get("numero"),
         "fornecedor": pedido.get("fornecedor"),
-        "moeda": (pedido.get("moeda") or "CNY").upper(),
+        "moeda": moeda_do_pedido(pedido),
         "cotacao": cotacao,
+        "cotacaoPendente": pendente,
         "cenario": cenario,
         "cenarioNome": ((cenarios or {}).get(cenario) or {}).get("nome"),
         "rateio": pedido.get("rateio") or "valor",
@@ -221,8 +302,9 @@ def resumo_pedido(
             _r2_simples(((venda * (1 - comissao) - custo_total) / (venda * (1 - comissao))) * 100) if venda > 0 else 0
         ),
         "fatorMedio": _r2_simples(venda / custo_total) if custo_total > 0 else 0,
-        "fatorPedido": numero(pedido.get("fator")),
+        "fatorPedido": numero(pedido.get("fator"), milhar=False),
         "fatorPadrao": pol.get("fator_padrao"),
         "semPreco": sum(1 for p in itens if not numero(p.get("precoOrigem"))),
         "comAlerta": sum(1 for p in itens if p.get("alertas")),
+        "avisos": list(avisos or []),
     }

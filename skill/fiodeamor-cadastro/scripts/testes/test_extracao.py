@@ -1,4 +1,8 @@
-"""Leitura das linhas e do cabeçalho do pedido (tests/regras.test.ts) e agrupamento do texto por faixa/coluna."""
+"""Leitura das linhas e do cabeçalho do pedido (tests/regras.test.ts) e agrupamento do texto por faixa/coluna.
+
+Os vetores comuns com o app (tests/vetores/*.json) rodam em test_vetores.py. Expectativas que mudaram com eles:
+o código repetido antes do preço não é mais especificação; cabeçalho sem marca de moeda dá moeda None (era CNY).
+"""
 
 import sys
 import tempfile
@@ -27,11 +31,22 @@ class TestLerLinha(unittest.TestCase):
         self.assertEqual((l["codigo"], l["especificacao"], l["preco"], l["quantidade"]), ("YL576A", "14K", 57, 6))
 
     def test_coluna_de_especificacao_vazia(self):
-        # Igual ao app: sem a coluna 多规格, o texto antes dos números é o código, e ele vira a "especificação".
-        # (A chave de recompra do app usa este mesmo valor, por isso a porta mantém o comportamento.)
+        # Sem a coluna 多规格, a célula antes dos números é o próprio código repetido: não é especificação
+        # (antes virava a "especificação" MR336A).
         l = ler_linha("5 | MR336A | MR混款 | MR336A | 12.5 | 11 | 137.5")
-        self.assertEqual((l["especificacao"], l["codigo"], l["preco"], l["quantidade"]), ("MR336A", "MR336A", 12.5, 11))
+        self.assertNotIn("especificacao", l)
+        self.assertEqual((l["codigo"], l["preco"], l["quantidade"], l["descricao"]), ("MR336A", 12.5, 11, "MR混款"))
         self.assertEqual(ler_linha("só texto | 耳环"), {"descricao": "耳环"})
+
+    def test_especificacao_chinesa_e_tamanho(self):
+        self.assertEqual(ler_linha("4 | ABC126D | 戒指 | 金色 | 6.5 | 12 | 78")["especificacao"], "金色")
+        self.assertEqual(ler_linha("6 | ABC127E | 戒指 | 16 | 6.5 | 10 | 65")["especificacao"], "16")
+        self.assertNotIn("especificacao", ler_linha("8 | ABC128F | 手链-爱心 | 10 | 12 | 120"))  # é a descrição
+        self.assertEqual(ler_linha("1 | ABC123A | 耳钉 | ROSE GOLD 14K | 10 | 12 | 120")["especificacao"], "ROSE GOLD 14K")
+
+    def test_largura_total_vira_ascii(self):
+        l = ler_linha("1 | ＡＢＣ１２３Ａ | 耳钉 | Ｇ | １０ | １２ | １２０")
+        self.assertEqual((l["codigo"], l["especificacao"], l["preco"], l["quantidade"]), ("ABC123A", "G", 10, 12))
 
     def test_conta_que_nao_fecha_nao_vira_preco(self):
         l = ler_linha("1 | AB123 | 10 | 12 | 999")
@@ -42,11 +57,15 @@ class TestLerLinha(unittest.TestCase):
 class TestCabecalho(unittest.TestCase):
     def test_data_numero_moeda(self):
         c = ler_cabecalho("客户:FA\n下单时间2026-09-26 | 单号:X260926017")
-        self.assertEqual(c, {"data": "2026-09-26", "numero": "X260926017", "moeda": "CNY"})
+        # Sem ¥/RMB/元/人民币 (nem US$ ou R$) não há como saber a moeda: None (antes, o chinês fazia virar CNY).
+        self.assertEqual(c, {"data": "2026-09-26", "numero": "X260926017", "moeda": None})
+        self.assertEqual(ler_cabecalho("单号:X1 合计 ¥8225.9")["moeda"], "CNY")
 
     def test_outros_formatos(self):
         self.assertEqual(ler_cabecalho("Pedido: 12345 em 2026/3/7 total R$ 10"), {"data": "2026-03-07", "numero": "12345", "moeda": "BRL"})
         self.assertEqual(ler_cabecalho("Order #AB-99 USD")["moeda"], "USD")
+        self.assertEqual(ler_cabecalho("合计 ￥ 120 · 美金 30")["moeda"], "USD")  # dólar tem prioridade
+        self.assertIsNone(ler_cabecalho("USDT 10 RMB3")["moeda"])  # marca dentro de outra palavra não conta
 
     def test_total_do_documento(self):
         self.assertEqual(ler_total("合计 | 858 | 8225.9\n订单优惠:0 | 应收:8225.9 | 实收:0"), 8225.9)

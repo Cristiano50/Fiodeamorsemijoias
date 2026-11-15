@@ -6,11 +6,20 @@ Uso:
                                                  [--inicio BR=12,CL=3] [--refazer]
 
 O que faz, nesta ordem:
- 1. Recompra: a peça que já foi cadastrada antes (mesmo fornecedor + mesmo código + mesma especificação) usa a
-    referência, o nome, a classificação e o código de barras do UP da peça original. Fonte do histórico:
+ 1. Recompra: a peça que já foi cadastrada antes usa a referência, o nome, a classificação e o código de barras do UP
+    da peça original. Chave da recompra = fornecedor (nome original sem espaços, minúsculas) + código do fornecedor
+    + especificação/cor, os dois normalizados (largura total → ASCII, maiúsculas, sem espaço, hífen ou ponto).
+      - exatamente 1 original possível e ele casa a chave inteira → recompra (recompraDe = referência do original);
+      - mais de um possível, ou fornecedor/especificação desconhecidos de um dos lados → "recompra a confirmar":
+        recompraCandidatas = [referências possíveis], sem referência e fora da planilha do UP até alguém decidir
+        no app. Na dúvida a skill não decide; o app mostra "Recompra a confirmar";
+      - pedido sem fornecedor → só candidatas, nunca recompra automática.
+    Fonte do histórico:
       - contexto.json do app (scripts/app.py contexto) — o melhor: tem tudo o que já foi cadastrado;
-      - ou a lista de produtos exportada do UP (Referência + Código Externo [+ Cód. Barras]).
- 2. Variações: linhas com o mesmo código do fornecedor viram um grupo e dividem a referência.
+      - ou a lista de produtos exportada do UP (Referência + Código Externo [+ Cód. Barras]); a lista não tem
+        fornecedor nem especificação, então o que ela achar fica sempre "a confirmar".
+ 2. Variações: linhas com o mesmo código do fornecedor (recompras incluídas) viram um grupo e dividem a referência;
+    o grupo com recompra usa a referência da original.
  3. Referências novas: prefixo do tipo (taxonomia) + ano/mês + sequência do mês, continuando de onde o app parou
     (contexto) ou da maior referência do mês na lista do UP; sem nenhum dos dois, use --inicio (ou começa em 1, com aviso).
 
@@ -28,8 +37,18 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from fiodeamor.numeros import ESPACOS_JS, ler_numero_br  # noqa: E402
+from fiodeamor.precos import texto_numero, to_fixed  # noqa: E402
+
 BASE = Path(__file__).resolve().parent.parent
 REFS = BASE / "referencias"
+
+FONTE_LISTA_UP = "lista de produtos do UP"
+PREFIXOS_ALERTA_RECOMPRA = ("Recompra de ", "Recompra a confirmar", "Preço do fornecedor ")
+_RE_ESPACOS = re.compile(f"[{ESPACOS_JS}]+")
+_RE_SEM_CHAVE = re.compile(f"[{ESPACOS_JS}.\\-]+")
 
 
 def carregar(nome: str, contexto: dict | None) -> dict:
@@ -39,12 +58,20 @@ def carregar(nome: str, contexto: dict | None) -> dict:
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
-def norm_codigo(s) -> str:
-    return re.sub(r"\s+", "", str(s or "")).upper()
+def normalizar_chave(s) -> str:
+    """``normalizarChave`` do app (código e especificação): largura total → ASCII (NFKC), maiúsculas,
+    sem espaço, hífen ou ponto. "abc-123 a" = "ＡＢＣ１２３Ａ" = "ABC123A"."""
+    return _RE_SEM_CHAVE.sub("", unicodedata.normalize("NFKC", str(s or "")).upper())
 
 
-def norm_fornecedor(s) -> str:
-    return re.sub(r"\s+", "", str(s or "")).lower()
+def chave_fornecedor(s) -> str:
+    """``chaveFornecedor`` do app: o nome original do fornecedor sem espaços e em minúsculas."""
+    return _RE_ESPACOS.sub("", str(s or "")).lower()
+
+
+# Nomes antigos (compatibilidade com quem importava estas funções).
+norm_codigo = normalizar_chave
+norm_fornecedor = chave_fornecedor
 
 
 def sem_acento(s: str) -> str:
@@ -108,39 +135,155 @@ def col(d: dict, *padroes: str) -> str:
     return ""
 
 
+def _data_br(iso: str | None) -> str:
+    return "/".join(reversed(iso.split("-"))) if iso else ""
+
+
 def historico_do_contexto(contexto: dict) -> list[dict]:
-    return [
-        {
-            "referencia": p.get("referencia"),
-            "codigoFornecedor": norm_codigo(p.get("codigoFornecedor")),
-            "especificacao": norm_codigo(p.get("especificacao")),
-            "fornecedor": norm_fornecedor(p.get("fornecedor")),
+    """Peças já cadastradas no app (só as originais, com referência), com a chave da recompra.
+
+    Contexto novo: cada peça traz ``fornecedorChave`` e ``especificacao``. Contexto antigo (sem
+    ``fornecedorChave``): a chave do fornecedor sai do nome e a especificação igual ao próprio código é ignorada
+    (o leitor antigo devolvia o código quando não havia a coluna de especificação).
+    """
+    out = []
+    for p in contexto.get("produtos") or []:
+        ref = str(p.get("referencia") or "").strip()
+        if not ref or p.get("recompraDe"):
+            continue
+        novo = "fornecedorChave" in p or "chaveFornecedor" in p
+        forn = p.get("fornecedorChave", p.get("chaveFornecedor")) if novo else p.get("fornecedor")
+        # O contexto novo já manda o código e a especificação normalizados (a mesma conta do app).
+        codigo = p["codigoNormalizado"] if isinstance(p.get("codigoNormalizado"), str) else normalizar_chave(p.get("codigoFornecedor"))
+        esp = (
+            p["especificacaoNormalizada"]
+            if isinstance(p.get("especificacaoNormalizada"), str)
+            else normalizar_chave(p.get("especificacao"))
+        )
+        if not novo and esp == codigo:
+            esp = ""
+        fonte = f"pedido {p.get('pedido') or '?'}" + (f" de {_data_br(p['dataCompra'])}" if p.get("dataCompra") else "")
+        out.append({
+            "referencia": ref,
+            "codigoFornecedor": codigo,
+            "especificacao": esp,
+            "especificacaoTexto": str(p.get("especificacao") or "").strip(),
+            "fornecedorChave": chave_fornecedor(forn),
             "codigoBarras": p.get("codigoBarras") if p.get("codigoBarrasOrigem") == "up" else None,
+            "criadoEm": str(p.get("criadoEm") or ""),
             "dados": p,
-            "fonte": f"pedido {p.get('pedido') or '?'}" + (f" de {'/'.join(reversed(p['dataCompra'].split('-')))}" if p.get("dataCompra") else ""),
-        }
-        for p in contexto.get("produtos") or []
-        if p.get("referencia")
-    ]
+            "fonte": fonte,
+        })
+    return out
 
 
-def historico_da_lista_up(linhas: list[dict]) -> list[dict]:
+def historico_da_lista_up(linhas: list[dict], ja_conhecidas: set[str] | None = None) -> list[dict]:
+    """Produtos da lista exportada do UP. Sem fornecedor nem especificação: o que casar fica "a confirmar".
+
+    ``ja_conhecidas``: referências (normalizadas) que já vieram do contexto do app — não entram de novo.
+    """
     out = []
     for l in linhas:
         ref = col(l, r"^refer")
-        if not ref:
+        if not ref or (ja_conhecidas and ref.upper() in ja_conhecidas):
             continue
+        nome = col(l, r"^nome", r"^descricao$", r"^produto$")
         out.append({
             "referencia": ref,
-            "codigoFornecedor": norm_codigo(col(l, r"externo")),
-            "especificacao": None,  # a lista do UP não separa a especificação; confere pela grade
-            "grade": col(l, r"grade", r"varia"),
-            "fornecedor": None,
+            "codigoFornecedor": normalizar_chave(col(l, r"externo")),
+            "especificacao": "",  # a lista do UP não separa a especificação
+            "especificacaoTexto": col(l, r"grade", r"varia"),
+            "fornecedorChave": "",
             "codigoBarras": col(l, r"barras", r"^ean", r"gtin") or None,
-            "dados": {"nome": col(l, r"^nome", r"^descricao$", r"^produto$")},
-            "fonte": "lista de produtos do UP",
+            "criadoEm": "",
+            "dados": {"nome": nome},
+            "fonte": FONTE_LISTA_UP,
         })
     return out
+
+
+def classificar_recompra(codigo, especificacao, fornecedor_chave: str, historico: list[dict]) -> tuple[dict | None, list[dict]]:
+    """Porta de ``classificarRecompra`` (src/lib/codigos.ts). Devolve ``(original_automatico, possiveis)``.
+
+    * Original possível: mesmo código; fornecedor igual (ou desconhecido de um dos lados); especificação igual ou
+      vazia de um dos lados.
+    * Automática só quando há exatamente 1 possível e ele casa a chave inteira (fornecedor conhecido nos dois lados e
+      mesma especificação). Senão, com algum possível: recompra a confirmar. Pedido sem fornecedor = só candidatas.
+    """
+    cod = normalizar_chave(codigo)
+    if not cod:
+        return None, []
+    esp = normalizar_chave(especificacao)
+    forn = fornecedor_chave or ""
+    possiveis = [
+        h for h in historico
+        if h["codigoFornecedor"] == cod
+        and not (forn and h["fornecedorChave"] and h["fornecedorChave"] != forn)
+        and (h["especificacao"] == esp or not h["especificacao"] or not esp)
+    ]
+    possiveis.sort(key=lambda h: h.get("criadoEm") or "")
+    exatos = [h for h in possiveis if forn and h["fornecedorChave"] == forn and h["especificacao"] == esp]
+    if len(possiveis) == 1 and len(exatos) == 1:
+        return exatos[0], []
+    return None, possiveis
+
+
+def _sem_alertas_de_recompra(it: dict) -> list:
+    return [x for x in (it.get("alertas") or []) if not str(x).startswith(PREFIXOS_ALERTA_RECOMPRA)]
+
+
+def aplicar_recompra(it: dict, h: dict, moeda_pedido: str | None) -> None:
+    """A peça vira recompra de ``h``: referência, código de barras do UP, nome e classificação da original."""
+    it["recompraDe"] = h["referencia"]
+    it["referencia"] = h["referencia"]
+    it.pop("recompraCandidatas", None)
+    if h.get("codigoBarras"):
+        it["codigoBarras"] = h["codigoBarras"]
+        it["codigoBarrasOrigem"] = "up"
+    d = h.get("dados") or {}
+    for campo in ("nome", "nomeComercial", "tipo", "subtipo", "material", "banho", "corPedra", "tamanho"):
+        if d.get(campo):
+            it[campo] = d[campo]
+    alertas = _sem_alertas_de_recompra(it)
+    alertas.insert(0, f"Recompra de {h['referencia']} ({h['fonte']}).")
+    p_antes, p_agora = ler_numero_br(d.get("precoOrigem")), ler_numero_br(it.get("precoOrigem"))
+    moeda_antes = str(d.get("moeda") or "").upper() or None
+    mesma_moeda = not moeda_antes or not moeda_pedido or moeda_antes == moeda_pedido
+    if p_antes and p_agora and mesma_moeda and abs(p_agora - p_antes) > 0.001:
+        pct = (p_agora - p_antes) / p_antes * 100
+        alertas.append(
+            f"Preço do fornecedor {'subiu' if pct > 0 else 'caiu'} {to_fixed(abs(pct), 0)}% "
+            f"({texto_numero(p_antes)} → {texto_numero(p_agora)})."
+        )
+    it["alertas"] = alertas
+
+
+def _descrever(h: dict) -> str:
+    detalhe = [h.get("especificacaoTexto") or "sem especificação", h["fonte"]]
+    nome = (h.get("dados") or {}).get("nome")
+    if nome:
+        detalhe.insert(0, str(nome))
+    return f"{h['referencia']} ({', '.join(detalhe)})"
+
+
+def marcar_candidatas(it: dict, possiveis: list[dict]) -> list[str]:
+    """Recompra a confirmar: guarda as referências possíveis e devolve a descrição de cada original possível.
+
+    Como no app, a peça fica sem referência até alguém decidir no app ("É esta" = a do original; "Não é recompra" =
+    referência nova). Sem alerta na peça: o app mostra "Recompra a confirmar" pelo campo ``recompraCandidatas``.
+    """
+    refs: list[str] = []
+    for h in possiveis:
+        if h["referencia"] not in refs:
+            refs.append(h["referencia"])
+    it["recompraCandidatas"] = refs
+    it["recompraDe"] = None
+    it["referencia"] = None
+    if it.get("codigoBarrasOrigem") == "up" and it.get("codigoBarras"):
+        it["codigoBarras"] = None  # o código de barras de uma original não vale para a peça a confirmar
+        it.pop("codigoBarrasOrigem", None)
+    it["alertas"] = _sem_alertas_de_recompra(it)
+    return [_descrever(h) for h in possiveis]
 
 
 def main() -> int:
@@ -149,7 +292,7 @@ def main() -> int:
     ap.add_argument("--contexto")
     ap.add_argument("--lista-up")
     ap.add_argument("--inicio", help="próximo número por prefixo, ex.: BR=12,CL=3")
-    ap.add_argument("--refazer", action="store_true", help="refaz as referências que não são recompra")
+    ap.add_argument("--refazer", action="store_true", help="refaz as recompras e as referências que não são recompra")
     a = ap.parse_args()
 
     caminho = Path(a.cadastro)
@@ -160,7 +303,9 @@ def main() -> int:
     modelo = sistema.get("referenciaModelo") or "{PREFIXO}_{AA}{MM}{SEQ:3}"
     agora = datetime.now()
     itens = sorted(cad.get("itens", []), key=lambda i: int(i.get("linha") or 0))
-    forn = norm_fornecedor(cad.get("pedido", {}).get("fornecedor"))
+    pedido = cad.get("pedido") or {}
+    forn = chave_fornecedor(pedido.get("fornecedor"))
+    moeda = str(pedido.get("moeda") or "").upper() or None
     avisos: list[str] = []
 
     historico: list[dict] = []
@@ -168,57 +313,58 @@ def main() -> int:
         historico += historico_do_contexto(contexto)
     lista_up = ler_planilha(Path(a.lista_up)) if a.lista_up else []
     if lista_up:
-        historico += historico_da_lista_up(lista_up)
+        historico += historico_da_lista_up(lista_up, {h["referencia"].upper() for h in historico})
+    por_referencia: dict[str, dict] = {}
+    for h in historico:
+        por_referencia.setdefault(h["referencia"].upper(), h)
 
     # 1. Recompra
     recompras = 0
+    a_confirmar: list[dict] = []
     for it in itens:
         if it.get("recompraDe") and not a.refazer:
+            # Já é recompra (de uma rodada anterior): confere os dados com a original, se ela estiver no histórico.
+            h = por_referencia.get(str(it["recompraDe"]).upper())
+            if h:
+                aplicar_recompra(it, h, moeda)
+            else:
+                it["referencia"] = it["recompraDe"]
+                it.pop("recompraCandidatas", None)
+            recompras += 1
             continue
-        cod, esp = norm_codigo(it.get("codigoFornecedor")), norm_codigo(it.get("especificacao"))
-        if not cod:
-            continue
-        candidatos = []
-        for h in historico:
-            if h["codigoFornecedor"] != cod:
-                continue
-            if h["fornecedor"] is not None and forn and h["fornecedor"] and h["fornecedor"] != forn:
-                continue
-            if h["especificacao"] is not None and h["especificacao"] != esp:
-                continue
-            if h["especificacao"] is None and esp and h.get("grade") and esp not in norm_codigo(h["grade"]) and len(
-                [x for x in historico if x["codigoFornecedor"] == cod]
-            ) > 1:
-                continue
-            candidatos.append(h)
-        if not candidatos:
-            continue
-        h = candidatos[0]
-        recompras += 1
-        it["recompraDe"] = h["referencia"]
-        it["referencia"] = h["referencia"]
-        if h.get("codigoBarras"):
-            it["codigoBarras"] = h["codigoBarras"]
-            it["codigoBarrasOrigem"] = "up"
-        d = h.get("dados") or {}
-        for campo in ("nome", "nomeComercial", "tipo", "subtipo", "material", "banho", "corPedra", "tamanho"):
-            if d.get(campo):
-                it[campo] = d[campo]
-        alertas = [x for x in (it.get("alertas") or []) if not x.startswith("Recompra de ")]
-        alertas.insert(0, f"Recompra de {h['referencia']} ({h['fonte']}).")
-        p_antes, p_agora = d.get("precoOrigem"), it.get("precoOrigem")
-        if p_antes and p_agora and abs(float(p_agora) - float(p_antes)) > 0.001:
-            pct = (float(p_agora) - float(p_antes)) / float(p_antes) * 100
-            alertas.append(f"Preço do fornecedor {'subiu' if pct > 0 else 'caiu'} {abs(pct):.0f}% ({p_antes} → {p_agora}).")
-        if h["fonte"] == "lista de produtos do UP":
-            alertas.append("Recompra achada pelo Código Externo na lista do UP: confira se é o mesmo fornecedor.")
-        it["alertas"] = alertas
+        if a.refazer and it.get("recompraDe"):
+            it["recompraDe"] = None
+            it["referencia"] = None
+            if it.get("codigoBarrasOrigem") == "up":  # o código de barras era o da original
+                it["codigoBarras"] = None
+                it.pop("codigoBarrasOrigem", None)
+        automatico, possiveis = classificar_recompra(it.get("codigoFornecedor"), it.get("especificacao"), forn, historico)
+        if automatico:
+            aplicar_recompra(it, automatico, moeda)
+            recompras += 1
+        elif possiveis:
+            opcoes = marcar_candidatas(it, possiveis)
+            a_confirmar.append({
+                "linha": it.get("linha"),
+                "codigo": it.get("codigoFornecedor"),
+                "especificacao": it.get("especificacao") or None,
+                "candidatas": it["recompraCandidatas"],
+                "opcoes": opcoes,
+            })
+        else:
+            it.pop("recompraCandidatas", None)
+            it["alertas"] = _sem_alertas_de_recompra(it)
+    if a_confirmar and not forn:
+        avisos.append("O pedido está sem o nome do fornecedor: a recompra nunca é automática (só candidatas).")
+    if a_confirmar and lista_up and not contexto:
+        avisos.append("A lista do UP não tem fornecedor nem especificação: o que ela achou ficou como 'recompra a confirmar'.")
 
-    # 2. Variações: mesmo código do fornecedor em 2+ linhas = mesmo grupo
+    # 2. Variações: mesmo código do fornecedor em 2+ linhas = mesmo grupo (recompras incluídas)
     por_codigo: dict[str, list[dict]] = {}
     for it in itens:
-        if it.get("codigoFornecedor") and not it.get("recompraDe"):
-            por_codigo.setdefault(norm_codigo(it["codigoFornecedor"]), []).append(it)
+        codigo = normalizar_chave(it.get("codigoFornecedor"))
+        if codigo:
+            por_codigo.setdefault(codigo, []).append(it)
     for codigo, lista in por_codigo.items():
         if len(lista) > 1:
             for it in lista:
@@ -253,18 +399,32 @@ def main() -> int:
             "Se a loja já cadastrou peças este mês, confira e rode de novo com --inicio BR=…,CL=… ou com a lista do UP."
         )
 
-    # 4. Referências novas (grupos dividem a mesma)
+    # 4. Referências novas (grupos dividem a mesma; o grupo com recompra usa a da original)
+    ref_recompra: dict[str, str] = {}
     por_grupo: dict[str, str] = {}
+    for it in itens:
+        if it.get("grupo") and it.get("recompraDe") and it.get("referencia"):
+            ref_recompra.setdefault(it["grupo"], it["referencia"])
+    por_grupo.update(ref_recompra)
+    if not a.refazer:
+        for it in itens:
+            if it.get("grupo") and not it.get("recompraDe") and it.get("referencia"):
+                por_grupo.setdefault(it["grupo"], it["referencia"])
     novas = 0
     for it in itens:
         if it.get("recompraDe"):
             continue
-        if it.get("referencia") and not a.refazer:
-            if it.get("grupo"):
-                por_grupo.setdefault(it["grupo"], it["referencia"])
+        if it.get("recompraCandidatas"):
+            it["referencia"] = None  # recompra a confirmar: a referência sai da decisão no app
             continue
-        if it.get("grupo") and it["grupo"] in por_grupo:
-            it["referencia"] = por_grupo[it["grupo"]]
+        grupo = it.get("grupo")
+        if grupo and grupo in ref_recompra:
+            it["referencia"] = ref_recompra[grupo]
+            continue
+        if it.get("referencia") and not a.refazer:
+            continue
+        if grupo and grupo in por_grupo:
+            it["referencia"] = por_grupo[grupo]
             continue
         tipo = next((t for t in tax.get("tipos", []) if t.get("id") == it.get("tipo")), None)
         pfx = (tipo or {}).get("prefixo") or "SJ"
@@ -273,14 +433,16 @@ def main() -> int:
         seq = proxima.get(pfx, 1)
         proxima[pfx] = seq + 1
         it["referencia"] = montar_referencia(modelo, pfx, seq, agora)
-        if it.get("grupo"):
-            por_grupo[it["grupo"]] = it["referencia"]
+        if grupo:
+            por_grupo[grupo] = it["referencia"]
         novas += 1
 
     cad["itens"] = itens
     caminho.write_text(json.dumps(cad, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({
         "recompras": recompras,
+        "recomprasAConfirmar": len(a_confirmar),
+        "aConfirmar": a_confirmar,
         "referenciasNovas": novas,
         "grupos": sum(1 for v in por_codigo.values() if len(v) > 1),
         "historico": "app" if contexto else ("lista do UP" if lista_up else "nenhum"),

@@ -11,12 +11,18 @@ Saídas (na PASTA, padrão = pasta do cadastro.json):
 
 Regras do código de barras (padrão da loja): peça nova vai SEM código (o UP Vendas cria no cadastro);
 só vai preenchido o código criado pelo UP que já existe (recompra).
+
+Recompra a confirmar (``recompraCandidatas`` sem ``recompraDe``): vai no pacote e no resumo, mas fica FORA da
+planilha do UP — a skill não decide; a pessoa confirma no app e baixa a planilha do UP pelo app.
+
+Células da planilha (CSV e XLSX) com o mesmo cuidado do app (src/lib/csv.ts): texto que começa com = + - @, tab
+ou enter ganha um apóstrofo na frente (não vira fórmula no Excel); números continuam números.
+Quantidade 0 continua 0 no estoque (com aviso); sem quantidade conta 1, como no app.
 """
 from __future__ import annotations
 
 import argparse
 import base64
-import csv
 import io
 import json
 import re
@@ -24,6 +30,12 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from fiodeamor.calculo import avisos_de_quantidade, moeda_do_pedido, numero, quantidade  # noqa: E402
+from fiodeamor.planilha import celula_csv, celula_planilha  # noqa: E402
+from fiodeamor.precos import round_js  # noqa: E402
 
 BASE = Path(__file__).resolve().parent.parent
 REFS = BASE / "referencias"
@@ -77,8 +89,14 @@ def carregar_json(nome: str, contexto: dict | None = None) -> dict:
     return json.loads(caminho.read_text(encoding="utf-8")) if caminho.exists() else {}
 
 
-def r2(v: float) -> float:
-    return round(float(v) + 1e-9, 2)
+def r2(v) -> float:
+    """``Math.round(v * 100) / 100``, como a planilha do app (src/lib/upvendas-planilha.ts)."""
+    return round_js((numero(v) or 0.0) * 100) / 100
+
+
+def _num(v) -> float:
+    """Número de um campo do cadastro (aceita texto como "10,5"); vazio → 0."""
+    return numero(v) or 0.0
 
 
 def achar(lista: list, id_: str | None) -> dict | None:
@@ -90,13 +108,13 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
     tipo = achar(tax.get("tipos"), it.get("tipo"))
     material = achar(tax.get("materiais"), it.get("material"))
     banho = achar(tax.get("banhos"), it.get("banho"))
-    custo = float(it.get("custoTotalBrl") or 0)
+    custo = _num(it.get("custoTotalBrl"))
     tabelas = pol.get("tabelas_preco") or []
     base = achar(tabelas, pol.get("tabela_base"))
     segunda = next((t for t in tabelas if t.get("tabela_up_vendas") and t.get("id") != pol.get("tabela_base")), None)
     precos = it.get("precos") or {}
-    valor2 = float(precos.get(segunda["id"], 0) or 0) if segunda else 0.0
-    preco = float(it.get("precoVenda") or 0)
+    valor2 = _num(precos.get(segunda["id"])) if segunda else 0.0
+    preco = _num(it.get("precoVenda"))
 
     grade = (material or {}).get("descricao_grade") or str((material or {}).get("nome") or "SEMIJOIA").upper()
     if banho and banho.get("id") != "sem_banho" and not re.search(r"BANHAD|FOLHEAD", grade):
@@ -122,8 +140,8 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
         "ncm": it.get("ncm") or sistema.get("ncmPadrao", ""),
         "unidade": sistema.get("unidade", "UN"),
         "categoriaVitrine": " - ".join(x for x in [(tipo or {}).get("categoria_vitrine") or (tipo or {}).get("nome"), it.get("subtipo")] if x),
-        "custoCompraBruto": r2(it.get("custoProdutoBrl") or 0),
-        "custoInsumo": r2(it.get("custoAdicionalBrl") or 0),
+        "custoCompraBruto": r2(it.get("custoProdutoBrl")),
+        "custoInsumo": r2(it.get("custoAdicionalBrl")),
         "milesimos": 0,
         "banhoOuro": 0,
         "banhoPrata": 0,
@@ -138,7 +156,7 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
         "valorTabela2": valor2,
         "descricaoGrade": grade,
         "codigoBarras": codigo,
-        "estoque": int(it.get("quantidade") or 1),
+        "estoque": quantidade(it.get("quantidade")),  # 0 continua 0; sem quantidade conta 1 (como no app)
         "ativo": True,
         "acabado": True,
         "compartilhar": True,
@@ -154,24 +172,20 @@ def linha_up(it: dict, tax: dict, pol: dict, sistema: dict) -> dict:
     }
 
 
-def texto_csv(v) -> str:
-    if isinstance(v, bool):
-        return "Sim" if v else "Não"
-    if isinstance(v, float):
-        s = repr(round(v, 10)).rstrip("0").rstrip(".") if v != int(v) else str(int(v))
-        return s.replace(".", ",")
-    if isinstance(v, int):
-        return str(v)
-    return str(v or "")
+# Célula do CSV: a mesma do app (celulaCsv). O nome antigo continua valendo.
+texto_csv = celula_csv
+
+
+def montar_csv(linhas: list[dict]) -> str:
+    """CSV com ";" e cabeçalho, linhas separadas por CRLF; cada célula passa por ``celula_csv`` (como o app)."""
+    return "\r\n".join(
+        [";".join(celula_csv(c[1]) for c in COLUNAS)] + [";".join(celula_csv(l[c[0]]) for c in COLUNAS) for l in linhas]
+    )
 
 
 def gravar_csv(linhas: list[dict], destino: Path) -> None:
-    buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";", lineterminator="\r\n", quoting=csv.QUOTE_MINIMAL)
-    w.writerow([c[1] for c in COLUNAS])
-    for l in linhas:
-        w.writerow([texto_csv(l[c[0]]) for c in COLUNAS])
-    destino.write_text("﻿" + buf.getvalue(), encoding="utf-8")
+    # BOM no início: o Excel abre o CSV com os acentos certos.
+    destino.write_bytes(("\ufeff" + montar_csv(linhas)).encode("utf-8"))
 
 
 def gravar_xlsx(linhas: list[dict], destino: Path) -> bool:
@@ -187,7 +201,8 @@ def gravar_xlsx(linhas: list[dict], destino: Path) -> bool:
     ws.title = "Produtos UP Vendas"
     ws.append([c[1] for c in COLUNAS])
     for l in linhas:
-        ws.append(["Sim" if l[c[0]] is True else "Não" if l[c[0]] is False else l[c[0]] for c in COLUNAS])
+        # Sim/Não, números como números e texto protegido contra fórmula (o openpyxl grava "=…" como fórmula).
+        ws.append([celula_planilha(l[c[0]]) for c in COLUNAS])
     for i, (chave, _, largura) in enumerate(COLUNAS, start=1):
         letra = get_column_letter(i)
         ws.column_dimensions[letra].width = largura
@@ -230,40 +245,110 @@ def nome_arquivo(numero: str | None) -> str:
     return base or datetime.now().strftime("%Y%m%d-%H%M")
 
 
-def resumo_md(cad: dict, linhas_up: list[dict]) -> str:
+def aguardando_recompra(it: dict) -> bool:
+    """Recompra a confirmar: há originais possíveis e ninguém decidiu ainda (``aguardandoRecompra`` do app)."""
+    return not it.get("recompraDe") and bool(it.get("recompraCandidatas"))
+
+
+def _br(v: float) -> str:
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def avisos_do_cadastro(cad: dict, itens: list[dict] | None = None) -> list[str]:
+    """Avisos para a conferência: moeda, cotação/preços pendentes, quantidades (0, vazia…) e recompras a confirmar."""
+    p = cad.get("pedido") or {}
+    itens = (cad.get("itens") or []) if itens is None else itens
+    moeda = moeda_do_pedido(p)
+    out: list[str] = []
+    if not moeda:
+        out.append("Moeda do pedido não identificada no documento: confirme com a pessoa (o app assume CNY e pede para conferir).")
+    if moeda != "BRL" and not ((numero(p.get("cotacao"), milhar=False) or 0) > 0):
+        out.append("Sem cotação: os preços estão pendentes. Rode scripts/ptax.py e scripts/calcular.py antes de importar no UP.")
+    out += avisos_de_quantidade(itens)
+    n = sum(1 for i in itens if aguardando_recompra(i))
+    if n:
+        out.append(
+            f"{n} peça(s) com recompra a confirmar ficaram fora da planilha do UP: importe o cadastro no app, escolha o "
+            "original (ou \"Não é recompra\") no pedido e baixe a planilha do UP pelo app."
+        )
+    return out
+
+
+def resumo_md(cad: dict, linhas_up: list[dict], itens: list[dict] | None = None) -> str:
+    """Resumo para conferência. ``itens`` na mesma ordem de ``linhas_up`` (padrão: os itens do cadastro)."""
     p = cad.get("pedido", {})
-    itens = cad.get("itens", [])
-    pecas = sum(int(i.get("quantidade") or 0) for i in itens)
-    total_origem = sum(float(i.get("precoOrigem") or 0) * int(i.get("quantidade") or 0) for i in itens)
-    custo = sum(float(i.get("custoTotalBrl") or 0) * int(i.get("quantidade") or 0) for i in itens)
-    venda = sum(float(i.get("precoVenda") or 0) * int(i.get("quantidade") or 0) for i in itens)
+    itens = cad.get("itens", []) if itens is None else itens
+    qtds = [quantidade(i.get("quantidade")) for i in itens]
+    pecas = sum(qtds)
+    total_origem = sum(_num(i.get("precoOrigem")) * q for i, q in zip(itens, qtds))
+    custo = sum(_num(i.get("custoTotalBrl")) * q for i, q in zip(itens, qtds))
+    venda = sum(_num(i.get("precoVenda")) * q for i, q in zip(itens, qtds))
     recompras = [i for i in itens if i.get("recompraDe")]
+    a_confirmar = [i for i in itens if aguardando_recompra(i)]
     sem_nome = [i for i in itens if not i.get("nome")]
     sem_tipo = [i for i in itens if not i.get("tipo")]
     alertas = [(i.get("linha"), a) for i in itens for a in (i.get("alertas") or [])]
-    br = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    avisos = avisos_do_cadastro(cad, itens)
+    frete = numero(p.get("frete"))
+    total_doc = numero(p.get("totalDocumento"))
     out = [
         f"# Cadastro do pedido {p.get('numero') or '(sem número)'}",
         "",
         f"- Fornecedor: {p.get('fornecedor') or '—'}",
-        f"- Data da compra: {p.get('dataCompra') or '—'} · moeda {p.get('moeda') or '—'} · cotação {p.get('cotacao') or '—'} ({p.get('cotacaoFonte') or 'sem fonte'})",
+        f"- Data da compra: {p.get('dataCompra') or '—'} · moeda {moeda_do_pedido(p) or 'não identificada'} · cotação {p.get('cotacao') or 'pendente'} ({p.get('cotacaoFonte') or 'sem fonte'})",
         f"- Linhas: {len(itens)} · peças: {pecas} · total na moeda: {total_origem:,.2f}"
-        + (f" (documento: {float(p['totalDocumento']):,.2f})" if p.get("totalDocumento") else ""),
-        f"- Frete: {br(float(p['frete'])) if p.get('frete') else 'não informado'} · fator do pedido: {p.get('fator') or 'padrão da loja'}",
-        f"- Custo total: {br(custo)} · venda potencial: {br(venda)}" + (f" · markup médio ×{venda / custo:.2f}" if custo else ""),
-        f"- Recompras: {len(recompras)} · sem nome: {len(sem_nome)} · sem tipo: {len(sem_tipo)}",
+        + (f" (documento: {total_doc:,.2f})" if total_doc else ""),
+        f"- Frete: {_br(frete) if frete else 'não informado'} · fator do pedido: {p.get('fator') or 'padrão da loja'}",
+        f"- Custo total: {_br(custo)} · venda potencial: {_br(venda)}" + (f" · markup médio ×{venda / custo:.2f}" if custo else ""),
+        f"- Recompras: {len(recompras)} · a confirmar: {len(a_confirmar)} · sem nome: {len(sem_nome)} · sem tipo: {len(sem_tipo)}",
+    ]
+    if avisos:
+        out += ["", "## Avisos", ""] + [f"- {a}" for a in avisos]
+    out += [
         "",
         "| Linha | Referência | Nome | Qtd | Custo | Preço | Código de barras |",
         "| --- | --- | --- | ---: | ---: | ---: | --- |",
     ]
     for it, l in zip(itens, linhas_up):
-        cod = l["codigoBarras"] or ("(o UP gera)" if not it.get("recompraDe") else "(recompra: falta o código do UP)")
+        if l["codigoBarras"]:
+            cod = l["codigoBarras"]
+        elif it.get("recompraDe"):
+            cod = "(recompra: falta o código do UP)"
+        elif aguardando_recompra(it):
+            cod = "(recompra a confirmar no app; fora da planilha)"
+        else:
+            cod = "(o UP gera)"
         out.append(
-            f"| {it.get('linha')} | {l['referencia'] or '—'} | {l['nome'] or '—'} | {l['estoque']} | {br(l['custoTotal'])} | {br(l['valorTabela'])} | {cod} |"
+            f"| {it.get('linha')} | {l['referencia'] or '—'} | {l['nome'] or '—'} | {l['estoque']} | {_br(l['custoTotal'])} | {_br(l['valorTabela'])} | {cod} |"
         )
+    if a_confirmar:
+        out += ["", "## Recompra a confirmar (a skill não decide; o app mostra \"Recompra a confirmar\")", ""]
+        out += [f"- Linha {i.get('linha')} ({i.get('codigoFornecedor') or 'sem código'}): pode ser {', '.join(i['recompraCandidatas'])}" for i in a_confirmar]
     if alertas:
         out += ["", "## Alertas", ""] + [f"- Linha {ln}: {a}" for ln, a in alertas]
     return "\n".join(out) + "\n"
+
+
+# Campos numéricos do pacote: o texto ("10,5", "R$ 1.234") vai como número, lido como o lerNumeroBr do app
+# (milhar=False em cotação e fator: "0.775" é 0,775). Assim o app e a skill leem o mesmo valor.
+CAMPOS_NUMERO_PEDIDO = {"cotacao": False, "fator": False, "frete": True, "totalDocumento": True}
+CAMPOS_NUMERO_ITEM = {"precoOrigem": True, "precoManual": True, "fator": False}
+
+
+def normalizar_numeros(pacote: dict) -> None:
+    """Troca no pacote os números escritos como texto por números (``lerNumeroBr``); a quantidade vira inteiro."""
+    pedido = pacote.get("pedido") or {}
+    for campo, milhar in CAMPOS_NUMERO_PEDIDO.items():
+        if isinstance(pedido.get(campo), str):
+            pedido[campo] = numero(pedido[campo], milhar)
+    for it in pacote.get("itens") or []:
+        for campo, milhar in CAMPOS_NUMERO_ITEM.items():
+            if isinstance(it.get(campo), str):
+                it[campo] = numero(it[campo], milhar)
+        q = it.get("quantidade")
+        if q is not None and not isinstance(q, bool) and not (isinstance(q, int)):
+            n = numero(q)
+            it["quantidade"] = None if n is None else max(0, int(round_js(n)))
 
 
 def main() -> int:
@@ -285,13 +370,17 @@ def main() -> int:
     faltando = [i.get("linha") for i in itens if i.get("precoVenda") in (None, 0)]
     if faltando:
         print(f"Aviso: {len(faltando)} item(ns) sem preço de venda (rode scripts/calcular.py antes): linhas {faltando[:15]}", file=sys.stderr)
+    avisos = avisos_do_cadastro(cad, itens)
+    for aviso in avisos:
+        print(f"Aviso: {aviso}", file=sys.stderr)
     linhas = [linha_up(i, tax, pol, sistema) for i in itens]
+    na_planilha = [l for i, l in zip(itens, linhas) if not aguardando_recompra(i)]
     nome = nome_arquivo(cad.get("pedido", {}).get("numero"))
 
     csv_path = pasta / f"planilha-up-{nome}.csv"
-    gravar_csv(linhas, csv_path)
+    gravar_csv(na_planilha, csv_path)
     xlsx_path = pasta / f"planilha-up-{nome}.xlsx"
-    tem_xlsx = gravar_xlsx(linhas, xlsx_path)
+    tem_xlsx = gravar_xlsx(na_planilha, xlsx_path)
 
     # Pacote para o app: o mesmo cadastro com as fotos embutidas.
     cad.setdefault("formato", "fiodeamor-cadastro")
@@ -301,6 +390,7 @@ def main() -> int:
     cad.setdefault("geradoPor", "skill fiodeamor-cadastro")
     caminho.write_text(json.dumps(cad, ensure_ascii=False, indent=1), encoding="utf-8")  # guarda o id
     pacote = json.loads(json.dumps(cad))
+    normalizar_numeros(pacote)
     for it in pacote["itens"]:
         foto = it.pop("foto", None)
         if foto and not a.sem_fotos:
@@ -309,7 +399,7 @@ def main() -> int:
     pacote_path.write_text(json.dumps(pacote, ensure_ascii=False), encoding="utf-8")
 
     resumo_path = pasta / f"resumo-{nome}.md"
-    resumo_path.write_text(resumo_md(cad, linhas), encoding="utf-8")
+    resumo_path.write_text(resumo_md(cad, linhas, itens), encoding="utf-8")
 
     print(json.dumps({
         "planilhaXlsx": str(xlsx_path) if tem_xlsx else None,
@@ -318,7 +408,10 @@ def main() -> int:
         "pacoteMB": round(pacote_path.stat().st_size / 1_000_000, 2),
         "resumo": str(resumo_path),
         "itens": len(linhas),
-        "semCodigoDeBarras": sum(1 for l in linhas if not l["codigoBarras"]),
+        "linhasNaPlanilha": len(na_planilha),
+        "semCodigoDeBarras": sum(1 for l in na_planilha if not l["codigoBarras"]),
+        "recomprasAConfirmar": sum(1 for i in itens if aguardando_recompra(i)),
+        "avisos": avisos,
     }, ensure_ascii=False, indent=1))
     return 0
 

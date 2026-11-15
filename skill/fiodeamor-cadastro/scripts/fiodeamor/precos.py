@@ -20,6 +20,8 @@ import sys
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Iterable
 
+from .numeros import texto_numero_js
+
 EPSILON = sys.float_info.epsilon  # Number.EPSILON
 
 # Componentes de valor fixo do pedido (podem ser rateados por peça).
@@ -31,7 +33,8 @@ FORMULA_CONHECIDA = {
 }
 
 # Prefixos dos alertas criados pelo cálculo de preço (os demais alertas da peça são preservados no recálculo).
-PREFIXOS_ALERTA_PRECO = ("Margem", "Tabela", "Sem custo", "Fator ×")
+# (mesma lista do app: src/lib/precos.ts)
+PREFIXOS_ALERTA_PRECO = ("Margem", "Tabela", "Sem custo", "Fator ×", "Preço manual abaixo", "Custo mudou", "Sem cotação")
 
 
 # ------------------------------------------------------------------ aritmética no estilo JavaScript
@@ -71,10 +74,8 @@ def numero_js(v: Any) -> float:
 
 def texto_numero(v: Any) -> str:
     """Escreve um número como o JavaScript num template (``10.0`` → ``"10"``, ``8.36`` → ``"8.36"``)."""
-    if isinstance(v, float):
-        if v.is_integer():
-            return str(int(v))
-        return repr(v)
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return texto_numero_js(v)
     return str(v)
 
 
@@ -82,6 +83,16 @@ def to_fixed(v: float, casas: int = 0) -> str:
     """``Number.prototype.toFixed`` (empate arredonda para longe do zero, sobre o valor binário exato)."""
     q = Decimal(1).scaleb(-casas)
     return str(Decimal(v).quantize(q, rounding=ROUND_HALF_UP))
+
+
+def numero_curto_br(v: float) -> str:
+    """``v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })``: até 2 casas, sem zeros à direita (``0,13``,
+    ``10``, ``1.234,5``). Arredonda a partir do número escrito (1,005 → 1,01), como o JavaScript."""
+    d = Decimal(texto_numero_js(abs(float(v)))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    inteiro, _, decimais = f"{d:f}".partition(".")
+    decimais = decimais.rstrip("0")
+    sinal = "-" if v < 0 else ""
+    return f"{sinal}{int(inteiro):,}".replace(",", ".") + (f",{decimais}" if decimais else "")
 
 
 def _positivo(v: Any) -> bool:
@@ -236,15 +247,95 @@ def valores_do_cenario(componentes: list[dict], cenario: dict | None = None) -> 
 # ------------------------------------------------------------------ preço
 
 
+def centavos(v: Any) -> int:
+    """Valor em centavos inteiros, arredondado como o ``r2`` do app (para comparar preços sem erro de ponto flutuante)."""
+    return int(round_js((numero_js(v) + EPSILON) * 100))
+
+
+def pontos_da_escada(regra: dict, ate: float = 1000.0) -> list[float]:
+    """Preços possíveis da escada até ``ate`` (para mostrar e conferir): 4,99 … 19,99, 24,99 … 49,99, 59,99 …"""
+    limite = centavos(ate)
+    recuo = _recuo_da_escada(regra)
+    out: list[float] = []
+    for k_min, k_max, passo in _degraus_em_centavos(regra, recuo):
+        k = k_min
+        while (p := k * passo - recuo) <= limite and (k_max is None or k <= k_max):
+            out.append(p / 100)
+            k += 1
+        if k_max is None or k_max * passo - recuo >= limite:
+            break
+    return out
+
+
+def _recuo_da_escada(regra: dict) -> int:
+    """Quanto o ponto fica abaixo do número redondo, em centavos: com ``centavos`` 0,99 → 1 (k × passo − 0,01).
+
+    Como o app: ``centavos`` fora de 0 ≤ c < 1 (ou ausente) vale 0,99.
+    """
+    c = regra.get("centavos")
+    ok = isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c) and 0 <= c < 1
+    return 100 - (int(round_js(c * 100)) if ok else 99)
+
+
+def _degraus_em_centavos(regra: dict, recuo: int):
+    """Para cada degrau válido: ``(k_min, k_max, passo)`` em centavos (``k_max`` None = sem limite)."""
+    inicio = 0  # o 1º degrau começa acima de zero; os outros, acima do "ate" do degrau anterior
+    for d in regra.get("degraus") or []:
+        passo = centavos(d.get("passo"))
+        teto = centavos(d["ate"]) if d.get("ate") is not None else None
+        if passo > 0 and (teto is None or teto > inicio):
+            k_min = (inicio + recuo) // passo + 1  # primeiro ponto acima do degrau anterior
+            k_max = None if teto is None else (teto + recuo) // passo  # último ponto até o "ate"
+            if k_max is None or k_max >= k_min:
+                yield k_min, k_max, passo
+        if teto is None:
+            break
+        inicio = max(inicio, teto)
+
+
+def _escada(v: int, regra: dict) -> int:
+    """Ponto da escada mais próximo de ``v`` (centavos); empate fica com o maior.
+
+    Pontos: para cada degrau, k × passo − 0,01 (k = 1, 2, …) acima do ``ate`` do degrau anterior e até o ``ate``
+    deste (``ate`` nulo = sem limite). Tudo em centavos inteiros (porta de ``precoNaEscada``).
+    """
+    recuo = _recuo_da_escada(regra)
+    vizinhos: list[int] = []
+    for k_min, k_max, passo in _degraus_em_centavos(regra, recuo):
+        baixo = (v + recuo) // passo  # maior ponto <= v
+        cima = -(-(v + recuo) // passo)  # menor ponto >= v
+        for k in (baixo, cima, k_min, k_max):
+            if k is not None and k >= k_min and (k_max is None or k <= k_max):
+                vizinhos.append(k * passo - recuo)
+    if not vizinhos:
+        return v
+    return min(vizinhos, key=lambda p: (abs(p - v), -p))
+
+
 def arredondar(valor: float, regra: dict, aplicar_minimo: bool = True) -> float:
-    """Arredonda o preço pela regra da loja (``terminar_em`` ,99 para cima, ou ``inteiro``) e aplica o mínimo."""
+    """Arredonda o preço pela regra da loja e aplica o mínimo (porta de ``arredondar``).
+
+    Modos:
+      * ``escada`` (padrão da loja): o preço possível mais próximo do valor bruto — 19,99 (mínimo); de 5 em 5 até
+        49,99; de 10 em 10 até 99,99; de 20 em 20 até 199,99; de 50 em 50 até 399,99; de 100 em 100 acima
+        (sempre ,99); empate fica com o maior. Com o mínimo: bruto ≤ mínimo → mínimo. Sem o mínimo
+        (``aplicar_minimo=False``, tabelas secundárias) usa a mesma escada.
+      * ``terminar_em``: para cima terminando nos ``centavos`` (23,10 → 23,99);
+      * ``inteiro``: para cima, sem centavos.
+    """
     v = r2(valor)
-    if regra.get("modo") == "terminar_em":
+    modo = regra.get("modo")
+    minimo = regra.get("minimo")
+    if modo == "escada":
+        bruto = centavos(v)
+        if aplicar_minimo and minimo and bruto <= centavos(minimo):
+            return r2(numero_js(minimo))
+        v = _escada(bruto, regra) / 100
+    elif modo == "terminar_em":
         c = r2(numero_js(regra.get("centavos")))
         v = r2(math.ceil(r2(v - c)) + c)
-    elif regra.get("modo") == "inteiro":
+    elif modo == "inteiro":
         v = float(math.ceil(v))
-    minimo = regra.get("minimo")
     if aplicar_minimo and minimo and v < minimo:
         v = minimo
     return r2(v)
@@ -286,6 +377,31 @@ def escolher_fator(
     return {"fator": pol["fator_padrao"], "origem": "padrão", "piso": 0}
 
 
+def fator_abaixo_do_minimo(fator: float | None, pol: dict) -> bool:
+    """O fator escolhido (antes do arredondamento) está abaixo do mínimo da loja? Arredondar para baixo na escada
+    não conta (porta de ``fatorAbaixoDoMinimo``)."""
+    minimo = numero_js(pol.get("fator_minimo") or 0)
+    return fator is not None and fator > 0 and minimo > 0 and fator < minimo - 1e-9
+
+
+def preco_manual_abaixo_do_minimo(preco: float | None, custo: float | None, pol: dict) -> dict:
+    """Preço manual abaixo do fator mínimo? (porta de ``precoManualAbaixoDoMinimo``)
+
+    Fator efetivo = preço ÷ custo. Para a escada não gerar alerta falso, compara com o preço que o próprio fator mínimo
+    daria (custo × mínimo, arredondado na escada, sem o preço mínimo). Sem custo não dá para saber.
+
+    :return: ``{"abaixo", "fatorEfetivo", "precoMinimo"}``
+    """
+    minimo = numero_js(pol.get("fator_minimo") or 0)
+    if not (preco is not None and preco > 0) or not (custo is not None and custo > 0):
+        return {"abaixo": False, "fatorEfetivo": None, "precoMinimo": None}
+    fator_efetivo = r2(preco / custo)
+    if not minimo > 0:
+        return {"abaixo": False, "fatorEfetivo": fator_efetivo, "precoMinimo": None}
+    preco_minimo = arredondar(custo * minimo, pol["arredondamento"], False)
+    return {"abaixo": preco < preco_minimo - 0.004, "fatorEfetivo": fator_efetivo, "precoMinimo": preco_minimo}
+
+
 def calcular_preco(
     custo_total: float,
     tipo: str | None,
@@ -297,7 +413,8 @@ def calcular_preco(
     """Preço de venda de uma peça a partir do custo total (porta de ``calcularPreco``).
 
     Prioridade: preço manual → fator da peça → fator do pedido → faixas → tipo → padrão.
-    Preço = custo × fator, arredondado para cima terminando em ,99 (mínimo da política).
+    Preço = custo × fator, arredondado pela regra da política (:func:`arredondar`: escada de preços ,99 com
+    mínimo R$ 19,99); as outras tabelas usam a mesma regra sem o mínimo.
 
     :return: ``{fator, origemFator, precoBruto, preco, precos: {tabela: valor}, lucroPct, fatorEfetivo,
               margemPct, alertas}``
@@ -305,11 +422,19 @@ def calcular_preco(
     alertas: list[str] = []
     escolha = escolher_fator(custo_total, tipo, pol, fator_manual, fator_pedido)
     fator, origem, piso = escolha["fator"], escolha["origem"], escolha["piso"]
-    minimo = pol.get("fator_minimo")
-    if minimo and fator < minimo and not _positivo(preco_manual):
-        alertas.append(f"Fator ×{texto_numero(fator)} abaixo do mínimo da loja (×{texto_numero(minimo)}).")
+    manual = r2(float(preco_manual)) if _positivo(preco_manual) else None
+    # O fator escolhido é comparado antes do arredondamento (arredondar para baixo na escada não gera alerta).
+    if manual is None and fator_abaixo_do_minimo(fator, pol):
+        alertas.append(f"Fator ×{texto_numero(fator)} abaixo do mínimo da loja (×{texto_numero(pol.get('fator_minimo'))}).")
+    if manual is not None:
+        m = preco_manual_abaixo_do_minimo(manual, custo_total, pol)
+        if m["abaixo"]:
+            alertas.append(
+                f"Preço manual abaixo do fator mínimo (×{numero_curto_br(numero_js(pol.get('fator_minimo')))}): "
+                f"fator efetivo ×{numero_curto_br(m['fatorEfetivo'])}."
+            )
     preco_bruto = r2(max(custo_total * fator, piso))
-    preco = r2(float(preco_manual)) if _positivo(preco_manual) else arredondar(preco_bruto, pol["arredondamento"])
+    preco = manual if manual is not None else arredondar(preco_bruto, pol["arredondamento"])
 
     precos: dict[str, float] = {}
     for t in pol.get("tabelas_preco") or []:

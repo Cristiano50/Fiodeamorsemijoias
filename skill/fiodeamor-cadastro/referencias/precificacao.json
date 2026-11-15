@@ -81,11 +81,33 @@
     "fator_padrao"
   ],
   "arredondamento": {
-    "modo": "terminar_em",
+    "modo": "escada",
+    "minimo": 19.99,
     "centavos": 0.99,
     "direcao": "cima",
-    "formula": "ceil(preco_bruto - centavos) + centavos",
-    "minimo": 19.99
+    "degraus": [
+      {
+        "ate": 49.99,
+        "passo": 5
+      },
+      {
+        "ate": 99.99,
+        "passo": 10
+      },
+      {
+        "ate": 199.99,
+        "passo": 20
+      },
+      {
+        "ate": 399.99,
+        "passo": 50
+      },
+      {
+        "ate": null,
+        "passo": 100
+      }
+    ],
+    "formula": "preço possível mais próximo de custo × fator: 19,99 (mínimo); de 5 em 5 até 49,99; de 10 em 10 até 99,99; de 20 em 20 até 199,99; de 50 em 50 até 399,99; de 100 em 100 acima (sempre ,99); empate fica com o maior"
   },
   "tabela_base": "consignado",
   "tabelas_preco": [

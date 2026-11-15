@@ -9,7 +9,8 @@ Com PDF (porta de src/lib/pdf-cliente.ts + src/lib/extracao.ts do app):
     * cada imagem da tabela vira uma linha: o texto na mesma faixa vertical (agrupado por coluna) é lido
       (código, especificação, descrição, preço × quantidade = total) e a foto é recortada (recuo de 2%)
       em ``PASTA/fotos/linha-NNN.jpg``;
-    * cabeçalho do documento → número do pedido, fornecedor, data, moeda e total impresso;
+    * cabeçalho do documento → número do pedido, fornecedor, data, moeda e total impresso; a moeda só vale com marca
+      no documento (US$/USD/美元 > R$/BRL > ¥/RMB/元/人民币); sem marca fica vazia, com aviso para perguntar;
     * páginas sem tabela (catálogo em foto) vão para ``PASTA/paginas/`` para o Claude localizar as peças.
 Com fotos (JPG/PNG/WebP): só cria o ``cadastro.json`` com o pedido vazio e copia as fotos (reduzidas a 2000 px,
 em JPEG) para ``PASTA/paginas/``; o Claude identifica as peças pela visão.
@@ -130,7 +131,7 @@ def gerar_cadastro(arquivos: list[Path], pasta: Path, progresso=None) -> tuple[d
                 "numero": cab.get("numero"),
                 "fornecedor": primeira.replace(" | ", " ").strip() if primeira else None,
                 "dataCompra": cab.get("data"),
-                "moeda": cab.get("moeda") or "CNY",
+                "moeda": cab.get("moeda"),  # None = o documento não mostra a moeda (a skill pergunta)
                 "totalDocumento": ex.total_documento,
                 "cabecalho": ex.cabecalho or None,
                 "colunas": ex.colunas or None,
@@ -156,8 +157,16 @@ def gerar_cadastro(arquivos: list[Path], pasta: Path, progresso=None) -> tuple[d
                 }
             )
             if lida.get("preco") is None:
-                avisos.append(f"Linha {it.linha} (página {it.pagina}): não achei preço × quantidade = total — confira: {it.texto}")
+                avisos.append(
+                    f"Linha {it.linha} (página {it.pagina}): não achei preço × quantidade = total; ficou quantidade 1 e "
+                    f"sem preço — confira no documento: {it.texto}"
+                )
         paginas_jpeg.extend(ex.paginas)
+        if not pedido["moeda"]:
+            avisos.append(
+                "Moeda não identificada: o documento não mostra ¥/RMB/元/人民币, US$/USD/美元 nem R$. Pergunte à pessoa "
+                "(CNY, USD ou BRL) e preencha pedido.moeda (ou use calcular.py --moeda)."
+            )
         if not pedido["dataCompra"]:
             avisos.append("Não achei a data da compra no cabeçalho: informe a data (AAAA-MM-DD) para buscar a cotação.")
         if not ex.itens and not ex.paginas:
