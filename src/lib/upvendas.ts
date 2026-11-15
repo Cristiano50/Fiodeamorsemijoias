@@ -1,12 +1,12 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "./db";
-import { getConfig, getSegredo, type Taxonomia, type UpVendasConfig } from "./config";
-import type { PoliticaPreco } from "./precos";
-import type { Produto } from "./db/schema";
+import { getConfig, getSegredo, type UpVendasConfig } from "./config";
 import { fotosModeloPorProduto } from "./fotos";
 import { codigoParaUp } from "./upvendas-codigo";
-export { codigoParaUp };
+import { ehRecompraUp, linhaUp, type ContextoUp, type LinhaUp } from "./upvendas-planilha";
+import { urlNoServidorUp } from "./upvendas-url";
+export { codigoParaUp, linhaUp, type ContextoUp, type LinhaUp };
 
 /**
  * Integração com o UP Vendas.
@@ -16,59 +16,11 @@ export { codigoParaUp };
  * o token JWT no cabeçalho Authorization, usado como Bearer nas demais chamadas.
  * Por isso os caminhos e nomes de campos são CONFIGURÁVEIS (Configurações → UP Vendas): quando o suporte do
  * UP enviar a documentação, basta ajustar sem mexer no código. Enquanto isso, use a exportação em planilha.
+ *
+ * A linha do cadastro (linhaUp) e as planilhas de produtos novos e de recompras ficam em upvendas-planilha.ts
+ * (funções puras, testadas). Pela API só vão os produtos NOVOS: a recompra já existe no UP e entra no estoque
+ * pela planilha de recompras.
  */
-
-/** Campos do cadastro "Cadastro de Produtos Simplificado" do UP Vendas (mesma ordem da tela). */
-export interface LinhaUp {
-  nome: string;
-  marca: string;
-  referencia: string;
-  codigoExterno: string;
-  ncm: string;
-  unidade: string;
-  categoriaVitrine: string;
-  custoCompraBruto: number;
-  custoInsumo: number;
-  milesimos: number;
-  banhoOuro: number;
-  banhoPrata: number;
-  banhoRodio: number;
-  banhoVerniz: number;
-  custoTotal: number;
-  tabelaPreco: string;
-  percentualLucro: number;
-  valorTabela: number;
-  tabelaPreco2: string;
-  percentualLucro2: number;
-  valorTabela2: number;
-  descricaoGrade: string;
-  codigoBarras: string;
-  estoque: number;
-  ativo: boolean;
-  acabado: boolean;
-  compartilhar: boolean;
-  sincronizarUpVendas: boolean;
-  imagemUrl: string;
-  // extras do app
-  tipo: string;
-  material: string;
-  banho: string;
-  corPedra: string;
-  tamanho: string;
-  nomeComercial: string;
-  legenda: string;
-}
-
-export interface ContextoUp {
-  tax: Taxonomia;
-  pol: PoliticaPreco;
-  up: UpVendasConfig;
-  marca: string;
-  codigoNoUp: "ean13" | "code128";
-  origemCodigoBarras: "upvendas" | "app";
-  urlBase: string; // para montar o link público da imagem
-  fotos: Record<string, { id: string; publicavel: boolean }>; // foto criada pela IA e aprovada pela loja
-}
 
 export async function contextoUp(urlBase: string, produtoIds: string[] = []): Promise<ContextoUp> {
   const fotos = await fotosModeloPorProduto(produtoIds);
@@ -81,65 +33,12 @@ export async function contextoUp(urlBase: string, produtoIds: string[] = []): Pr
   return { tax, pol, up, marca: sistema.marcaUp, codigoNoUp: sistema.codigoNoUp ?? "ean13", origemCodigoBarras: sistema.origemCodigoBarras ?? "upvendas", urlBase, fotos };
 }
 
-const r2 = (v: number) => Math.round(v * 100) / 100;
-
-export function linhaUp(p: Produto, ctx: ContextoUp): LinhaUp {
-  const tipo = ctx.tax.tipos.find((t) => t.id === p.tipo);
-  const material = ctx.tax.materiais.find((m) => m.id === p.material);
-  const banho = ctx.tax.banhos.find((b) => b.id === p.banho);
-  const custo = p.custoTotalBrl ?? 0;
-  // Foto aprovada pela loja (fila de aprovação) tem prioridade; senão a foto principal.
-  const fotoId = ctx.fotos[p.id]?.publicavel ? ctx.fotos[p.id].id : p.imagemId;
-  const base = ctx.pol.tabelas_preco.find((t) => t.id === ctx.pol.tabela_base);
-  const segunda = ctx.pol.tabelas_preco.find((t) => t.tabela_up_vendas && t.id !== ctx.pol.tabela_base);
-  const valor2 = segunda ? (p.precos?.[segunda.id] ?? 0) : 0;
-  let descricaoGrade = material?.descricao_grade ?? `${material?.nome ?? "SEMIJOIA"}`.toUpperCase();
-  if (banho && !/BANHAD|FOLHEAD/.test(descricaoGrade) && banho.id !== "sem_banho") descricaoGrade += ` BANHADA A ${banho.nome.toUpperCase()}`;
-  if (p.variacao) descricaoGrade += ` - ${p.variacao.toUpperCase()}`;
-  return {
-    nome: (p.nome ?? "").toUpperCase(),
-    marca: ctx.marca,
-    referencia: p.referencia ?? "",
-    codigoExterno: p.codigoFornecedor ?? "",
-    ncm: p.ncm ?? "",
-    unidade: p.unidade,
-    categoriaVitrine: [tipo?.categoria_vitrine ?? tipo?.nome, p.subtipo].filter(Boolean).join(" - "),
-    custoCompraBruto: r2(p.custoProdutoBrl ?? 0),
-    custoInsumo: r2(p.custoAdicionalBrl ?? 0),
-    milesimos: 0,
-    banhoOuro: 0,
-    banhoPrata: 0,
-    banhoRodio: 0,
-    banhoVerniz: 0,
-    custoTotal: r2(custo),
-    tabelaPreco: base?.tabela_up_vendas ?? base?.nome ?? "CONSIGNADO",
-    percentualLucro: custo > 0 ? r2(((p.precoVenda ?? 0) / custo - 1) * 100) : 0,
-    valorTabela: p.precoVenda ?? 0,
-    tabelaPreco2: segunda?.nome ?? "",
-    percentualLucro2: custo > 0 && valor2 ? r2((valor2 / custo - 1) * 100) : 0,
-    valorTabela2: valor2,
-    descricaoGrade,
-    codigoBarras: codigoParaUp(p, ctx),
-    estoque: p.quantidade,
-    ativo: true,
-    acabado: true,
-    compartilhar: true,
-    sincronizarUpVendas: true,
-    imagemUrl: fotoId ? `${ctx.urlBase}/api/imagens/${fotoId}` : "",
-    tipo: tipo?.nome ?? p.tipo ?? "",
-    material: material?.nome ?? p.material ?? "",
-    banho: banho?.nome ?? p.banho ?? "",
-    corPedra: (p.corPedra ?? []).map((c) => ctx.tax.cores_pedra.find((x) => x.id === c)?.nome ?? c).join(", "),
-    tamanho: p.tamanho ?? "",
-    nomeComercial: p.nomeComercial ?? "",
-    legenda: p.legenda ?? "",
-  };
-}
-
 /* ---------------------------------------------------------------- API */
 
 function definir(obj: Record<string, unknown>, caminho: string, valor: unknown) {
   const partes = caminho.split(".");
+  // Nomes que mexeriam nos objetos do próprio JavaScript (mapa de campos mal digitado): ignora o campo.
+  if (partes.some((p) => !p || p === "__proto__" || p === "prototype" || p === "constructor")) return;
   let atual: Record<string, unknown> = obj;
   partes.forEach((parte, i) => {
     if (i === partes.length - 1) atual[parte] = valor;
@@ -162,10 +61,22 @@ export function payloadUp(linha: LinhaUp, up: UpVendasConfig): Record<string, un
   return out;
 }
 
+/**
+ * Chamada ao servidor do UP sem seguir redirecionamento: a senha (login) e o token (cadastro) só vão para o
+ * endereço configurado. Um 3xx do UP vira erro em vez de reenviar os dados para outro endereço.
+ */
+async function chamarUp(caminho: string, up: UpVendasConfig, init: RequestInit & { signal: AbortSignal }): Promise<Response> {
+  const url = urlNoServidorUp(caminho, up.baseUrl);
+  const res = await fetch(url, { ...init, redirect: "manual" });
+  if (res.status >= 300 && res.status < 400)
+    throw new Error(`O UP Vendas respondeu com redirecionamento (HTTP ${res.status}). Por segurança, nada foi reenviado: confira o servidor e o caminho em UP Vendas → Conexão com a API.`);
+  return res;
+}
+
 async function login(up: UpVendasConfig): Promise<string> {
   const senha = await getSegredo("UPVENDAS_SENHA");
   if (!up.dominio || !up.usuario || !senha) throw new Error("Preencha domínio, usuário e senha do UP Vendas em Configurações.");
-  const res = await fetch(new URL(up.caminhoLogin, up.baseUrl), {
+  const res = await chamarUp(up.caminhoLogin, up, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ dominio: up.dominio, usuario: up.usuario, senha }),
@@ -191,15 +102,30 @@ export async function testarConexao() {
   return { ok: true, mensagem: `Login realizado (token de ${token.length} caracteres).` };
 }
 
+export type ResultadoEnvioUp = { id: string; referencia: string | null; ok: boolean; mensagem: string; recompra?: boolean; payload?: unknown };
+
+/**
+ * Cria no UP os produtos NOVOS (cadastro completo, saldo = estoqueEntrada). Recompra não é enviada:
+ * o produto já existe no UP (mesmo código) e a entrada de estoque vai pela planilha de recompras.
+ */
 export async function enviarProdutos(ids: string[], urlBase: string, simular = false) {
   const db = await getDb();
   const ctx = await contextoUp(urlBase, ids);
-  const token = simular ? "" : await login(ctx.up);
-  const resultados: { id: string; referencia: string | null; ok: boolean; mensagem: string; payload?: unknown }[] = [];
-  for (const id of ids) {
-    const [p] = await db.select().from(schema.produtos).where(eq(schema.produtos.id, id));
-    if (!p) continue;
-    const faltando = [!p.nome && "nome", !p.referencia && "referência", !p.codigoBarras && "código de barras", !p.precoVenda && "preço"].filter(Boolean);
+  const produtos = new Map((ids.length ? await db.select().from(schema.produtos).where(inArray(schema.produtos.id, ids)) : []).map((p) => [p.id, p]));
+  const resultados: ResultadoEnvioUp[] = [];
+  const novos = ids.filter((id) => {
+    const p = produtos.get(id);
+    if (p && ehRecompraUp(p)) {
+      resultados.push({ id, referencia: p.referencia, ok: false, recompra: true, mensagem: "Recompra: o produto já existe no UP. Dê entrada no estoque pela planilha de recompras." });
+      return false;
+    }
+    return !!p;
+  });
+  const token = simular || !novos.length ? "" : await login(ctx.up);
+  for (const id of novos) {
+    const p = produtos.get(id)!;
+    // Código de barras: no padrão da loja quem cria é o UP (vai em branco); só no modo "app" o EAN interno é obrigatório.
+    const faltando = [!p.nome && "nome", !p.referencia && "referência", ctx.origemCodigoBarras === "app" && !p.codigoBarras && "código de barras", !p.precoVenda && "preço"].filter(Boolean);
     if (faltando.length) {
       resultados.push({ id, referencia: p.referencia, ok: false, mensagem: `Falta: ${faltando.join(", ")}` });
       continue;
@@ -210,8 +136,8 @@ export async function enviarProdutos(ids: string[], urlBase: string, simular = f
       continue;
     }
     try {
-      const res = await fetch(new URL(ctx.up.caminhoProdutos, ctx.up.baseUrl), {
-        method: ctx.up.metodoCriar,
+      const res = await chamarUp(ctx.up.caminhoProdutos, ctx.up, {
+        method: ctx.up.metodoCriar === "PUT" ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(30000),
@@ -234,5 +160,7 @@ export async function enviarProdutos(ids: string[], urlBase: string, simular = f
       resultados.push({ id, referencia: p.referencia, ok: false, mensagem: msg });
     }
   }
-  return resultados;
+  // Na ordem em que a tela mandou.
+  const ordem = new Map(ids.map((id, i) => [id, i]));
+  return resultados.sort((a, b) => (ordem.get(a.id) ?? 0) - (ordem.get(b.id) ?? 0));
 }

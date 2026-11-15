@@ -7,15 +7,30 @@ import { urlDoApp } from "@/lib/url";
 
 export const maxDuration = 300;
 
-/** Corpo: { ids: string[], simular?: boolean } */
+/**
+ * Corpo: { ids: string[], simular?: boolean }
+ * Só os produtos novos são criados no UP (saldo = o que entrou na conferência). Recompras voltam com
+ * `recompra: true` e não são enviadas: a entrada de estoque delas vai pela planilha de recompras.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const { ids, simular } = (await req.json()) as { ids: string[]; simular?: boolean };
-    if (!ids?.length) return erro("Selecione os produtos", 400);
     await exigirPapel(req, "gestora");
-    const resultados = await enviarProdutos(ids, urlDoApp(req), !!simular);
-    if (!simular)
-      await registrar(req, { acao: "upvendas.enviar", entidade: "produto", resumo: `Envio ao UP: ${resultados.filter((r) => r.ok).length} ok, ${resultados.filter((r) => !r.ok).length} com erro` });
+    const corpo = (await req.json().catch(() => ({}))) as { ids?: unknown; simular?: unknown };
+    const ids = Array.isArray(corpo.ids) ? [...new Set(corpo.ids.filter((x): x is string => typeof x === "string" && !!x))] : [];
+    if (!ids.length) return erro("Selecione os produtos", 400);
+    if (ids.length > 2000) return erro("Envie no máximo 2.000 produtos por vez.", 400);
+    const simular = corpo.simular === true;
+    const resultados = await enviarProdutos(ids, urlDoApp(req), simular);
+    if (!simular) {
+      const enviados = resultados.filter((r) => r.ok).length;
+      const recompras = resultados.filter((r) => r.recompra).length;
+      const comErro = resultados.length - enviados - recompras;
+      await registrar(req, {
+        acao: "upvendas.enviar",
+        entidade: "produto",
+        resumo: `Envio ao UP: ${enviados} ok, ${comErro} com erro${recompras ? `, ${recompras} recompra(s) fora do envio (entrada pela planilha de recompras)` : ""}`,
+      });
+    }
     return ok({ resultados });
   } catch (e) {
     return erro(e, 502);

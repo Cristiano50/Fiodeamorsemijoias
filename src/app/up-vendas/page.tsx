@@ -8,8 +8,11 @@ import { useConfig, type ConfigCliente } from "@/components/hooks";
 import { api, brl } from "@/lib/cliente";
 import { ImportarCodigosUp } from "@/components/ImportarCodigosUp";
 import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
+import { estoqueEntrada } from "@/lib/estoque";
+import { codigoParaUp } from "@/lib/upvendas-codigo";
+import { linhasRecompraUp, separarParaUp } from "@/lib/upvendas-planilha";
 
-type Resultado = { id: string; referencia: string | null; ok: boolean; mensagem: string; payload?: unknown };
+type Resultado = { id: string; referencia: string | null; ok: boolean; mensagem: string; recompra?: boolean; payload?: unknown };
 type UpCfg = {
   ativo: boolean;
   baseUrl: string;
@@ -76,10 +79,21 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
     }
   }
 
+  // Produtos novos (cadastro completo) × recompras (o produto já existe no UP: só entrada de estoque).
+  const { novos, recompras } = separarParaUp(produtos);
+  const ctxCodigo = { codigoNoUp: config.sistema.codigoNoUp === "code128" ? ("code128" as const) : ("ean13" as const), origemCodigoBarras: config.sistema.origemCodigoBarras === "app" ? ("app" as const) : ("upvendas" as const) };
+  const entrada = linhasRecompraUp(recompras, ctxCodigo);
+  const semConferencia = produtos.filter((p) => p.pedidoId && p.quantidadeRecebida == null).length;
+  const aConfirmar = produtos.filter((p) => !p.recompraDe && (p.recompraCandidatas?.length ?? 0) > 0).length;
+  // A planilha usa a mesma seleção da tela (pedido, peças escolhidas ou todos os aprovados); o servidor separa novos e recompras.
+  const pedidoSel = params.get("pedido");
+  const idsSel = params.get("ids");
+  const selecao = pedidoSel ? `pedido=${encodeURIComponent(pedidoSel)}` : idsSel ? `ids=${encodeURIComponent(idsSel)}` : "status=aprovado";
+
   async function enviar(simular: boolean) {
     setOcupado(simular ? "simular" : "enviar");
     try {
-      const r = await api<{ resultados: Resultado[] }>("/api/upvendas/enviar", { method: "POST", json: { ids: produtos.map((p) => p.id), simular } });
+      const r = await api<{ resultados: Resultado[] }>("/api/upvendas/enviar", { method: "POST", json: { ids: novos.map((p) => p.id), simular } });
       setResultados(r.resultados);
       const ok = r.resultados.filter((x) => x.ok).length;
       avisar(`${simular ? "Simulação" : "Envio"}: ${ok} de ${r.resultados.length} ok.`, ok === r.resultados.length ? "ok" : "erro");
@@ -91,51 +105,64 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
   }
 
   const set = (k: keyof UpCfg) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setCfg((c) => ({ ...c, [k]: e.target.value }));
-  const ids = produtos.map((p) => p.id).join(",");
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-4xl font-semibold">UP Vendas</h1>
         <p className="max-w-3xl text-sm text-[#8a6d78]">
-          O UP Vendas não publica a documentação da API de produtos. O conector abaixo é configurável: peça ao suporte do UP a documentação
-          da API de cadastro de produtos e um usuário de integração, e ajuste os caminhos e o mapa de campos. Enquanto isso, use a{" "}
-          <b>planilha</b> com os mesmos campos da tela “Cadastro de Produtos Simplificado”.
+          São duas planilhas: <b>produtos novos</b> (cadastro completo, com os mesmos campos da tela “Cadastro de Produtos Simplificado”) e <b>recompras</b> (peças que já
+          existem no UP: só a entrada no estoque). A quantidade é sempre a que entrou na loja na conferência da chegada (recebidas − com defeito). O envio direto pela API é
+          configurável: peça ao suporte do UP a documentação da API de cadastro de produtos e um usuário de integração.
         </p>
       </div>
 
-      <Cartao titulo={`Produtos para enviar (${produtos.length})`} acoes={
-        <>
-          <a href={`/api/exportar?formato=xlsx&ids=${ids}`}>
-            <Botao variante="secundario">Planilha XLSX</Botao>
-          </a>
-          <a href={`/api/exportar?formato=csv&ids=${ids}`}>
-            <Botao variante="secundario">CSV</Botao>
-          </a>
-          <Botao variante="secundario" onClick={() => enviar(true)} carregando={ocupado === "simular"} disabled={!produtos.length}>
-            Simular envio
-          </Botao>
-          <Botao onClick={() => enviar(false)} carregando={ocupado === "enviar"} disabled={!produtos.length || !cfg.ativo}>
-            Enviar ao UP
-          </Botao>
-        </>
-      }>
+      {(semConferencia > 0 || aConfirmar > 0) && (
+        <div className="flex flex-col gap-1 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          {semConferencia > 0 && <span>⚠ {semConferencia} peça(s) de pedido ainda sem conferência na chegada: a quantidade vai pela pedida. Confira a chegada no pedido antes, se a mercadoria já chegou.</span>}
+          {aConfirmar > 0 && <span>⚠ {aConfirmar} peça(s) com recompra a confirmar no pedido: confirme antes de mandar ao UP (recompra não é cadastrada de novo).</span>}
+        </div>
+      )}
+
+      <Cartao
+        titulo={`1. Produtos novos (${novos.length})`}
+        acoes={
+          <>
+            <a href={`/api/exportar?formato=xlsx&tipo=novos&${selecao}`} className={novos.length ? "" : "pointer-events-none opacity-50"}>
+              <Botao variante="secundario">Planilha de produtos novos</Botao>
+            </a>
+            <a href={`/api/exportar?formato=csv&tipo=novos&${selecao}`} className={novos.length ? "" : "pointer-events-none opacity-50"}>
+              <Botao variante="fantasma">CSV</Botao>
+            </a>
+            <Botao variante="secundario" onClick={() => enviar(true)} carregando={ocupado === "simular"} disabled={!novos.length}>
+              Simular envio
+            </Botao>
+            <Botao onClick={() => enviar(false)} carregando={ocupado === "enviar"} disabled={!novos.length || !cfg.ativo}>
+              Enviar ao UP
+            </Botao>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-[#6b5560]">
+          <b>Como usar no UP:</b> importe esta planilha no cadastro de produtos (ou cadastre cada linha na tela “Cadastro de Produtos Simplificado”). O “Saldo Estoque” já é a
+          quantidade que entrou. Depois, traga os códigos de barras que o UP criou (quadro “Códigos de barras do UP”, abaixo).
+        </p>
         {!cfg.ativo && <p className="mb-3 text-sm text-amber-800">A integração por API está desligada. Ative abaixo depois de configurar e testar a conexão.</p>}
         <div className="max-h-[50vh] overflow-auto">
-          <table className="tabela w-full">
+          <table className="tabela w-full min-w-[640px]">
             <thead>
               <tr>
                 <th>Referência</th>
                 <th>Nome</th>
                 <th>Código de barras</th>
                 <th>Preço</th>
-                <th>Estoque</th>
+                <th>Saldo</th>
                 <th>Status UP</th>
                 <th>Resultado</th>
               </tr>
             </thead>
             <tbody>
-              {produtos.map((p) => {
+              {novos.map((p) => {
                 const r = resultados.find((x) => x.id === p.id);
                 return (
                   <tr key={p.id}>
@@ -149,7 +176,10 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
                       <CodigoBarrasCelula codigo={p.codigoBarras} origem={p.codigoBarrasOrigem} />
                     </td>
                     <td>{brl(p.precoVenda)}</td>
-                    <td>{p.quantidade}</td>
+                    <td>
+                      {estoqueEntrada(p)}
+                      {p.quantidadeRecebida != null && estoqueEntrada(p) !== p.quantidade && <div className="text-xs text-[#9a8089]">pedido {p.quantidade}</div>}
+                    </td>
                     <td>
                       <Selo cor={p.upStatus === "enviado" ? "verde" : p.upStatus === "erro" ? "vermelho" : "cinza"}>{p.upStatus ?? "—"}</Selo>
                     </td>
@@ -169,6 +199,77 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
                   </tr>
                 );
               })}
+              {!novos.length && (
+                <tr>
+                  <td colSpan={7} className="text-sm text-[#9a8089]">
+                    Nenhum produto novo nesta seleção.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Cartao>
+
+      <Cartao
+        titulo={`2. Recompras (${recompras.length})`}
+        acoes={
+          <>
+            <a href={`/api/exportar?formato=xlsx&tipo=recompras&${selecao}`} className={entrada.linhas.length ? "" : "pointer-events-none opacity-50"}>
+              <Botao variante="secundario">Planilha de recompras</Botao>
+            </a>
+            <a href={`/api/exportar?formato=csv&tipo=recompras&${selecao}`} className={entrada.linhas.length ? "" : "pointer-events-none opacity-50"}>
+              <Botao variante="fantasma">CSV</Botao>
+            </a>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-[#6b5560]">
+          <b>Como usar no UP:</b> estas peças já estão cadastradas no UP (mesmo código de barras). <b>Não cadastre de novo</b>: faça a entrada de estoque de cada código com a
+          quantidade da planilha (bipe o código e digite a quantidade, ou importe a planilha na entrada de estoque, se o seu UP tiver essa opção).
+        </p>
+        {entrada.semCodigo > 0 && (
+          <p className="mb-3 text-sm text-amber-800">
+            ⚠ {entrada.semCodigo} recompra(s) sem o código de barras do UP: ache pela referência no UP ou traga os códigos (quadro “Códigos de barras do UP”).
+          </p>
+        )}
+        {entrada.semEntrada > 0 && <p className="mb-3 text-xs text-[#9a8089]">{entrada.semEntrada} recompra(s) sem nenhuma peça que entrou ficaram fora da planilha.</p>}
+        <div className="max-h-[50vh] overflow-auto">
+          <table className="tabela w-full min-w-[520px]">
+            <thead>
+              <tr>
+                <th>Código de barras</th>
+                <th>Quantidade</th>
+                <th>Referência</th>
+                <th>Nome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recompras.map((p) => {
+                const codigo = codigoParaUp(p, ctxCodigo);
+                return (
+                  <tr key={p.id}>
+                    <td className="font-mono text-xs">{codigo || <Selo cor="amarelo">sem código do UP</Selo>}</td>
+                    <td>
+                      <b>{estoqueEntrada(p)}</b>
+                      {p.quantidadeRecebida != null && estoqueEntrada(p) !== p.quantidade && <span className="text-xs text-[#9a8089]"> (pedido {p.quantidade})</span>}
+                    </td>
+                    <td className="font-mono text-xs">{p.referencia ?? "—"}</td>
+                    <td>
+                      <Link href={`/produtos/${p.id}`} className="hover:underline">
+                        {p.nome}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!recompras.length && (
+                <tr>
+                  <td colSpan={4} className="text-sm text-[#9a8089]">
+                    Nenhuma recompra nesta seleção.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

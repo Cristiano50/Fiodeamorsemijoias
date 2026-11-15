@@ -6,6 +6,8 @@ import { Botao, Campo, Carregando, Cartao, Selo } from "@/components/ui";
 import { useConfig } from "@/components/hooks";
 import { api, brl } from "@/lib/cliente";
 import { ean13Valido } from "@/lib/codigos-up";
+import { copiasEtiqueta } from "@/lib/recebimento";
+import { esperarImagens } from "@/components/pedido/comum";
 
 type Formato = "rabicho" | "a4_6180" | "a4_6187" | "cartela";
 
@@ -27,7 +29,7 @@ function Codigo({ valor, origem, simbologia, altura }: { valor: string; origem: 
   // EAN-13 só quando o número é um EAN-13 válido; senão Code128 com o mesmo número (o leitor do caixa lê os dois).
   const tipo = simbologia === "ean13" && ean13Valido(v) ? "ean13" : "code128";
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`/api/codigo-barras?c=${encodeURIComponent(v)}&tipo=${tipo}&texto=0&altura=${altura}`} alt={valor} className="block h-full w-full object-fill" />;
+  return <img src={`/api/codigo-barras?c=${encodeURIComponent(v)}&tipo=${tipo}&texto=0&altura=${altura}`} alt={valor} loading="lazy" decoding="async" className="block h-full w-full object-fill" />;
 }
 
 function EtiquetasConteudo() {
@@ -38,6 +40,7 @@ function EtiquetasConteudo() {
   const [copias, setCopias] = useState<"quantidade" | "uma">("quantidade");
   const [mostrarPreco, setMostrarPreco] = useState(true);
   const [pular, setPular] = useState(0);
+  const [imprimindo, setImprimindo] = useState(false);
   const { config } = useConfig();
   const codigoNoUp = config?.sistema.codigoNoUp === "code128" ? "code128" : "ean13";
   // Padrão da loja: o código de barras é o que o UP criou; peça sem ele não ganha etiqueta.
@@ -55,19 +58,41 @@ function EtiquetasConteudo() {
     });
   }, [params]);
 
+  // Uma etiqueta por peça que ENTROU na loja: conferida = recebida − defeito; sem conferência, a pedida.
   const etiquetas = useMemo(() => {
     const out: (Produto | null)[] = Array.from({ length: formato.startsWith("a4") ? pular : 0 }, () => null);
     for (const p of produtos ?? []) {
       if (!p.codigoBarras || (modoUp && p.codigoBarrasOrigem !== "up")) continue;
-      const n = copias === "quantidade" ? Math.max(1, p.quantidade) : 1;
+      const n = copiasEtiqueta(p, copias);
       for (let i = 0; i < n; i++) out.push(p);
     }
     return out;
   }, [produtos, copias, formato, pular, modoUp]);
 
+  // Ctrl+P sem o botão: começa a carregar as etiquetas que ainda não apareceram na tela.
+  useEffect(() => {
+    const antes = () => void esperarImagens(document.querySelector(".area-impressao"));
+    window.addEventListener("beforeprint", antes);
+    return () => window.removeEventListener("beforeprint", antes);
+  }, []);
+
+  async function imprimir() {
+    setImprimindo(true);
+    try {
+      // Os códigos de barras carregam só quando aparecem na tela: antes de imprimir, carrega todos.
+      await esperarImagens(document.querySelector(".area-impressao"));
+      window.print();
+    } finally {
+      setImprimindo(false);
+    }
+  }
+
   if (!produtos) return <Carregando />;
   const semCodigo = produtos.filter((p) => !temCodigo(p)).length;
   const total = etiquetas.filter(Boolean).length;
+  // Peças de pedido ainda sem conferência na chegada: a etiqueta sai pela quantidade pedida.
+  const semConferencia = produtos.filter((p) => p.pedidoId && p.quantidadeRecebida == null && temCodigo(p)).length;
+  const nadaEntrou = produtos.filter((p) => temCodigo(p) && copiasEtiqueta(p, copias) === 0).length;
 
   const css = {
     rabicho: "@page { size: 95mm 12mm; margin: 0 } .folha { display:block } .et { width:95mm; height:12mm; page-break-after: always; break-after: page; }",
@@ -86,8 +111,15 @@ function EtiquetasConteudo() {
             {produtos.length} produto(s) · {total} etiqueta(s)
             {semCodigo ? (modoUp ? ` · ${semCodigo} sem o código de barras do UP (cadastre no UP e importe ou bipe os códigos)` : ` · ${semCodigo} sem código de barras (gere antes)`) : ""}
           </p>
+          {copias === "quantidade" && (
+            <p className="text-sm text-[#8a6d78]">
+              Uma etiqueta por peça que entrou na loja (conferência da chegada: recebidas − com defeito).
+              {semConferencia ? ` ${semConferencia} produto(s) ainda sem conferência saem pela quantidade pedida.` : ""}
+              {nadaEntrou ? ` ${nadaEntrou} produto(s) sem nenhuma peça boa ficam sem etiqueta.` : ""}
+            </p>
+          )}
         </div>
-        <Botao onClick={() => window.print()} disabled={!total}>
+        <Botao onClick={imprimir} carregando={imprimindo} disabled={!total}>
           🖶 Imprimir
         </Botao>
       </div>
@@ -122,7 +154,7 @@ function EtiquetasConteudo() {
           </Campo>
           <Campo rotulo="Cópias">
             <select value={copias} onChange={(e) => setCopias(e.target.value as "quantidade" | "uma")}>
-              <option value="quantidade">Uma por peça (quantidade)</option>
+              <option value="quantidade">Uma por peça (a que entrou)</option>
               <option value="uma">Uma por produto</option>
             </select>
           </Campo>
@@ -178,7 +210,7 @@ function EtiquetasConteudo() {
             ) : formato === "cartela" ? (
               <div key={i} className="et flex flex-col items-center justify-between bg-white p-[2mm] text-black" style={{ width: "50mm", height: "50mm" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/marca/logo-fiodeamor.png" alt="" style={{ width: "22mm" }} />
+                <img src="/marca/logo-fiodeamor.png" alt="" loading="lazy" decoding="async" style={{ width: "22mm" }} />
                 <div className="flex w-full justify-around">
                   <span className="h-[1.6mm] w-[1.6mm] rounded-full border border-stone-400" />
                   <span className="h-[1.6mm] w-[1.6mm] rounded-full border border-stone-400" />

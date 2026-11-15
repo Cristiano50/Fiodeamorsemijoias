@@ -3,90 +3,75 @@ import ExcelJS from "exceljs";
 import { asc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { erro } from "@/lib/api";
-import { contextoUp, linhaUp, type LinhaUp } from "@/lib/upvendas";
+import { exigirPapel } from "@/lib/auth";
+import { contextoUp, linhaUp } from "@/lib/upvendas";
+import { COLUNAS_NOVOS, COLUNAS_RECOMPRAS, linhasRecompraUp, montarCsv, nomeArquivoUp, separarParaUp, tipoPlanilhaUp, valorCelulaXlsx } from "@/lib/upvendas-planilha";
 import { urlDoApp } from "@/lib/url";
 
-/** Colunas na ordem da tela "Cadastro de Produtos Simplificado" do UP Vendas + extras. */
-const COLUNAS: [keyof LinhaUp, string, number?][] = [
-  ["nome", "Nome do produto", 46],
-  ["marca", "Marca", 14],
-  ["referencia", "Referência", 14],
-  ["codigoExterno", "Código Externo", 16],
-  ["ncm", "NCM", 11],
-  ["unidade", "Un. estoque", 8],
-  ["categoriaVitrine", "Categoria Vitrine", 28],
-  ["custoCompraBruto", "Custo Compra Bruto", 12],
-  ["custoInsumo", "Custo Insumo", 12],
-  ["milesimos", "Milésimos", 9],
-  ["banhoOuro", "Banho Ouro", 9],
-  ["banhoPrata", "Banho Prata", 9],
-  ["banhoRodio", "Banho Ródio", 9],
-  ["banhoVerniz", "Banho Verniz", 9],
-  ["custoTotal", "Custo Total", 11],
-  ["tabelaPreco", "Tabela Preço 1", 14],
-  ["percentualLucro", "% Lucro Tabela 1", 10],
-  ["valorTabela", "Valor Tabela 1", 11],
-  ["tabelaPreco2", "Tabela Preço 2", 16],
-  ["percentualLucro2", "% Lucro Tabela 2", 10],
-  ["valorTabela2", "Valor Tabela 2", 11],
-  ["descricaoGrade", "Descrição (grade)", 36],
-  ["codigoBarras", "Cód. Barras", 16],
-  ["estoque", "Saldo Estoque", 8],
-  ["ativo", "Ativo", 6],
-  ["acabado", "Acabado", 7],
-  ["compartilhar", "Compartilhar", 8],
-  ["sincronizarUpVendas", "Sincronizar com a Up vendas?", 10],
-  ["tipo", "Tipo", 12],
-  ["material", "Material", 14],
-  ["banho", "Banho", 14],
-  ["corPedra", "Cor da pedra", 16],
-  ["tamanho", "Tamanho", 10],
-  ["nomeComercial", "Nome comercial", 26],
-  ["legenda", "Legenda Instagram", 50],
-  ["imagemUrl", "Imagem", 40],
-];
+const MOEDA = '"R$" #,##0.00';
 
-/** GET /api/exportar?formato=xlsx|csv&pedido=ID  ou  &ids=a,b,c */
+/**
+ * GET /api/exportar?formato=xlsx|csv&tipo=novos|recompras&pedido=ID  ou  &ids=a,b,c  ou  &status=aprovado
+ *  - tipo=novos (padrão): cadastro completo, só peças que ainda não existem no UP;
+ *  - tipo=recompras: entrada de estoque (código de barras + quantidade) das peças que já existem no UP.
+ * A quantidade é a que entrou na loja (conferência: recebida − defeito; sem conferência, a pedida).
+ */
 export async function GET(req: NextRequest) {
   try {
+    await exigirPapel(req);
     const p = req.nextUrl.searchParams;
     const formato = p.get("formato") === "csv" ? "csv" : "xlsx";
+    const tipo = tipoPlanilhaUp(p.get("tipo"));
     const db = await getDb();
     const ids = p.get("ids")?.split(",").filter(Boolean);
     const pedido = p.get("pedido");
-    const produtos = await db
+    const status = p.get("status");
+    const todos = await db
       .select()
       .from(schema.produtos)
-      .where(ids?.length ? inArray(schema.produtos.id, ids) : pedido ? eq(schema.produtos.pedidoId, pedido) : undefined)
+      .where(ids?.length ? inArray(schema.produtos.id, ids) : pedido ? eq(schema.produtos.pedidoId, pedido) : status ? eq(schema.produtos.status, status) : undefined)
       .orderBy(asc(schema.produtos.linha));
-    const ctx = await contextoUp(urlDoApp(req), produtos.map((x) => x.id));
-    const linhas = produtos.map((x) => linhaUp(x, ctx));
-    const nome = `fiodeamor-produtos-${new Date().toISOString().slice(0, 10)}`;
+    const { novos, recompras } = separarParaUp(todos);
+    const nome = nomeArquivoUp(tipo, new Date().toISOString().slice(0, 10));
+
+    let cabecalhos: [string, string, number?][];
+    let linhas: Record<string, unknown>[];
+    let colunasMoeda: string[];
+    let aba: string;
+    if (tipo === "recompras") {
+      const ctx = await contextoUp(urlDoApp(req));
+      linhas = linhasRecompraUp(recompras, ctx).linhas as unknown as Record<string, unknown>[];
+      cabecalhos = COLUNAS_RECOMPRAS;
+      colunasMoeda = ["custoUnitario"];
+      aba = "Recompras (entrada de estoque)";
+    } else {
+      const ctx = await contextoUp(urlDoApp(req), novos.map((x) => x.id));
+      linhas = novos.map((x) => linhaUp(x, ctx)) as unknown as Record<string, unknown>[];
+      cabecalhos = COLUNAS_NOVOS;
+      colunasMoeda = ["custoCompraBruto", "custoInsumo", "custoTotal", "valorTabela", "valorTabela2"];
+      aba = "Produtos novos (cadastro)";
+    }
 
     if (formato === "csv") {
-      const esc = (v: unknown) => {
-        const s = typeof v === "boolean" ? (v ? "Sim" : "Não") : typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "");
-        return /[;"\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-      };
-      const csv = [COLUNAS.map((c) => c[1]).join(";"), ...linhas.map((l) => COLUNAS.map(([k]) => esc(l[k])).join(";"))].join("\r\n");
-      return new NextResponse("﻿" + csv, {
+      // BOM no in\u00EDcio: o Excel abre o CSV com os acentos certos.
+      return new NextResponse("\uFEFF" + montarCsv(cabecalhos, linhas), {
         headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${nome}.csv"` },
       });
     }
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "Fio de Amor Semijoias";
-    const ws = wb.addWorksheet("Produtos UP Vendas", { views: [{ state: "frozen", ySplit: 1 }] });
-    ws.columns = COLUNAS.map(([k, h, w]) => ({ header: h, key: k, width: w ?? 12 }));
-    for (const l of linhas) ws.addRow({ ...l, ativo: l.ativo ? "Sim" : "Não", acabado: l.acabado ? "Sim" : "Não", compartilhar: l.compartilhar ? "Sim" : "Não", sincronizarUpVendas: l.sincronizarUpVendas ? "Sim" : "Não" });
+    const ws = wb.addWorksheet(aba, { views: [{ state: "frozen", ySplit: 1 }] });
+    ws.columns = cabecalhos.map(([k, h, w]) => ({ header: h, key: k, width: w ?? 12 }));
+    for (const l of linhas) ws.addRow(Object.fromEntries(cabecalhos.map(([k]) => [k, valorCelulaXlsx(l[k])])));
     const cab = ws.getRow(1);
     cab.font = { bold: true, color: { argb: "FFFFFFFF" } };
     cab.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB07A90" } };
     cab.alignment = { vertical: "middle", wrapText: true };
     cab.height = 32;
-    for (const k of ["custoCompraBruto", "custoInsumo", "custoTotal", "valorTabela", "valorTabela2"]) ws.getColumn(k).numFmt = '"R$" #,##0.00';
+    for (const k of colunasMoeda) ws.getColumn(k).numFmt = MOEDA;
     ws.getColumn("codigoBarras").numFmt = "@";
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: COLUNAS.length } };
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cabecalhos.length } };
     const buf = await wb.xlsx.writeBuffer();
     return new NextResponse(new Uint8Array(buf as ArrayBuffer), {
       headers: {
