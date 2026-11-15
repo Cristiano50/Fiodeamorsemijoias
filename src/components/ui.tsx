@@ -112,7 +112,8 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
   return (
     <AvisoCtx.Provider value={avisar}>
       {children}
-      <div className="nao-imprimir fixed bottom-4 right-4 z-[60] flex max-w-sm flex-col gap-2">
+      {/* No celular, o aviso ocupa a largura da tela (com margem) em vez de passar da borda esquerda. */}
+      <div className="nao-imprimir fixed bottom-4 left-4 right-4 z-[60] flex flex-col gap-2 sm:left-auto sm:max-w-sm">
         {avisos.map((a) => (
           <div
             key={a.id}

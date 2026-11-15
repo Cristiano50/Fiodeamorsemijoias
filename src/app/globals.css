@@ -92,6 +92,30 @@
   .tabela tr:hover td {
     background: #fdf6f8;
   }
+
+  /* Markdown (especialistas e pareceres): tabela larga e bloco de código rolam de lado dentro do próprio
+     bloco, sem empurrar a página no celular; palavra comprida (link, caminho) quebra a linha. */
+  .prose-fda {
+    overflow-wrap: break-word;
+  }
+  .prose-fda table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .prose-fda pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Celular: campo com letra menor que 16px faz o iPhone dar zoom ao tocar, e a página fica "andando" de lado. */
+  @media screen and (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 @media print {

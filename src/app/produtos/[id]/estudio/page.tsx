@@ -425,7 +425,7 @@ export default function EstudioPage() {
                     <div key={im.id} className={`flex gap-3 rounded-xl border p-2 ${fonteId === im.id ? "border-rose-escuro bg-rose-claro/40" : "border-borda"}`}>
                       <button onClick={() => setFonteId(im.id)} className="shrink-0" title="Usar na arte">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={img(im.id, 200)!} alt="" className="h-24 w-20 rounded-lg object-cover" />
+                        <img src={img(im.id, 200)!} alt="" loading="lazy" decoding="async" className="h-24 w-20 rounded-lg object-cover" />
                       </button>
                       <div className="min-w-0 flex-1 text-xs">
                         {im.meta?.aprovada ? (
@@ -470,7 +470,7 @@ export default function EstudioPage() {
               {imagens.map((im) => (
                 <button key={im.id} onClick={() => escolherFonte(im.id)} className={`overflow-hidden rounded-lg border-2 ${fonteId === im.id ? "border-rose-escuro" : "border-transparent"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img(im.id, 160)!} alt="" className="aspect-square w-full object-cover" />
+                  <img src={img(im.id, 160)!} alt="" loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
                 </button>
               ))}
             </div>

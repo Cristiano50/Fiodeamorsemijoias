@@ -45,13 +45,13 @@ export default function AparelhosPage() {
               alt={`QR code de ${principal}`}
               className="h-44 w-44 rounded-xl border border-borda bg-white p-2"
             />
-            <div className="flex flex-col gap-2">
-              <button type="button" onClick={() => copiar(principal)} className="text-left font-mono text-2xl text-rose-escuro" title="Copiar">
+            <div className="flex min-w-0 flex-col gap-2">
+              <button type="button" onClick={() => copiar(principal)} className="break-all text-left font-mono text-xl text-rose-escuro sm:text-2xl" title="Copiar">
                 {principal}
               </button>
               <p className="text-sm text-[#6b5560]">Aponte a câmera do celular para o QR code, ou digite o endereço no navegador.</p>
               {rede.enderecos.length > 1 && rede.noServidor && (
-                <p className="text-xs text-[#9a8089]">
+                <p className="break-words text-xs text-[#9a8089]">
                   Outros endereços deste computador: {rede.enderecos.slice(1).map((e) => `${e.url} (${e.interface})`).join(" · ")}
                 </p>
               )}
@@ -95,11 +95,14 @@ export default function AparelhosPage() {
 
       <Cartao titulo="Se não abrir">
         <ul className="list-disc space-y-1 pl-5 text-sm text-[#4a3540]">
-          <li>O computador-servidor precisa estar <b>ligado</b> (o app inicia sozinho com o Windows).</li>
+          <li>
+            O computador-servidor precisa estar <b>ligado</b> (o app inicia sozinho com o Windows). Se o servidor parar, abra o atalho{" "}
+            <b>Fio de Amor</b> no computador-servidor: ele liga de novo, sem precisar de senha de administrador.
+          </li>
           <li>O aparelho precisa estar no <b>mesmo Wi-Fi</b> da loja — com os dados móveis (4G/5G) não abre.</li>
           <li>
             No computador-servidor, a rede do Windows deve estar como <b>Privada</b> (Configurações → Rede e Internet → Wi-Fi ou Ethernet → Tipo de
-            perfil de rede: Privada). O instalador já libera o app no firewall para redes privadas.
+            perfil de rede: Privada). O instalador já libera o app no firewall, só para os aparelhos da rede da loja.
           </li>
           <li>
             Se o roteador trocar o endereço do computador, abra esta página no servidor de novo. Para fixar, peça a quem cuida da internet para

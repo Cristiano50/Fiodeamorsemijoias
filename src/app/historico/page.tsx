@@ -30,7 +30,7 @@ export default function HistoricoPage() {
           <h1 className="text-4xl font-semibold">Histórico</h1>
           <p className="text-sm text-[#8a6d78]">Quem mudou fator, frete, cotação, preço, código, configurações, usuários e o que foi excluído ou enviado ao UP.</p>
         </div>
-        <input placeholder="Buscar (ex.: fator, BR_2611, nome da pessoa)…" value={q} onChange={(e) => setQ(e.target.value)} className="w-72" />
+        <input placeholder="Buscar (ex.: fator, BR_2611, nome da pessoa)…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:w-72" />
       </div>
       <Cartao>
         {!lista ? (
@@ -56,7 +56,7 @@ export default function HistoricoPage() {
                     <td>
                       <Selo cor={COR[r.entidade ?? ""] ?? "cinza"}>{r.acao}</Selo>
                     </td>
-                    <td className="text-sm">
+                    <td className="min-w-[12rem] text-sm">
                       {link(r) ? (
                         <Link href={link(r)!} className="hover:underline">
                           {r.resumo}

@@ -111,7 +111,7 @@ export default function ProdutoPage() {
               {imagens.map((im) => (
                 <button key={im.id} onClick={() => salvar({ imagemId: im.id }, "Foto principal alterada.")} title={`${ORIGEM[im.origem] ?? im.origem} — clique para usar como principal`} className={`relative overflow-hidden rounded-lg border-2 ${im.id === p.imagemId ? "border-rose-escuro" : "border-transparent"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img(im.id, 160)!} alt="" className="aspect-square w-full object-cover" />
+                  <img src={img(im.id, 160)!} alt="" loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
                   <span className="absolute bottom-0 left-0 right-0 bg-white/80 text-[0.55rem] uppercase tracking-wide">{ORIGEM[im.origem] ?? im.origem}</span>
                 </button>
               ))}
@@ -137,7 +137,7 @@ export default function ProdutoPage() {
           <Cartao titulo="Código de barras">
             {p.codigoBarras ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/codigo-barras?c=${p.codigoBarras}&altura=14`} alt={p.codigoBarras} className="mx-auto h-24" />
+              <img src={`/api/codigo-barras?c=${p.codigoBarras}&altura=14`} alt={p.codigoBarras} loading="lazy" decoding="async" className="mx-auto h-24 max-w-full object-contain" />
             ) : (
               <p className="text-sm text-[#8a6d78]">Ainda sem o código do UP. Cadastre a peça no UP e bipe ou digite aqui o código que o UP criou.</p>
             )}
@@ -343,7 +343,7 @@ export default function ProdutoPage() {
           <Cartao titulo="UP Vendas">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <Selo cor={p.upStatus === "enviado" ? "verde" : p.upStatus === "erro" ? "vermelho" : "cinza"}>{p.upStatus ?? "não enviado"}</Selo>
-              {p.upMensagem && <span className="text-[#6b5560]">{p.upMensagem}</span>}
+              {p.upMensagem && <span className="min-w-0 break-words text-[#6b5560] [overflow-wrap:anywhere]">{p.upMensagem}</span>}
               <Link href={`/up-vendas?ids=${id}`} className="text-rose-escuro underline">
                 Enviar / simular
               </Link>

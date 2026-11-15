@@ -19,13 +19,28 @@ interface InfoFeed {
   total: number;
 }
 
+type TipoBackup = "diario" | "manual" | "antes-da-migracao";
+
+/** Situação gravada pelo servidor: último sucesso (em/arquivo) e a última falha (erro/tentativaEm). */
+interface Situacao {
+  em: string | null;
+  arquivo: string | null;
+  erro: string | null;
+  tentativaEm: string | null;
+  pasta?: string | null;
+}
+
 /** Resposta de GET /api/backup?lista=1 */
 interface ListaBackups {
   local: boolean;
   explicacao?: string;
   pasta?: string;
   manter?: number;
-  backups: { nome: string; tamanho: number; data: string }[];
+  manterPorTipo?: Record<TipoBackup, number>;
+  manterCopiasExternas?: number;
+  backups: { nome: string; tamanho: number; data: string; tipo?: TipoBackup }[];
+  diario?: Situacao;
+  copiaExterna?: Situacao;
 }
 
 const mensagem = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -47,7 +62,7 @@ export function ConfigCanais() {
   return (
     <div className="flex flex-col gap-4">
       <CatalogoMeta config={config} recarregar={recarregar} />
-      <Backup />
+      <Backup config={config} recarregar={recarregar} />
     </div>
   );
 }
@@ -246,11 +261,26 @@ function CatalogoMeta({ config, recarregar }: { config: ConfigCliente; recarrega
 /* ----------------------------------------------------------------- Backup */
 
 const tamanhoMb = (bytes: number) => `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+const quando = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
+/** A última tentativa falhou depois do último sucesso? */
+const falhouPorUltimo = (s: Situacao | undefined) => !!s?.erro && (!s.em || (s.tentativaEm ?? "") >= s.em);
 
-function Backup() {
+const TIPO: Record<TipoBackup, { rotulo: string; cor: "rose" | "verde" | "amarelo" | "cinza" | "dourado" }> = {
+  diario: { rotulo: "automático", cor: "cinza" },
+  manual: { rotulo: "manual", cor: "rose" },
+  "antes-da-migracao": { rotulo: "antes da atualização", cor: "dourado" },
+};
+
+function Backup({ config, recarregar }: { config: ConfigCliente; recarregar: () => Promise<void> }) {
+  const avisar = useAviso();
   const [dados, setDados] = useState<ListaBackups | null>(null);
   const [erro, setErro] = useState("");
   const [gerando, setGerando] = useState(false);
+  const salvaNoConfig = config.sistema.backupPastaExterna ?? "";
+  const [pasta, setPasta] = useState(salvaNoConfig);
+  const [testando, setTestando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [teste, setTeste] = useState<{ ok: boolean; mensagem: string; pasta: string } | null>(null);
   const carregar = useCallback(
     () =>
       api<ListaBackups>("/api/backup?lista=1").then((d) => {
@@ -271,6 +301,41 @@ function Backup() {
       carregar().catch(() => {});
     }, 6000);
   }
+
+  async function testar() {
+    setTestando(true);
+    setTeste(null);
+    try {
+      const r = await api<{ ok: boolean; mensagem: string; pasta: string }>("/api/backup", { method: "POST", json: { acao: "testar-pasta", pasta } });
+      setTeste(r);
+    } catch (e) {
+      setTeste({ ok: false, mensagem: mensagem(e), pasta });
+    } finally {
+      setTestando(false);
+    }
+  }
+
+  async function salvarPasta() {
+    setSalvando(true);
+    // Sem espaços nas pontas e sem as aspas do "Copiar como caminho" do Windows.
+    const valor = pasta.trim().replace(/^"(.*)"$/, "$1").trim();
+    try {
+      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { ...config.sistema, backupPastaExterna: valor } } });
+      await recarregar();
+      setPasta(valor);
+      avisar(valor ? "Pasta salva. A cópia sai logo depois do backup automático do dia (o app confere a cada 10 minutos de uso)." : "Cópia externa desligada.");
+      carregar().catch(() => {});
+    } catch (e) {
+      avisar(mensagem(e), "erro");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  const copia = dados?.copiaExterna;
+  const diario = dados?.diario;
+  const manter = dados?.manterPorTipo;
+  const mudou = pasta.trim() !== salvaNoConfig.trim();
 
   return (
     <Cartao
@@ -297,9 +362,78 @@ function Backup() {
       ) : (
         <>
           <p className="mb-3 text-sm text-[#6b5560]">
-            O app faz <b>um backup automático por dia</b> na pasta <span className="font-mono">{dados.pasta}</span> e guarda os {dados.manter} mais recentes. O botão
-            acima faz uma cópia na hora e baixa o arquivo. Todas as fotos estão dentro do banco, então o arquivo pode ser grande.
+            O app faz <b>um backup automático por dia</b> na pasta <span className="break-all font-mono">{dados.pasta}</span> e guarda os {manter?.diario ?? dados.manter}{" "}
+            mais recentes. O botão acima faz uma cópia <b>manual</b> na hora e baixa o arquivo (ficam as {manter?.manual ?? 20} últimas). Antes de cada atualização do app
+            que muda o banco, fica mais uma cópia (as {manter?.["antes-da-migracao"] ?? 3} últimas). Todas as fotos estão dentro do banco, então o arquivo pode ser grande.
           </p>
+          {falhouPorUltimo(diario) ? (
+            <p className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-800">
+              <b>O backup automático falhou</b> em {quando(diario?.tentativaEm)}: {diario?.erro} O app tenta de novo em 1 hora.
+            </p>
+          ) : diario?.em ? (
+            <p className="mb-3 text-sm text-[#6b5560]">
+              Último backup automático: <b>{quando(diario.em)}</b>.
+            </p>
+          ) : null}
+
+          <div className="mb-4 rounded-xl border border-borda p-3">
+            <span className="rotulo">Cópia fora deste computador</span>
+            <p className="mt-1 text-sm text-[#6b5560]">
+              Depois do backup automático, o app copia o arquivo para esta pasta e guarda lá as {dados.manterCopiasExternas ?? 14} cópias mais recentes. Use um{" "}
+              <b>pen drive</b> que fique sempre conectado ou a pasta <span className="font-mono">C:\FioDeAmor-Backup</span> (o instalador já criou) sincronizada pelo
+              Google Drive. Se o computador estragar ou for roubado, o backup continua seguro.
+            </p>
+            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end">
+              <Campo rotulo="Pasta para a cópia diária" className="min-w-0 flex-1" dica="Vazio = não copia. Exemplos: E:\Backup Fio de Amor (pen drive) ou C:\FioDeAmor-Backup.">
+                <input value={pasta} onChange={(e) => setPasta(e.target.value)} placeholder="E:\Backup Fio de Amor" className="font-mono" spellCheck={false} autoComplete="off" />
+              </Campo>
+              <div className="flex flex-wrap gap-2 md:pb-5">
+                <Botao variante="secundario" carregando={testando} disabled={!pasta.trim()} onClick={testar}>
+                  Testar pasta
+                </Botao>
+                <Botao carregando={salvando} disabled={!mudou} onClick={salvarPasta}>
+                  Salvar
+                </Botao>
+              </div>
+            </div>
+            {teste && (
+              <p className={`mt-2 rounded-xl p-3 text-sm ${teste.ok ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
+                {teste.ok ? "✓ " : "✗ "}
+                {teste.mensagem}
+              </p>
+            )}
+            <div className="mt-2 text-sm">
+              {falhouPorUltimo(copia) ? (
+                <p className="rounded-xl bg-red-50 p-3 text-red-800">
+                  <b>A última cópia externa falhou</b> em {quando(copia?.tentativaEm)}: {copia?.erro}
+                  {copia?.em && (
+                    <>
+                      {" "}
+                      A última que deu certo foi em {quando(copia.em)}.
+                    </>
+                  )}
+                </p>
+              ) : copia?.em ? (
+                <p className="text-[#6b5560]">
+                  Última cópia externa: <b>{quando(copia.em)}</b> — <span className="break-all font-mono text-xs">{copia.arquivo}</span> em{" "}
+                  <span className="break-all font-mono text-xs">{copia.pasta}</span>
+                </p>
+              ) : (
+                <p className="text-[#8a6d78]">{salvaNoConfig ? "Ainda não houve cópia para a pasta externa." : "Nenhuma pasta externa configurada."}</p>
+              )}
+            </div>
+            <details className="mt-2 text-sm">
+              <summary className="cursor-pointer text-[#8a6d78]">Por que não dá para usar a pasta do Google Drive ou do OneDrive do meu usuário?</summary>
+              <p className="mt-1 text-[#6b5560]">
+                No computador da loja, o servidor do app roda como uma conta de serviço do Windows (LocalService), sem poderes de administrador, por segurança.
+                Essa conta não grava nas pastas dos usuários (como <span className="font-mono">C:\Users\Maria\Google Drive</span> ou{" "}
+                <span className="font-mono">C:\Users\Maria\OneDrive</span>) e não enxerga a unidade <span className="font-mono">G:</span> do Google Drive. Use um pen
+                drive, ou a pasta <span className="font-mono">C:\FioDeAmor-Backup</span> e, no Google Drive para computador, vá em Preferências → Meu computador →
+                Adicionar pasta e escolha essa pasta.
+              </p>
+            </details>
+          </div>
+
           {dados.backups.length === 0 ? (
             <p className="text-sm text-[#8a6d78]">Nenhum backup ainda. O primeiro automático sai alguns segundos depois que o app é usado.</p>
           ) : (
@@ -308,6 +442,7 @@ function Backup() {
                 <thead>
                   <tr>
                     <th>Data</th>
+                    <th>Tipo</th>
                     <th>Arquivo</th>
                     <th>Tamanho</th>
                     <th />
@@ -316,7 +451,10 @@ function Backup() {
                 <tbody>
                   {dados.backups.map((b) => (
                     <tr key={b.nome}>
-                      <td className="whitespace-nowrap">{new Date(b.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+                      <td className="whitespace-nowrap">{quando(b.data)}</td>
+                      <td className="whitespace-nowrap">
+                        <Selo cor={TIPO[b.tipo ?? "diario"].cor}>{TIPO[b.tipo ?? "diario"].rotulo}</Selo>
+                      </td>
                       <td className="font-mono text-xs">{b.nome}</td>
                       <td className="whitespace-nowrap text-xs">{tamanhoMb(b.tamanho)}</td>
                       <td className="text-right">
@@ -333,11 +471,14 @@ function Backup() {
           <div className="mt-4 rounded-xl bg-creme p-3 text-sm">
             <b>Como restaurar um backup</b>
             <ol className="mt-1 list-decimal space-y-1 pl-5">
-              <li>Feche o app (a janela do servidor, ou Ctrl+C no terminal).</li>
+              <li>
+                Pare o servidor do app. No computador da loja, quem tem senha de administrador para a tarefa “Fio de Amor - Servidor” (o passo a passo está em{" "}
+                <span className="font-mono">docs/backup.md</span>); no computador de desenvolvimento, Ctrl+C no terminal.
+              </li>
               <li>
                 Na pasta do app, abra <span className="font-mono">dados</span> e renomeie <span className="font-mono">fiodeamor.db</span> para{" "}
-                <span className="font-mono">fiodeamor-antigo.db</span> (se houver <span className="font-mono">fiodeamor.db-wal</span> e{" "}
-                <span className="font-mono">-shm</span>, renomeie também).
+                <span className="font-mono">fiodeamor-antigo.db</span>. Renomeie também <span className="font-mono">fiodeamor.db-wal</span> e{" "}
+                <span className="font-mono">fiodeamor.db-shm</span>, se existirem (senão o banco antigo se mistura com o backup).
               </li>
               <li>
                 Copie o backup escolhido para a pasta <span className="font-mono">dados</span> e renomeie para <span className="font-mono">fiodeamor.db</span>.
@@ -345,8 +486,7 @@ function Backup() {
               <li>Abra o app de novo. Tudo volta a ficar como estava no dia e na hora do backup.</li>
             </ol>
             <p className="mt-2 text-xs text-[#8a6d78]">
-              Dica: de vez em quando, guarde um backup fora do computador (pen drive ou Google Drive). Os automáticos ficam no mesmo disco do app. Detalhes em{" "}
-              <span className="font-mono">docs/nuvem.md</span>.
+              Passo a passo completo (inclusive no computador da loja) em <span className="font-mono">docs/backup.md</span>.
             </p>
           </div>
         </>
