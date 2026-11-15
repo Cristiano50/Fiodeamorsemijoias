@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
         origemCodigoBarras: sistema.origemCodigoBarras,
         marcaUp: sistema.marcaUp,
         tipoCotacao: sistema.tipoCotacao,
+        // Padrões de custo dos pedidos novos (a skill aplica como o app quando o pedido não traz valores).
+        perdasPctPadrao: sistema.perdasPctPadrao,
+        embalagemPorPecaPadrao: sistema.embalagemPorPecaPadrao,
       }),
     );
     if (conectada) {

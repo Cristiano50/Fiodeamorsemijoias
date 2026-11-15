@@ -17,6 +17,7 @@ interface InfoFeed {
   modo: "aberto" | "senha" | "usuarios";
   itens: number;
   total: number;
+  semFotoAprovada?: number; // peças que ficaram fora só por falta de foto aprovada/enviada pela loja
 }
 
 type TipoBackup = "diario" | "manual" | "antes-da-migracao";
@@ -104,7 +105,7 @@ function CatalogoMeta({ config, recarregar }: { config: ConfigCliente; recarrega
         method: "PUT",
         json: {
           chave: "sistema",
-          valor: { ...config.sistema, whatsappNumero: digitos, linkProdutoModelo: modelo.trim(), feedChave: info?.chave || chaveSalva },
+          valor: { whatsappNumero: digitos, linkProdutoModelo: modelo.trim() },
         },
       });
       await recarregar();
@@ -120,7 +121,7 @@ function CatalogoMeta({ config, recarregar }: { config: ConfigCliente; recarrega
   async function novaChave() {
     if (!confirm("Gerar uma chave nova? O link antigo para de funcionar e você vai precisar colar o novo no Commerce Manager.")) return;
     try {
-      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { ...config.sistema, feedChave: "" } } });
+      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { trocarFeedChave: true } } });
       await carregarInfo();
       avisar("Chave nova gerada. Atualize a URL no Commerce Manager.");
     } catch (e) {
@@ -141,7 +142,7 @@ function CatalogoMeta({ config, recarregar }: { config: ConfigCliente; recarrega
     <Cartao titulo="WhatsApp e catálogo Meta">
       <p className="mb-3 text-sm text-[#6b5560]">
         O app gera o arquivo do catálogo no formato da Meta. Cadastrado no Commerce Manager, o catálogo aparece no <b>WhatsApp Business</b> e no{" "}
-        <b>Instagram Shopping</b>. Entram as peças <b>aprovadas, com preço e com foto</b>; o botão de cada peça abre uma conversa no WhatsApp da loja.
+        <b>Instagram Shopping</b>. Entram as peças <b>aprovadas, com preço, com estoque e com foto aprovada pela loja</b> (foto com IA aprovada em “Fotos para aprovar” ou foto enviada pela loja); o botão de cada peça abre uma conversa no WhatsApp da loja.
       </p>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -205,7 +206,12 @@ function CatalogoMeta({ config, recarregar }: { config: ConfigCliente; recarrega
                 {info.itens} de {info.total} peças entram no feed
               </Selo>
               {!info.whatsappValido && <Selo cor="amarelo">preencha o WhatsApp antes de cadastrar</Selo>}
-              <span className="text-xs text-[#9a8089]">(aprovadas, com preço e com foto; a foto com IA aprovada por você em “Fotos para aprovar” vai na frente)</span>
+              {!!info.semFotoAprovada && (
+                <Selo cor="amarelo">
+                  {info.semFotoAprovada} fora só por falta de foto aprovada — veja em “Fotos para aprovar”
+                </Selo>
+              )}
+              <span className="text-xs text-[#9a8089]">(aprovadas, com preço e com foto com IA aprovada pela loja ou foto enviada pela loja)</span>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <LinkBaixar href={info.url}>Baixar CSV agora</LinkBaixar>
@@ -320,7 +326,7 @@ function Backup({ config, recarregar }: { config: ConfigCliente; recarregar: () 
     // Sem espaços nas pontas e sem as aspas do "Copiar como caminho" do Windows.
     const valor = pasta.trim().replace(/^"(.*)"$/, "$1").trim();
     try {
-      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { ...config.sistema, backupPastaExterna: valor } } });
+      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { backupPastaExterna: valor } } });
       await recarregar();
       setPasta(valor);
       avisar(valor ? "Pasta salva. A cópia sai logo depois do backup automático do dia (o app confere a cada 10 minutos de uso)." : "Cópia externa desligada.");

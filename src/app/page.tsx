@@ -79,8 +79,9 @@ export default function Painel() {
     api<Painel>("/api/painel")
       .then(setP)
       .catch((e) => setErro(e instanceof Error ? e.message : String(e)));
+    // Importação que parou no meio não entra nos "últimos pedidos" (aparece nas pendências e em /importar).
     api<PedidoLista[]>("/api/pedidos")
-      .then(setPedidos)
+      .then((l) => setPedidos(l.filter((x) => x.status !== "importando")))
       .catch(() => {});
   }, []);
   if (erro) return <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">Não foi possível abrir o painel: {erro}</p>;

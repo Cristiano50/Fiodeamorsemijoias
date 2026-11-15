@@ -55,7 +55,9 @@ function UpVendasTela({ config, recarregar }: { config: ConfigCliente; recarrega
     setOcupado("salvar");
     try {
       const mapaCampos = JSON.parse(mapa);
-      await api("/api/config", { method: "PUT", json: { chave: "upvendas", valor: { ...cfg, mapaCampos } } });
+      // Trocar o endereço do UP apaga a senha salva (a senha não vai para um endereço novo sem ser digitada).
+      const r = await api<{ aviso?: string }>("/api/config", { method: "PUT", json: { chave: "upvendas", valor: { ...cfg, mapaCampos } } });
+      if (r?.aviso) avisar(r.aviso, "info");
       if (senha) await api("/api/config", { method: "PUT", json: { chave: "segredos", valor: { UPVENDAS_SENHA: senha } } });
       setSenha("");
       await recarregar();

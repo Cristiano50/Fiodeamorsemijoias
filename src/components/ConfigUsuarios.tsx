@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Botao, Campo, Carregando, Cartao, Selo, useAviso } from "./ui";
 import { api } from "@/lib/cliente";
+import { useConfig } from "./hooks";
+import { CampoNumero } from "./CampoNumero";
 
 type Usuario = { id: string; nome: string; login: string; papel: "gestora" | "funcionario"; ativo: boolean; criadoEm: string };
 
@@ -70,7 +72,7 @@ export function ConfigUsuarios() {
           </li>
           <li>Toda alteração de fator, frete, cotação, preço, código e exclusão fica no Histórico, com o nome de quem fez.</li>
           <li>
-            Cada aparelho fica logado por alguns dias e depois pede a senha de novo. <b>Trocar a senha, mudar o papel, desativar</b> ou <b>desconectar</b> tira a
+            Cada aparelho fica logado pelos dias escolhidos abaixo e depois pede a senha de novo. <b>Trocar a senha, mudar o papel, desativar</b> ou <b>desconectar</b> tira a
             pessoa de <b>todos os aparelhos</b> na hora. O botão <b>Sair</b> do menu também desconecta aquele login em todos os aparelhos.
           </li>
           <li>Senhas novas: pelo menos {SENHA_MINIMA} caracteres. Depois de 5 tentativas erradas, o login fica bloqueado por alguns minutos.</li>
@@ -87,6 +89,8 @@ export function ConfigUsuarios() {
           </p>
         ))}
       </Cartao>
+
+      {modo !== "aberto" && <ValidadeLogin />}
 
       <Cartao titulo={primeiro ? "Criar a conta da gestora" : "Novo usuário"}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -180,5 +184,30 @@ export function ConfigUsuarios() {
         </Cartao>
       )}
     </div>
+  );
+}
+
+/** Por quantos dias cada aparelho fica logado (sistema.validadeSessaoDias; o servidor aceita de 1 a 365). */
+function ValidadeLogin() {
+  const avisar = useAviso();
+  const { config, recarregar } = useConfig();
+  if (!config) return null;
+  const dias = Number(config.sistema.validadeSessaoDias) || 14;
+  async function salvar(n: number | null) {
+    if (n == null || n < 1 || n > 365) return avisar("Use de 1 a 365 dias.", "erro");
+    try {
+      await api("/api/config", { method: "PUT", json: { chave: "sistema", valor: { validadeSessaoDias: n } } });
+      await recarregar();
+      avisar(`Pronto: cada aparelho fica logado por ${n} dia(s). Vale para os próximos logins.`);
+    } catch (e) {
+      avisar(e instanceof Error ? e.message : String(e), "erro");
+    }
+  }
+  return (
+    <Cartao titulo="Validade do login">
+      <Campo rotulo="Dias logado em cada aparelho" dica="Padrão: 14 dias. Menos dias = mais seguro; mais dias = menos vezes digitando a senha.">
+        <CampoNumero valor={dias} inteiro positivo vazio={false} rotulo="os dias de validade" aoSalvar={(n) => void salvar(n)} className="w-28" />
+      </Campo>
+    </Cartao>
   );
 }

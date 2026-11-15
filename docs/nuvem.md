@@ -102,7 +102,7 @@ As chaves de IA salvas em Configurações → Integrações vão junto com o ban
 | --- | --- | --- |
 | `DATABASE_URL` | A URL do Turso (`libsql://...`) | Sim |
 | `DATABASE_AUTH_TOKEN` | O token do Turso | Sim |
-| `APP_SEGREDO` | Um segredo **longo e aleatório**, com 64 letras e números (veja abaixo) | Sim |
+| `SESSAO_SEGREDO` | Um segredo **longo e aleatório**, com 64 letras e números (veja abaixo). O nome antigo `APP_SEGREDO` também vale | Recomendada |
 | `ANTHROPIC_API_KEY` | Chave do Claude (análise das peças, nomes e legendas) | Sim, para usar a IA |
 | `GEMINI_API_KEY` | Chave do Gemini (fotos com IA) | Sim, para as fotos com IA |
 | `NEXT_PUBLIC_URL_PUBLICA` | O endereço do app, sem barra no fim. Ex.: `https://fiodeamorsemijoias.vercel.app` | Opcional |
@@ -113,13 +113,13 @@ Outras variáveis opcionais:
 - `UPVENDAS_SENHA`: senha da integração com o UP Vendas;
 - `APP_SENHA`: senha única da equipe (veja a Parte 3).
 
-**Como gerar o `APP_SEGREDO`:** use um gerador de senhas (por exemplo, o do seu gerenciador de senhas) com 64 caracteres, ou rode no terminal:
+**Como gerar o `SESSAO_SEGREDO`:** use um gerador de senhas (por exemplo, o do seu gerenciador de senhas) com 64 caracteres, ou rode no terminal:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-O `APP_SEGREDO` assina o login de cada pessoa. Sem ele, na nuvem, os logins caem sozinhos de tempos em tempos. Se você trocar o segredo, todo mundo precisa entrar de novo. Não compartilhe esse valor.
+O `SESSAO_SEGREDO` assina o login de cada pessoa. Sem ele, o app cria um segredo sozinho e o guarda no banco (nunca sai do servidor). Se você trocar o segredo, todo mundo precisa entrar de novo. Não compartilhe esse valor. O login vale 14 dias (Configurações → Usuários) e cai na hora quando a pessoa é desativada, troca de senha ou de papel, ou clica em **Sair**, que desconecta todos os aparelhos daquele login.
 
 **Para que serve o `NEXT_PUBLIC_URL_PUBLICA`:** é o endereço usado nos links das fotos do catálogo da Meta e do UP Vendas. Sem ele, o app usa o endereço por onde foi aberto, o que normalmente funciona. Se você cadastrar ou mudar essa variável depois do primeiro deploy, faça um novo deploy (Deployments → ⋯ → **Redeploy**), porque ela só passa a valer na publicação seguinte.
 
@@ -165,7 +165,7 @@ A tela **Gastos com IA** do app mostra quanto foi gasto e permite definir um lim
 
 - O app faz **um backup automático por dia** em `dados/backups`, com nomes como `fiodeamor-2026-11-14-0930.db`, e guarda os **14 mais recentes**.
 - Em Configurações, na aba **WhatsApp, catálogo Meta e backup**, a gestora vê a lista, baixa qualquer um deles ou faz um backup na hora (**Baixar backup agora**).
-- Os automáticos ficam no mesmo disco do app. Se o computador quebrar, eles se perdem junto. Por isso, **uma vez por semana, guarde um backup fora do computador** (pen drive, Google Drive ou e-mail para você mesma).
+- Os automáticos ficam no mesmo disco do app. Se o computador quebrar, eles se perdem junto. Por isso, informe uma **pasta fora do computador** na mesma aba (pen drive, ou uma pasta sincronizada com o Google Drive/OneDrive fora da pasta do usuário, como `C:\FioDeAmor-Backup`) e clique em **Testar pasta**: o app copia para lá cada backup diário e guarda as 14 cópias mais recentes. O Painel fica vermelho quando a última cópia de fora tem mais de 7 dias. Detalhes em [backup.md](backup.md).
 
 **Como restaurar um backup local:**
 
@@ -226,4 +226,4 @@ Limitações deste caminho:
 
 - O **feed agendado** do catálogo da Meta não funciona, porque a Meta precisa abrir o link pela internet. Use **Baixar CSV agora** (Configurações → aba **WhatsApp, catálogo Meta e backup**) e envie o arquivo à mão no Commerce Manager. Mesmo assim, as fotos do arquivo apontam para o computador da loja e a Meta não consegue baixá-las. Para o catálogo ficar completo, publique o app na nuvem.
 - Fora da loja, o app não abre. Uma saída é uma VPN simples, como o **Tailscale** (gratuito para uso pessoal; confirme), instalada no computador e no celular. Ela não resolve o catálogo da Meta.
-- Os backups automáticos continuam sendo feitos todo dia em `dados/backups`. Guarde um fora do computador de vez em quando.
+- Os backups automáticos continuam sendo feitos todo dia em `dados/backups` e copiados para a pasta de fora, se você indicou uma.

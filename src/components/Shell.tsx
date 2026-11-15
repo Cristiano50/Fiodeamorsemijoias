@@ -68,8 +68,8 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="mb-3 rounded-xl bg-rose-claro px-3 py-2 text-xs">
                 <div className="font-medium text-rose-escuro">{sessao.usuario.nome}</div>
                 <div className="text-[#8a6d78]">{sessao.usuario.papel === "gestora" ? "Gestora" : "Funcionário(a)"}</div>
-                <button onClick={sair} className="mt-1 text-rose-escuro underline">
-                  Sair
+                <button onClick={sair} className="mt-1 text-rose-escuro underline" title="Sai deste login no celular e nos outros computadores também">
+                  Sair (em todos os aparelhos)
                 </button>
               </div>
             )}

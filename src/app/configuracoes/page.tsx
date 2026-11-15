@@ -6,10 +6,12 @@ import { api, brl, img } from "@/lib/cliente";
 import { ConfigUsuarios } from "@/components/ConfigUsuarios";
 import { ConfigCanais } from "@/components/ConfigCanais";
 import { ConfigSkill } from "@/components/ConfigSkill";
+import { ConfigVendasRecompra } from "@/components/ConfigVendasRecompra";
+import { ConfigCustosPadrao } from "@/components/ConfigCustosPadrao";
 import { montarEan13, montarReferencia } from "@/lib/codigos";
 import { calcularPreco, type PoliticaPreco } from "@/lib/precos";
 
-type Aba = "integracoes" | "skill" | "canais" | "usuarios" | "referencias" | "precificacao" | "codigos" | "custos" | "avancado";
+type Aba = "integracoes" | "skill" | "canais" | "usuarios" | "referencias" | "precificacao" | "codigos" | "custos" | "vendas" | "avancado";
 
 const ABAS: readonly (readonly [Aba, string])[] = [
   ["integracoes", "Integrações e IA"],
@@ -19,13 +21,20 @@ const ABAS: readonly (readonly [Aba, string])[] = [
   ["referencias", "Fotos de referência (estilo)"],
   ["precificacao", "Precificação (fator)"],
   ["custos", "Câmbio e custos"],
+  ["vendas", "Vendas e recompra"],
   ["codigos", "Referência e código de barras"],
   ["avancado", "Taxonomia, marca e fiscal"],
 ];
 
 export default function ConfiguracoesPage() {
   const { config, recarregar } = useConfig();
-  const [aba, setAba] = useState<Aba>("integracoes");
+  // Links diretos para uma seção: /configuracoes?aba=canais (ex.: aviso de backup do Painel).
+  // Ler a URL no estado inicial é seguro: no servidor e no primeiro desenho a tela mostra só "Carregando".
+  const [aba, setAba] = useState<Aba>(() => {
+    if (typeof window === "undefined") return "integracoes";
+    const pedida = new URLSearchParams(window.location.search).get("aba");
+    return ABAS.some(([k]) => k === pedida) ? (pedida as Aba) : "integracoes";
+  });
   if (!config) return <Carregando />;
   return (
     <div className="flex flex-col gap-5">
@@ -54,7 +63,13 @@ export default function ConfiguracoesPage() {
       {aba === "usuarios" && <ConfigUsuarios />}
       {aba === "referencias" && <Referencias config={config} />}
       {aba === "precificacao" && <Precificacao config={config} recarregar={recarregar} />}
-      {aba === "custos" && <Custos config={config} recarregar={recarregar} />}
+      {aba === "custos" && (
+        <>
+          <Custos config={config} recarregar={recarregar} />
+          <ConfigCustosPadrao config={config} recarregar={recarregar} />
+        </>
+      )}
+      {aba === "vendas" && <ConfigVendasRecompra />}
       {aba === "codigos" && <Codigos config={config} recarregar={recarregar} />}
       {aba === "avancado" && <Avancado config={config} recarregar={recarregar} />}
     </div>
@@ -62,6 +77,15 @@ export default function ConfiguracoesPage() {
 }
 
 type Props = { config: ConfigCliente; recarregar: () => Promise<void> };
+
+/**
+ * Só os campos que esta aba mudou. O servidor mescla com o que está salvo, então uma aba aberta há
+ * tempo não desfaz o que outra aba (ou outro aparelho) salvou nesse meio-tempo.
+ */
+function soAlterados<T extends object>(novo: T, base: T): Partial<T> {
+  const b = base as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(novo).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(b[k]))) as Partial<T>;
+}
 
 function useSalvar(recarregar: () => Promise<void>) {
   const avisar = useAviso();
@@ -173,7 +197,7 @@ function Integracoes({ config, recarregar }: Props) {
           </Campo>
         </div>
         <div className="mt-4 flex justify-end">
-          <Botao carregando={salvando} onClick={() => salvar("sistema", s)}>
+          <Botao carregando={salvando} onClick={() => salvar("sistema", soAlterados(s, config.sistema))}>
             Salvar
           </Botao>
         </div>
@@ -248,68 +272,72 @@ function Precificacao({ config, recarregar }: Props) {
               {String(Math.round((pol.arredondamento.centavos ?? 0.99) * 100)).padStart(2, "0")}. Nunca abaixo do mínimo de{" "}
               <b>{brl(pol.arredondamento.minimo ?? 0)}</b>. Arredondar para baixo na escada não gera alerta de fator mínimo.
             </p>
-            <table className="tabela w-full max-w-xl text-sm">
-              <thead>
-                <tr>
-                  <th>Preço até</th>
-                  <th>De quanto em quanto</th>
-                  <th>Exemplos</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pol.arredondamento.degraus.map((g, i, todos) => {
-                  const recuo = 1 - (pol.arredondamento.centavos ?? 0.99);
-                  const inicio = i > 0 ? (todos[i - 1].ate ?? 0) : 0;
-                  const exemplos: number[] = [];
-                  for (let k = Math.floor((inicio + recuo) / g.passo) + 1, voltas = 0; g.passo > 0 && exemplos.length < 3 && voltas < 50; k++, voltas++) {
-                    const ponto = Math.round((k * g.passo - recuo) * 100) / 100;
-                    if (g.ate != null && ponto > g.ate) break;
-                    if (ponto >= (pol.arredondamento.minimo ?? 0)) exemplos.push(ponto);
-                  }
-                  return (
-                    <tr key={i}>
-                      <td>{g.ate == null ? "acima disso" : brl(g.ate)}</td>
-                      <td>de {brl(g.passo)} em {brl(g.passo)}</td>
-                      <td className="text-xs text-[#8a6d78]">{exemplos.length ? `${exemplos.map((x) => brl(x)).join(", ")}…` : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="tabela w-full max-w-xl text-sm">
+                <thead>
+                  <tr>
+                    <th>Preço até</th>
+                    <th>De quanto em quanto</th>
+                    <th>Exemplos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pol.arredondamento.degraus.map((g, i, todos) => {
+                    const recuo = 1 - (pol.arredondamento.centavos ?? 0.99);
+                    const inicio = i > 0 ? (todos[i - 1].ate ?? 0) : 0;
+                    const exemplos: number[] = [];
+                    for (let k = Math.floor((inicio + recuo) / g.passo) + 1, voltas = 0; g.passo > 0 && exemplos.length < 3 && voltas < 50; k++, voltas++) {
+                      const ponto = Math.round((k * g.passo - recuo) * 100) / 100;
+                      if (g.ate != null && ponto > g.ate) break;
+                      if (ponto >= (pol.arredondamento.minimo ?? 0)) exemplos.push(ponto);
+                    }
+                    return (
+                      <tr key={i}>
+                        <td>{g.ate == null ? "acima disso" : brl(g.ate)}</td>
+                        <td>de {brl(g.passo)} em {brl(g.passo)}</td>
+                        <td className="text-xs text-[#8a6d78]">{exemplos.length ? `${exemplos.map((x) => brl(x)).join(", ")}…` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : null}
       </Cartao>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Cartao titulo="Faixas de custo">
-          <table className="tabela w-full">
-            <thead>
-              <tr>
-                <th>Custo até (R$)</th>
-                <th>Fator</th>
-                <th>Exemplo de preço</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pol.faixas_custo.map((f, i) => (
-                <tr key={i}>
-                  <td>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={f.ate ?? ""}
-                      placeholder="sem limite"
-                      onChange={(e) => setPol((p) => ({ ...p, faixas_custo: p.faixas_custo.map((x, j) => (j === i ? { ...x, ate: e.target.value ? Number(e.target.value) : null } : x)) }))}
-                    />
-                  </td>
-                  <td>
-                    <input type="number" step="0.05" value={f.fator} onChange={(e) => setPol((p) => ({ ...p, faixas_custo: p.faixas_custo.map((x, j) => (j === i ? { ...x, fator: Number(e.target.value) } : x)) }))} />
-                  </td>
-                  <td className="text-xs text-[#8a6d78]">{f.ate ? `${brl(f.ate)} → ${brl(calcularPreco(f.ate, null, { ...pol, usar_faixas: true }).preco)}` : "—"}</td>
+          <div className="overflow-x-auto">
+            <table className="tabela w-full">
+              <thead>
+                <tr>
+                  <th>Custo até (R$)</th>
+                  <th>Fator</th>
+                  <th>Exemplo de preço</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pol.faixas_custo.map((f, i) => (
+                  <tr key={i}>
+                    <td>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={f.ate ?? ""}
+                        placeholder="sem limite"
+                        onChange={(e) => setPol((p) => ({ ...p, faixas_custo: p.faixas_custo.map((x, j) => (j === i ? { ...x, ate: e.target.value ? Number(e.target.value) : null } : x)) }))}
+                      />
+                    </td>
+                    <td>
+                      <input type="number" step="0.05" value={f.fator} onChange={(e) => setPol((p) => ({ ...p, faixas_custo: p.faixas_custo.map((x, j) => (j === i ? { ...x, fator: Number(e.target.value) } : x)) }))} />
+                    </td>
+                    <td className="text-xs text-[#8a6d78]">{f.ate ? `${brl(f.ate)} → ${brl(calcularPreco(f.ate, null, { ...pol, usar_faixas: true }).preco)}` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Cartao>
         <Cartao titulo="Fator por tipo de peça">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -329,36 +357,38 @@ function Precificacao({ config, recarregar }: Props) {
       </div>
 
       <Cartao titulo="Tabelas de preço (UP Vendas)">
-        <table className="tabela w-full">
-          <thead>
-            <tr>
-              <th>Tabela</th>
-              <th>Multiplicador sobre a base</th>
-              <th>Tabela no UP</th>
-              <th>Descrição</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pol.tabelas_preco.map((t, i) => (
-              <tr key={t.id}>
-                <td>
-                  {t.nome} {t.id === pol.tabela_base && <Selo>base</Selo>}
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={t.id === pol.tabela_base}
-                    value={t.multiplicador_sobre_tabela_base}
-                    onChange={(e) => setPol((p) => ({ ...p, tabelas_preco: p.tabelas_preco.map((x, j) => (j === i ? { ...x, multiplicador_sobre_tabela_base: Number(e.target.value) } : x)) }))}
-                  />
-                </td>
-                <td className="text-xs">{t.tabela_up_vendas ?? "—"}</td>
-                <td className="text-xs text-[#6b5560]">{t.descricao}</td>
+        <div className="overflow-x-auto">
+          <table className="tabela w-full">
+            <thead>
+              <tr>
+                <th>Tabela</th>
+                <th>Multiplicador sobre a base</th>
+                <th>Tabela no UP</th>
+                <th>Descrição</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {pol.tabelas_preco.map((t, i) => (
+                <tr key={t.id}>
+                  <td>
+                    {t.nome} {t.id === pol.tabela_base && <Selo>base</Selo>}
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      step="0.01"
+                      disabled={t.id === pol.tabela_base}
+                      value={t.multiplicador_sobre_tabela_base}
+                      onChange={(e) => setPol((p) => ({ ...p, tabelas_preco: p.tabelas_preco.map((x, j) => (j === i ? { ...x, multiplicador_sobre_tabela_base: Number(e.target.value) } : x)) }))}
+                    />
+                  </td>
+                  <td className="text-xs">{t.tabela_up_vendas ?? "—"}</td>
+                  <td className="text-xs text-[#6b5560]">{t.descricao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Cartao>
     </div>
   );
@@ -391,7 +421,7 @@ function Custos({ config, recarregar }: Props) {
         (Especialistas → Contador).
       </p>
       <div className="mt-4 flex justify-end">
-        <Botao carregando={salvando} onClick={() => salvar("sistema", s)}>
+        <Botao carregando={salvando} onClick={() => salvar("sistema", soAlterados(s, config.sistema))}>
           Salvar
         </Botao>
       </div>
@@ -454,7 +484,7 @@ function Codigos({ config, recarregar }: Props) {
       </div>
       <p className="mt-3 text-sm text-[#8a6d78]">Prefixos de cada tipo (BR, CL, AN…) ficam na taxonomia (aba “Taxonomia, marca e fiscal”).</p>
       <div className="mt-4 flex justify-end">
-        <Botao carregando={salvando} onClick={() => salvar("sistema", s)}>
+        <Botao carregando={salvando} onClick={() => salvar("sistema", soAlterados(s, config.sistema))}>
           Salvar
         </Botao>
       </div>

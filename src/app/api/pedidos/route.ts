@@ -29,6 +29,9 @@ export async function GET(req: NextRequest) {
         moeda: schema.pedidos.moeda,
         cotacao: schema.pedidos.cotacao,
         status: schema.pedidos.status,
+        // Chegada e conferência (lista de pedidos e Painel).
+        recebimento: schema.pedidos.recebimento,
+        dataChegada: schema.pedidos.dataChegada,
         criadoEm: schema.pedidos.criadoEm,
         arquivoNome: schema.pedidos.arquivoNome,
         // "skill" = cadastro do Claude (continua reenviando o mesmo arquivo .json); "documento" = PDF/fotos.

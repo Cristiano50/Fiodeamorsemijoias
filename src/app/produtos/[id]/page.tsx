@@ -8,6 +8,7 @@ import { nomeDe, useConfig } from "@/components/hooks";
 import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
 import { BotaoFotoIa } from "@/components/BotaoFotoIa";
 import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
+import { CampoNumero } from "@/components/CampoNumero";
 
 type ImagemInfo = { id: string; origem: string; largura: number; altura: number; meta: Record<string, unknown> | null; criadoEm: string };
 const ORIGEM: Record<string, string> = { catalogo: "Catálogo", pagina: "Página", arte: "Arte da marca", ia: "Foto IA", upload: "Enviada" };
@@ -265,8 +266,8 @@ export default function ProdutoPage() {
               <Campo rotulo="Tradução" className="md:col-span-2">
                 <input {...txt("traducao")} />
               </Campo>
-              <Campo rotulo="Quantidade (estoque)">
-                <input type="number" defaultValue={p.quantidade} key={`q${p.quantidade}`} onBlur={(e) => Number(e.target.value) !== p.quantidade && salvar({ quantidade: Number(e.target.value) })} />
+              <Campo rotulo="Quantidade pedida" dica="O que entrou na loja sai da conferência do pedido">
+                <CampoNumero valor={p.quantidade} inteiro vazio={false} rotulo="a quantidade" aoSalvar={(n) => salvar({ quantidade: n ?? 0 })} />
               </Campo>
               <Campo rotulo="NCM">
                 <input {...txt("ncm")} className="font-mono" />
@@ -286,7 +287,7 @@ export default function ProdutoPage() {
           <Cartao titulo="Custo e preço">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Campo rotulo={`Preço na origem (${moedaSimbolo(p.moeda)})`} dica={pedido ? `cotação ${num(pedido.cotacao, 4)}` : undefined}>
-                <input type="number" step="0.01" defaultValue={p.precoOrigem ?? ""} key={`po${p.precoOrigem}`} onBlur={(e) => Number(e.target.value) !== p.precoOrigem && salvar({ precoOrigem: Number(e.target.value) })} disabled={!pedido} />
+                <CampoNumero valor={p.precoOrigem} rotulo="o preço na origem" aoSalvar={(n) => salvar({ precoOrigem: n })} disabled={!pedido} />
               </Campo>
               <div>
                 <span className="rotulo">Custo compra bruto</span>
@@ -301,10 +302,16 @@ export default function ProdutoPage() {
                 <div className="mt-2 font-semibold">{brl(p.custoTotalBrl)}</div>
               </div>
               <Campo rotulo="Fator multiplicador da peça" dica={p.fator ? "definido para esta peça" : `em branco = fator do pedido (× ${num(p.fatorAplicado ?? 0)})`}>
-                <input inputMode="decimal" placeholder={`× ${num(p.fatorAplicado ?? 0)}`} defaultValue={p.fator ?? ""} key={`f${p.fator}`} onBlur={(e) => { const v = e.target.value.trim().replace(",", "."); const novo = v ? Number(v) : null; if (novo !== p.fator) salvar({ fator: novo }); }} />
+                <CampoNumero valor={p.fator} milhar={false} positivo rotulo="o fator da peça" placeholder={`× ${num(p.fatorAplicado ?? 0)}`} aoSalvar={(n) => salvar({ fator: n })} />
               </Campo>
               <Campo rotulo="Preço de venda (CONSIGNADO)" dica="Digite para fixar um preço manual">
-                <input type="number" step="0.01" defaultValue={p.precoVenda ?? ""} key={`pv${p.precoVenda}`} onBlur={(e) => Number(e.target.value) !== p.precoVenda && salvar({ precoVenda: Number(e.target.value) }, "Preço atualizado.")} className="font-titulo text-xl font-semibold text-rose-escuro" />
+                <CampoNumero
+                  valor={p.precoVenda}
+                  positivo
+                  rotulo="o preço de venda"
+                  aoSalvar={(n) => salvar({ precoVenda: n }, n == null ? "Preço manual retirado: volta ao preço calculado." : "Preço atualizado.")}
+                  className="font-titulo text-xl font-semibold text-rose-escuro"
+                />
               </Campo>
               <div className="col-span-2 flex flex-wrap gap-2 self-end">
                 {config?.precificacao.tabelas_preco.map((t) => (

@@ -14,6 +14,9 @@ import { CodigoBarrasCelula } from "@/components/CodigoBarrasCelula";
 import { CampoNumero } from "@/components/CampoNumero";
 import { ConfirmarRecompra, type RecompraAConfirmar } from "@/components/ConfirmarRecompra";
 import { PrecoVigente, type CustoMudou } from "@/components/PrecoVigente";
+import { ChegadaConferencia } from "@/components/pedido/ChegadaConferencia";
+import { CustoVerdadeiro } from "@/components/pedido/CustoVerdadeiro";
+import { CreditosFornecedor } from "@/components/pedido/CreditosFornecedor";
 import { lerNumeroBr } from "@/lib/numeros";
 
 interface Cenario {
@@ -323,6 +326,9 @@ export default function PedidoPage() {
       <ConfirmarRecompra itens={d.recompraConfirmar ?? []} aoMudar={() => void carregar()} />
       <PrecoVigente itens={d.custoMudou ?? []} ehGestora={!!d.ehGestora} aoMudar={() => void carregar()} />
 
+      {/* Chegada da mercadoria e conferência (funcionária também confere, pelo celular). */}
+      <ChegadaConferencia pedidoId={id} aoMudar={() => void carregar()} />
+
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border-2 border-rose bg-white px-5 py-4">
         <div className="min-w-[220px]">
           <div className="rotulo">Fator multiplicador do pedido</div>
@@ -437,6 +443,14 @@ export default function PedidoPage() {
           </div>
         )}
       </Cartao>
+
+      {/* Valor pago de verdade (cotação efetiva), perdas, embalagem e imposto na chegada — só a gestora. */}
+      {d.ehGestora && (
+        <>
+          <CustoVerdadeiro pedidoId={id} aoMudar={() => void carregar()} versao={d} />
+          <CreditosFornecedor pedidoId={id} aoMudar={() => void carregar()} versao={d} />
+        </>
+      )}
 
       {parecer && (
         <Cartao titulo="Parecer dos especialistas" acoes={<span className="text-xs text-[#9a8089]">{parecer.geradoEm ? new Date(parecer.geradoEm).toLocaleString("pt-BR") : ""}</span>}>

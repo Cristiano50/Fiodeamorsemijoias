@@ -6,8 +6,9 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
 2. **Converte a moeda pela cotação do dia da compra.** Usa a PTAX de venda do boletim de fechamento do Banco Central, que inclui o **yuan (CNY)**; em fim de semana ou feriado, usa o último dia útil. Exemplo: pedido de 26/09/2026 (sábado) → PTAX de 25/09/2026, R$ 0,7745 por yuan.
 3. **Calcula custo e preço:**
    - custo da peça = preço × cotação × (1 + **frete ÷ valor da mercadoria em R$**). O frete do pedido (campo "Frete") é rateado pelo valor de cada peça. Ex.: frete de R$ 850 sobre R$ 6.370,96 de mercadoria = +13,34% em cada peça. Também há os cenários de importação do contador, com impostos;
-   - preço = custo × **fator multiplicador**, com arredondamento para ,99;
-   - o **funcionário digita o fator** num campo em branco no pedido (vale para todas as peças) ou numa peça específica; em branco, vale o padrão da loja (×10). Fator abaixo de 10 gera alerta;
+   - preço = custo × **fator multiplicador**, levado ao preço mais próximo da **escada da loja** (sempre ,99): mínimo R$ 19,99; de R$ 5 em R$ 5 até R$ 49,99; de 10 em 10 até R$ 99,99; de 20 em 20 até R$ 199,99; de 50 em 50 até R$ 399,99; de 100 em 100 acima;
+   - o **funcionário digita o fator** num campo em branco no pedido (vale para todas as peças) ou numa peça específica; em branco, vale o padrão da loja (×10). Só a gestora usa fator abaixo de 10, e fica registrado;
+   - a **recompra mantém o preço que já está no UP** (um preço por código); se o custo mudou mais de 10%, o pedido avisa e a gestora decide se usa o preço novo para todas;
    - tabelas Consignado, Varejo, Atacado e Liquidação.
 4. **Classifica cada peça com IA (Claude):** material (semijoia, prata, aço…), tipo (brinco, colar, anel, pulseira, bracelete, óculos, relógio…), subtipo, banho, cor da pedra (zircônia, cristal, azul, preto, pérola, esmalte…) e tamanho (único, aro de anel, comprimento). Também traduz o chinês e **avalia a peça, sugerindo 3 nomes de cadastro** no padrão `BRINCO (SJ) …` e um nome comercial.
 5. **Gera a referência e usa o código de barras do UP Vendas:**
@@ -33,7 +34,7 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
     - a **funcionária** cadastra, mas não usa fator abaixo do mínimo, não exclui e não mexe em Configurações;
     - o **Histórico** registra quem mudou o quê (fator, preço, cotação, fotos, envio ao UP).
 14. **Gastos com IA:** custo estimado por mês, por uso, por pedido e por dia, em dólar e em real. Tem limite mensal: ao atingir o limite, o app para de chamar a IA.
-15. **Backup automático:** uma cópia por dia do banco, guardando as 14 mais recentes, com botão **Baixar backup agora**. Para usar na nuvem, veja [docs/nuvem.md](docs/nuvem.md).
+15. **Backup automático:** uma cópia por dia do banco (guarda as 14 mais recentes), **copiada também para uma pasta fora do computador** (pen drive ou pasta do Google Drive/OneDrive, com botão **Testar pasta**), além do **Baixar backup agora**. O Painel avisa quando a cópia de fora passa de 7 dias. Veja [docs/backup.md](docs/backup.md) e, para a nuvem, [docs/nuvem.md](docs/nuvem.md).
 16. **Catálogo do WhatsApp Business e Instagram Shopping:** link de feed (CSV) para o Commerce Manager da Meta, com preço, estoque, foto aprovada e um link que abre a conversa no WhatsApp da loja.
 17. **Vendas e recompra:** importe a planilha de vendas exportada do UP (CSV ou XLSX). O app liga cada venda à peça pelo código de barras e calcula:
     - giro, *sell-through* e curva ABC;
@@ -41,7 +42,13 @@ Aplicativo da **Fio de Amor Semijoias** para cadastrar as peças que chegam dos 
     - a **lista de recompra**, em planilha com foto, código do fornecedor e quantidade sugerida, com uma aba por fornecedor, pronta para mandar à China (sem preços).
 
     A mesma planilha pode ser importada de novo sem duplicar as vendas, e a gestora pode desfazer uma importação.
-18. **Maleta inteligente:** escolha a revendedora e o valor e a quantidade de peças da maleta. O app sugere o mix pelo que ela mais vende, pelo giro da loja e pelas novidades, e explica o motivo de cada peça. Dá para trocar, remover, imprimir ou exportar o romaneio em CSV.
+18. **Maleta inteligente:** escolha a revendedora e o valor e a quantidade de peças da maleta. O app sugere o mix pelo que ela mais vende, pelo giro da loja e pelas novidades, e explica o motivo de cada peça. Só entram peças que já chegaram e que existem no UP, sem o que já está com outras revendedoras (consignado importado do UP) e sem o que ela devolveu. Dá para trocar, remover, imprimir ou exportar o romaneio em CSV.
+19. **Chegada e conferência:** no pedido, a situação vai de *em trânsito* a *recebido* e *conferido*. A funcionária confere pelo celular, linha a linha (veio certo, faltou, com defeito com foto). Etiquetas, planilha do UP e estoque usam o que entrou de verdade. O app monta o **relatório para o fornecedor** (português e chinês) e transforma faltas e defeitos em **créditos**, abatidos no próximo pedido do mesmo fornecedor.
+20. **Custo verdadeiro:** a gestora informa quanto pagou em reais; o app calcula a cotação efetiva (guardando a PTAX), as perdas, a embalagem e se houve imposto na chegada.
+21. **Fornecedores:** apelido, lote mínimo para a recompra, pedidos, total pago e créditos de cada fornecedor.
+22. **Painel da semana:** vendas da semana e do mês contra o período anterior, *sell-through* aos 30/60/90 dias da chegada, estoque parado, capital em estoque e cobertura, e as pendências do dia com link (conferência, recompra a confirmar, preço pendente, peças sem código do UP, fotos para aprovar).
+23. **Recompra com freio:** a lista respeita o lote mínimo do fornecedor, o teto por modelo (maletas ativas + vitrine) e o orçamento do mês, e deixa as peças novas fora da curva ABC. Peça com mais de um original possível fica em **Recompra a confirmar**.
+24. **Segurança:** sem senha, o app só abre no próprio computador do servidor; com usuários, cada login tem validade, pode ser derrubado e tem limite de tentativas.
 
 ## Cadastro pelo Claude (skill)
 
@@ -75,7 +82,7 @@ npm run build
 npm start
 ```
 
-Depois disso, abra **http://localhost:3000**. Os dados ficam em `./dados/fiodeamor.db`. O app faz um backup por dia em `./dados/backups/`; mesmo assim, copie de vez em quando um backup para fora do computador (pen drive ou nuvem).
+Depois disso, abra **http://localhost:3000**. Os dados ficam em `./dados/fiodeamor.db`. O app faz um backup por dia em `./dados/backups/` e, se você indicar uma pasta em Configurações → **WhatsApp, catálogo Meta e backup**, copia cada um para fora do computador (pen drive ou pasta sincronizada com a nuvem).
 
 **Primeiro acesso:** em **Configurações → Usuários**, crie a conta da gestora. A partir daí, o app pede login e a gestora cria as contas das funcionárias.
 
