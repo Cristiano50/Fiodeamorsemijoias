@@ -1,14 +1,17 @@
 /**
  * Maleta inteligente: mix sugerido para a maleta de consignação de cada revendedora.
  *
- * 1. Divide o valor-alvo entre os tipos na proporção das vendas (em R$) da revendedora.
+ * 1. Divide as peças (e o valor de referência) entre os tipos na proporção das vendas (em R$) da revendedora.
  *    Com pouco histórico, mistura com as vendas gerais da loja; sem histórico, usa só as da loja;
  *    sem nenhuma venda importada, usa o valor em estoque de cada tipo.
  * 2. Dentro de cada tipo, escolhe pela pontuação: sell-through geral + afinidade com a faixa de preço
- *    que ela (ou a loja) mais vende + novidade (destaque ou entrada há menos de 30 dias).
- * 3. No máximo 1 peça por SKU (2 para as campeãs), só do estoque estimado (≥ 1).
+ *    que ela (ou a loja) mais vende + novidade (destaque ou chegada há menos de 30 dias).
+ * 3. No máximo 1 peça por SKU (2 para as campeãs), só do disponível (estoque − o que está com as revendedoras),
+ *    só peças que já chegaram e que o UP conhece, e nunca o que ela já tem na maleta ou devolveu.
+ * 4. O valor informado é TETO (nunca passa dele). Sem valor = sem teto: a maleta fecha pelas peças-alvo,
+ *    e o valor de referência por tipo é peças-alvo × preço médio das peças disponíveis.
  *
- * Funções puras (sem banco), testadas em tests/vendas.test.ts.
+ * Funções puras (sem banco), testadas em tests/vendas.test.ts e tests/dados-maleta.test.ts.
  */
 import { chaveNome, diasEntre, type SkuAnalise } from "./vendas-calculo";
 
@@ -27,8 +30,7 @@ export const PESOS_PONTUACAO = { giro: 0.5, faixa: 0.3, novidade: 0.2 };
 export const DIAS_NOVIDADE = 30;
 /** A partir dessas peças vendidas, o mix é 100% o da revendedora. */
 export const PECAS_HISTORICO_CONFIAVEL = 20;
-/** Tolerância acima do valor-alvo (total e por tipo). */
-const FOLGA_TOTAL = 1.05;
+/** Tolerância acima do valor de referência de cada tipo (o total nunca passa do teto). */
 const FOLGA_TIPO = 1.15;
 export const SEM_TIPO = "outros";
 
@@ -41,9 +43,16 @@ export interface VendaMaleta {
 
 export interface PedidoMaleta {
   revendedora?: string | null;
+  /** Teto do valor em etiqueta (R$). 0 ou vazio = sem teto. */
   valorAlvo: number;
   pecasAlvo: number;
   tiposExcluidos?: string[];
+}
+
+/** Consignado da revendedora escolhida (chaves de SKU): o que está com ela agora e o que ela já devolveu. */
+export interface ConsignadoMaleta {
+  comEla?: Iterable<string>;
+  devolvidas?: Iterable<string>;
 }
 
 export interface ItemMaleta {
@@ -57,6 +66,7 @@ export interface ItemMaleta {
   preco: number;
   custo: number;
   quantidade: number;
+  /** Disponível para a maleta (estoque − com as revendedoras). */
   estoque: number;
   pontuacao: number;
   campea: boolean;
@@ -76,6 +86,12 @@ export interface TipoMaleta {
 export interface ResultadoMaleta {
   base: "revendedora" | "geral" | "estoque";
   revendedora: string | null;
+  /** Teto em R$ (nulo = sem teto). */
+  teto: number | null;
+  /** Valor usado para dividir os tipos: o teto, ou peças-alvo × preço médio das disponíveis. */
+  valorReferencia: number;
+  /** Peças com estoque que ficaram de fora, por motivo. */
+  fora: { semPreco: number; foraDoUp: number; comRevendedoras: number; jaComEla: number; devolvidas: number };
   historico: { pecas: number; receita: number };
   confianca: number; // parte do mix que vem da revendedora (0 a 1)
   distribuicao: TipoMaleta[];
@@ -128,13 +144,13 @@ export function sugerirMaleta(
   skus: SkuAnalise[],
   vendas: VendaMaleta[],
   pedido: PedidoMaleta,
-  opcoes: { hoje: string; nomesTipo?: Record<string, string> },
+  opcoes: { hoje: string; nomesTipo?: Record<string, string>; consignado?: ConsignadoMaleta },
 ): ResultadoMaleta {
   const nomeTipo = (t: string) => opcoes.nomesTipo?.[t] ?? t;
   const tipoDe = (s: Pick<SkuAnalise, "tipo">) => s.tipo || SEM_TIPO;
   const excluidos = new Set(pedido.tiposExcluidos ?? []);
-  const valorAlvo = Math.max(0, pedido.valorAlvo);
-  const pecasAlvo = Math.max(0, Math.floor(pedido.pecasAlvo));
+  const teto = Number(pedido.valorAlvo) > 0 ? Number(pedido.valorAlvo) : null;
+  const pecasAlvo = Math.max(0, Math.floor(Number(pedido.pecasAlvo) || 0));
   const nomeRev = pedido.revendedora?.trim() || null;
   const chaveRev = nomeRev ? chaveNome(nomeRev) : "";
   const avisos: string[] = [];
@@ -163,10 +179,34 @@ export function sugerirMaleta(
   const base: ResultadoMaleta["base"] = pecasDela > 0 ? "revendedora" : vs.length ? "geral" : "estoque";
   const confianca = base === "revendedora" ? Math.min(1, pecasDela / PECAS_HISTORICO_CONFIAVEL) : 0;
 
-  /* candidatas: estoque estimado ≥ 1, com preço, tipo não excluído */
-  const semPreco = skus.filter((s) => s.estoque >= 1 && !(s.precoVenda && s.precoVenda > 0)).length;
-  const candidatas = skus.filter((s) => s.estoque >= 1 && (s.precoVenda ?? 0) > 0 && !excluidos.has(tipoDe(s)));
+  /*
+   * candidatas: disponível ≥ 1 (estoque − com as revendedoras), com preço, tipo não excluído, conhecida pelo UP,
+   * e nada que ela já tem agora ou que já devolveu. (Peças de pedidos a caminho não têm estoque: nem entram aqui.)
+   */
+  const comEla = new Set(opcoes.consignado?.comEla ?? []);
+  const devolveu = new Set(opcoes.consignado?.devolvidas ?? []);
+  const fora: ResultadoMaleta["fora"] = { semPreco: 0, foraDoUp: 0, comRevendedoras: 0, jaComEla: 0, devolvidas: 0 };
+  const candidatas: SkuAnalise[] = [];
+  for (const s of skus) {
+    if (s.estoque < 1) continue;
+    if (s.disponivel < 1) {
+      fora.comRevendedoras++;
+      continue;
+    }
+    if (!(s.precoVenda && s.precoVenda > 0)) {
+      fora.semPreco++;
+      continue;
+    }
+    if (excluidos.has(tipoDe(s))) continue;
+    if (!s.noUp) fora.foraDoUp++;
+    else if (comEla.has(s.chave)) fora.jaComEla++;
+    else if (devolveu.has(s.chave)) fora.devolvidas++;
+    else candidatas.push(s);
+  }
   const tiposDisponiveis = new Set(candidatas.map(tipoDe));
+  // Sem teto, o valor de referência de cada tipo sai do preço médio das peças disponíveis.
+  const precoMedio = candidatas.length ? candidatas.reduce((t, s) => t + (s.precoVenda ?? 0), 0) / candidatas.length : 0;
+  const valorAlvo = teto ?? pecasAlvo * precoMedio;
 
   /* pesos por tipo */
   const somarPor = <T>(lista: T[], tipo: (x: T) => string, valor: (x: T) => number) => {
@@ -241,7 +281,7 @@ export function sugerirMaleta(
         b.pontuacao - a.pontuacao ||
         Number(b.sku.destaque) - Number(a.sku.destaque) ||
         b.sku.dataEntrada.localeCompare(a.sku.dataEntrada) ||
-        b.sku.estoque - a.sku.estoque ||
+        b.sku.disponivel - a.sku.disponivel ||
         a.sku.chave.localeCompare(b.sku.chave),
     );
 
@@ -272,7 +312,7 @@ export function sugerirMaleta(
     preco: r2(c.preco),
     custo: r2(c.sku.custo ?? 0),
     quantidade,
-    estoque: c.sku.estoque,
+    estoque: c.sku.disponivel,
     pontuacao: c.pontuacao,
     campea: c.campea,
     novidade: c.novidade,
@@ -289,7 +329,8 @@ export function sugerirMaleta(
   const escolhidos = new Map<string, ItemMaleta>();
   let totPecas = 0;
   let totValor = 0;
-  const cabe = (preco: number, q: number) => totPecas + q <= pecasAlvo && totValor + preco * q <= valorAlvo * FOLGA_TOTAL;
+  // O teto nunca é ultrapassado (é teto, não meta). Sem teto, só as peças-alvo limitam.
+  const cabe = (preco: number, q: number) => totPecas + q <= pecasAlvo && (teto == null || totValor + preco * q <= teto + 1e-9);
   const adicionar = (c: Cand, q: number, d: TipoMaleta, completar: boolean) => {
     escolhidos.set(c.sku.chave, paraItem(c, q, completar));
     totPecas += q;
@@ -304,7 +345,7 @@ export function sugerirMaleta(
     for (const c of porTipo.get(d.tipo) ?? []) {
       if (d.pecas >= alvoPecasTipo || d.valor >= alvoValorTipo || totPecas >= pecasAlvo) break;
       if (d.valor > 0 && d.valor + c.preco > alvoValorTipo * FOLGA_TIPO) continue; // cara demais para o que falta no tipo
-      let q = c.campea && c.sku.estoque >= 2 ? 2 : 1;
+      let q = c.campea && c.sku.disponivel >= 2 ? 2 : 1;
       if (q === 2 && (d.pecas + 2 > Math.ceil(alvoPecasTipo) || d.valor + 2 * c.preco > alvoValorTipo * FOLGA_TIPO)) q = 1;
       if (!cabe(c.preco, q)) {
         if (q === 2 && cabe(c.preco, 1)) q = 1;
@@ -314,11 +355,11 @@ export function sugerirMaleta(
     }
   }
 
-  // Completa com as melhores restantes (primeiro dos tipos com peso) se faltou estoque em algum tipo.
-  if (totPecas < pecasAlvo && totValor < valorAlvo * 0.97) {
+  // Completa com as melhores restantes (primeiro dos tipos com peso) se faltou estoque em algum tipo, sem passar do teto.
+  if (totPecas < pecasAlvo && (teto == null || totValor < teto)) {
     const resto = cands.filter((c) => !escolhidos.has(c.sku.chave)).sort((a, b) => Number(pesos.has(b.tipo)) - Number(pesos.has(a.tipo)));
     for (const c of resto) {
-      if (totPecas >= pecasAlvo || totValor >= valorAlvo * 0.97) break;
+      if (totPecas >= pecasAlvo || (teto != null && totValor >= teto)) break;
       if (!cabe(c.preco, 1)) continue;
       let d = distribuicao.find((x) => x.tipo === c.tipo);
       if (!d) {
@@ -344,19 +385,27 @@ export function sugerirMaleta(
   else if (nomeRev && base === "geral") avisos.push(`Sem histórico de vendas para “${nomeRev}”: usei o mix de vendas da loja.`);
   else if (base === "revendedora" && confianca < 1)
     avisos.push(`${nomeRev} tem pouco histórico (${r2(pecasDela)} peças): o mix usa ${Math.round(confianca * 100)}% das vendas dela e o resto das vendas da loja.`);
-  if (!candidatas.length) avisos.push("Não há peças com estoque estimado e preço de venda para montar a maleta.");
-  else if (totais.valor < valorAlvo * 0.9 && totais.pecas < pecasAlvo) avisos.push(`O estoque disponível não chegou ao valor-alvo (${brl(totais.valor)} de ${brl(valorAlvo)}).`);
-  else if (totais.pecas > 0 && totais.pecas < pecasAlvo * 0.8)
-    // O valor-alvo foi atingido antes da quantidade: as peças que ela mais vende são caras para essa meta.
+  if (!candidatas.length) avisos.push("Não há peças disponíveis (que já chegaram, cadastradas no UP, com preço e fora das maletas) para montar a maleta.");
+  else if (totais.pecas < pecasAlvo && teto != null && totais.valor >= teto * 0.9) {
+    // O teto foi atingido antes da quantidade: as peças escolhidas são caras para esse teto.
+    const medio = totais.pecas ? totais.valor / totais.pecas : precoMedio;
     avisos.push(
-      `O valor-alvo foi atingido com ${totais.pecas} peças (preço médio ${brl(totais.valor / totais.pecas)}), abaixo das ${pecasAlvo} pedidas. ` +
-        `Para ${pecasAlvo} peças nesse valor, o preço médio teria de ser ${brl(valorAlvo / pecasAlvo)}: aumente o valor-alvo ou desmarque os tipos mais caros.`,
+      `O teto de ${brl(teto)} coube ${totais.pecas} peças (preço médio ${brl(medio)}), abaixo das ${pecasAlvo} pedidas. ` +
+        `Para ${pecasAlvo} peças nesse preço médio seriam cerca de ${brl(medio * pecasAlvo)}: aumente o teto, deixe o campo em branco (sem teto) ou desmarque os tipos mais caros.`,
     );
-  if (semPreco) avisos.push(`${semPreco} peça(s) com estoque e sem preço de venda ficaram de fora.`);
+  } else if (totais.pecas < pecasAlvo)
+    avisos.push(`A maleta ficou com ${totais.pecas} peça(s) de ${pecasAlvo} pedidas: não há mais modelos disponíveis (vai no máximo 1 de cada modelo, 2 das campeãs).`);
+  if (fora.semPreco) avisos.push(`${fora.semPreco} peça(s) com estoque e sem preço de venda ficaram de fora.`);
+  if (fora.foraDoUp) avisos.push(`${fora.foraDoUp} peça(s) ainda sem cadastro no UP ficaram de fora (cadastre no UP e traga o código em UP Vendas → Códigos de barras do UP).`);
+  if (fora.jaComEla) avisos.push(`${fora.jaComEla} peça(s) que já estão com ${nomeRev ?? "a revendedora"} ficaram de fora.`);
+  if (fora.devolvidas) avisos.push(`${fora.devolvidas} peça(s) que ${nomeRev ?? "a revendedora"} já devolveu ficaram de fora.`);
 
   return {
     base,
     revendedora: nomeRev,
+    teto,
+    valorReferencia: r2(valorAlvo),
+    fora,
     historico: { pecas: r2(pecasDela), receita: r2(receitaDela) },
     confianca: Math.round(confianca * 100) / 100,
     distribuicao: distribuicao.filter((d) => d.peso > 0 || d.pecas > 0),

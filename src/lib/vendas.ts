@@ -2,36 +2,47 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import sharp from "sharp";
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, ne, or, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { getDb, schema } from "./db";
 import { getConfig } from "./config";
+import { celulaCsv } from "./csv";
+import { verificarLinhas, verificarTamanho, verificarXlsx } from "./planilha-segura";
 import {
   CAMPOS_VENDA,
   acharLinhaCabecalho,
   analisarVendas,
-  chaveSku,
+  chaveDoProduto,
+  compararEstoqueUp,
   converterLinhas,
   impressaoDigital,
   indexarProdutos,
   lerCsv,
   ligarVenda,
+  limitesFaixas,
   linhaVazia,
+  resumoPorFaixa,
   sugerirMapeamento,
   textoCelula,
+  totaisRecompra,
+  type AnaliseCompleta,
   type AnaliseVendas,
+  type IndiceProdutos,
   type LinhaIgnorada,
   type Mapeamento,
+  type ParametrosAnalise,
   type ProdutoBase,
   type SkuAnalise,
   type VendaBase,
 } from "./vendas-calculo";
+import { comRevendedorasPorSku, consignadoDaRevendedora, registrosEfetivos, type RegistroConsignado } from "./consignado-calculo";
 import { sugerirMaleta, type PedidoMaleta } from "./maleta-calculo";
-import { apelidoDe, apelidosFornecedores } from "./fornecedores";
+import { apelidoDe, apelidosFornecedores, chaveFornecedor, lotesMinimosFornecedores } from "./fornecedores";
 
 /**
  * Vendas do UP Vendas (servidor): leitura da planilha exportada, gravação em lotes, análise e maleta.
  * O UP não tem API pública; quando tiver, basta gravar na mesma tabela "vendas" (origem = "api").
+ * Pedidos com status "importando" (importação incompleta) ficam fora de tudo daqui.
  */
 
 /** Hoje no fuso da loja (AAAA-MM-DD). */
@@ -57,8 +68,10 @@ function decodificarTexto(buf: Buffer): string {
 }
 
 async function lerXlsx(buf: Buffer): Promise<unknown[][]> {
+  verificarXlsx(buf); // zip-bomb, senha, arquivo corrompido: para antes do exceljs
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+  for (const f of wb.worksheets) verificarLinhas(f.actualRowCount); // linhas com valor (formatação vazia não conta)
   const folha = [...wb.worksheets].sort((a, b) => b.actualRowCount - a.actualRowCount)[0];
   if (!folha) return [];
   const linhas: unknown[][] = [];
@@ -72,15 +85,23 @@ async function lerXlsx(buf: Buffer): Promise<unknown[][]> {
   return Array.from(linhas, (l) => l ?? []);
 }
 
-export async function lerPlanilha(arquivo: File): Promise<Planilha> {
+/**
+ * Lê a planilha (XLSX ou CSV) e acha o cabeçalho. `pontuarColuna`: regras de outro relatório do UP
+ * (padrão: o de vendas). Lança PlanilhaInvalida (mensagem pronta para a tela) quando o arquivo não é seguro.
+ */
+export async function lerPlanilha(arquivo: File, opcoes: { pontuarColuna?: (cabecalho: string) => number; relatorio?: string } = {}): Promise<Planilha> {
+  verificarTamanho(arquivo.size);
   const buf = Buffer.from(await arquivo.arrayBuffer());
   if (!buf.length) throw new Error("O arquivo está vazio.");
   let todas: unknown[][];
   if (buf[0] === 0x50 && buf[1] === 0x4b) todas = await lerXlsx(buf);
   else if (buf[0] === 0xd0 && buf[1] === 0xcf) throw new Error("Planilha .xls (formato antigo do Excel). Abra no Excel e salve como .xlsx ou CSV.");
-  else todas = lerCsv(decodificarTexto(buf));
-  const h = acharLinhaCabecalho(todas);
-  if (h < 0) throw new Error("Não encontrei a linha de cabeçalho na planilha. Confira se é a exportação de vendas do UP.");
+  else {
+    todas = lerCsv(decodificarTexto(buf));
+    verificarLinhas(todas.length);
+  }
+  const h = acharLinhaCabecalho(todas, opcoes.pontuarColuna);
+  if (h < 0) throw new Error(`Não encontrei a linha de cabeçalho na planilha. Confira se é a exportação ${opcoes.relatorio ?? "de vendas"} do UP.`);
   const linhas = todas.slice(h + 1);
   let largura = todas[h].length;
   for (const l of linhas) largura = Math.max(largura, l.length);
@@ -105,9 +126,11 @@ export async function previaVendas(arquivo: File) {
 
 /* ------------------------------------------------------------ produtos */
 
+/** Produtos com os dados do pedido (fornecedor, compra, chegada, conferência). Sem os de pedidos "importando". */
 export async function carregarProdutos(): Promise<ProdutoBase[]> {
   const db = await getDb();
   const p = schema.produtos;
+  const pe = schema.pedidos;
   return db
     .select({
       id: p.id,
@@ -125,11 +148,23 @@ export async function carregarProdutos(): Promise<ProdutoBase[]> {
       criadoEm: p.criadoEm,
       recompraDe: p.recompraDe,
       linha: p.linha,
-      fornecedor: schema.pedidos.fornecedor,
-      dataPedido: schema.pedidos.dataCompra,
+      fornecedor: pe.fornecedor,
+      dataPedido: pe.dataCompra,
+      pedidoId: p.pedidoId,
+      numeroPedido: pe.numero,
+      dataChegada: pe.dataChegada,
+      recebimento: pe.recebimento,
+      conferidoEm: pe.conferidoEm,
+      quantidadeRecebida: p.quantidadeRecebida,
+      quantidadeDefeito: p.quantidadeDefeito,
+      codigoBarrasOrigem: p.codigoBarrasOrigem,
+      upStatus: p.upStatus,
+      precoOrigem: p.precoOrigem,
+      moeda: p.moeda,
     })
     .from(p)
-    .leftJoin(schema.pedidos, eq(p.pedidoId, schema.pedidos.id));
+    .leftJoin(pe, eq(p.pedidoId, pe.id))
+    .where(or(isNull(pe.status), ne(pe.status, "importando")));
 }
 
 export async function carregarVendas(ate?: string | null): Promise<VendaBase[]> {
@@ -149,6 +184,37 @@ export async function carregarVendas(ate?: string | null): Promise<VendaBase[]> 
     })
     .from(v)
     .where(ate ? lte(v.data, ate) : undefined);
+}
+
+/** Saldos de estoque do UP (lista de produtos importada em UP Vendas → códigos). */
+export async function carregarSaldosUp() {
+  const db = await getDb();
+  const s = schema.saldosUp;
+  return db.select({ codigoBarras: s.codigoBarras, saldo: s.saldo, arquivo: s.arquivo, atualizadoEm: s.atualizadoEm }).from(s);
+}
+
+/** Consignado do UP: para cada revendedora + data + peça, só o que veio no lote mais novo. */
+export async function carregarConsignado(): Promise<(RegistroConsignado & { id: string })[]> {
+  const db = await getDb();
+  const c = schema.consignado;
+  const l = schema.lotesConsignado;
+  const linhas = await db
+    .select({
+      id: c.id,
+      loteId: c.loteId,
+      loteEm: l.criadoEm,
+      data: c.data,
+      revendedora: c.revendedora,
+      codigoBarras: c.codigoBarras,
+      referencia: c.referencia,
+      produtoId: c.produtoId,
+      descricao: c.descricao,
+      quantidade: c.quantidade,
+      situacao: c.situacao,
+    })
+    .from(c)
+    .innerJoin(l, eq(c.loteId, l.id));
+  return registrosEfetivos(linhas);
 }
 
 /* ------------------------------------------------------------ importação */
@@ -247,7 +313,7 @@ export async function importarVendas(arquivo: File, mapeamento: Mapeamento, opco
   return resultado;
 }
 
-function resumirMotivos(ignoradas: LinhaIgnorada[]) {
+export function resumirMotivos(ignoradas: LinhaIgnorada[]) {
   const m: Record<string, number> = {};
   for (const i of ignoradas) {
     const chave = i.motivo.replace(/\s*\(".*"\)$/, "");
@@ -288,26 +354,78 @@ export async function excluirLote(id: string) {
 
 /* ------------------------------------------------------------ análise */
 
-export async function analiseVendas(periodo: { inicio?: string | null; fim?: string | null } = {}): Promise<AnaliseVendas & { apelidosFornecedor: Record<string, string> }> {
-  const inicio = dataValida(periodo.inicio);
-  const fim = dataValida(periodo.fim);
-  const [produtos, vendas, sistema, apelidos] = await Promise.all([carregarProdutos(), carregarVendas(fim), getConfig("sistema"), apelidosFornecedores()]);
-  const analise = analisarVendas(produtos, vendas, {
-    hoje: hojeLocal(),
-    inicio,
-    fim,
+/** Chave do SKU de uma venda ou linha de consignado (ligação: código de barras → produto gravado → referência). */
+export const chaveDaLinha = (idx: IndiceProdutos) => (r: Pick<VendaBase, "codigoBarras" | "referencia" | "produtoId">) => {
+  const { produto } = ligarVenda(r, idx);
+  return produto ? chaveDoProduto(produto, idx) : null;
+};
+
+/** Tudo o que a análise precisa, de uma vez: produtos, vendas, configuração, saldos do UP e consignado. */
+export async function contextoAnalise(fim?: string | null) {
+  const hoje = hojeLocal();
+  const [produtos, vendas, sistema, apelidos, lotes, saldos, consignado] = await Promise.all([
+    carregarProdutos(),
+    carregarVendas(fim),
+    getConfig("sistema"),
+    apelidosFornecedores(),
+    lotesMinimosFornecedores(),
+    carregarSaldosUp(),
+    carregarConsignado(),
+  ]);
+  const idx = indexarProdutos(produtos);
+  const chaveDe = chaveDaLinha(idx);
+  const comRevendedoras = comRevendedorasPorSku(consignado, chaveDe);
+  const codigosUp = [...saldos.map((s) => s.codigoBarras), ...consignado.map((c) => c.codigoBarras ?? "")].filter(Boolean);
+  const teto = Math.max(0, Math.floor(Number(sistema.maletasAtivas) || 0)) + Math.max(0, Math.floor(Number(sistema.reservaVitrine) || 0));
+  const params: Omit<ParametrosAnalise, "inicio" | "fim"> = {
+    hoje,
     prazoReposicaoDias: Number(sistema.prazoReposicaoDias) || 45,
     diasEstoqueParado: Number(sistema.diasEstoqueParado) || 120,
-  });
+    diasForaDaCurva: Math.max(0, Math.floor(Number(sistema.diasForaDaCurva) || 0)),
+    codigosUp,
+    comRevendedoras,
+    recompra: {
+      tetoPorModelo: teto,
+      loteMinimoPadrao: Math.max(1, Math.floor(Number(sistema.loteMinimoPadrao) || 1)),
+      loteDoFornecedor: (nome) => (nome ? lotes.get(chaveFornecedor(nome)) : undefined),
+    },
+  };
+  return { hoje, produtos, vendas, sistema, apelidos, saldos, consignado, idx, chaveDe, params };
+}
+
+export async function analiseVendas(periodo: { inicio?: string | null; fim?: string | null } = {}): Promise<AnaliseCompleta> {
+  const inicio = dataValida(periodo.inicio);
+  const fim = dataValida(periodo.fim);
+  const ctx = await contextoAnalise(fim);
+  const analise = analisarVendas(ctx.produtos, ctx.vendas, { ...ctx.params, inicio, fim });
   // Apelido de cada fornecedor (nome original → apelido), só para exibição; a análise agrupa pelo nome original.
   const apelidosFornecedor: Record<string, string> = {};
-  for (const p of produtos) {
+  for (const p of ctx.produtos) {
     const nome = p.fornecedor?.trim();
-    const apelido = apelidoDe(apelidos, nome);
+    const apelido = apelidoDe(ctx.apelidos, nome);
     if (nome && apelido) apelidosFornecedor[nome] = apelido;
   }
   for (const s of analise.skus) s.fornecedorApelido = s.fornecedor ? (apelidosFornecedor[s.fornecedor.trim()] ?? null) : null;
-  return { ...analise, apelidosFornecedor };
+
+  let estoqueUp: AnaliseCompleta["estoqueUp"] = null;
+  if (ctx.saldos.length) {
+    const maisNovo = [...ctx.saldos].sort((a, b) => b.atualizadoEm.localeCompare(a.atualizadoEm))[0];
+    estoqueUp = {
+      ...compararEstoqueUp(analise.skus, ctx.saldos),
+      arquivo: maisNovo.arquivo,
+      atualizadoEm: maisNovo.atualizadoEm,
+      atual: !fim || fim >= ctx.hoje, // o saldo do UP é de agora: comparar com um período passado não faz sentido
+    };
+  }
+  const consignadoEm = ctx.consignado.reduce<string | null>((m, c) => (!m || c.loteEm > m ? c.loteEm : m), null);
+  return {
+    ...analise,
+    apelidosFornecedor,
+    faixas: resumoPorFaixa(analise.skus, limitesFaixas(ctx.sistema.faixasPrecoVenda)),
+    estoqueUp,
+    recompra: totaisRecompra(itensRecompra(analise), Number(ctx.sistema.orcamentoMensalRecompra) || 0),
+    consignadoEm,
+  };
 }
 
 /* ------------------------------------------------------ lista de recompra */
@@ -325,28 +443,26 @@ const COLUNAS_RECOMPRA = [
   { chave: "link", titulo: "Link da foto", largura: 22 },
 ] as const;
 
+const ordemCurva = (c: SkuAnalise["curva"]) => (c ? c : "Z");
+
 /**
- * Itens a recomprar: status "repor" ou "esgotado" que venderam, agrupados por fornecedor.
+ * Itens a recomprar: status "repor" ou "esgotado" com quantidade depois dos freios, agrupados por fornecedor.
  * A coluna "Fornecedor" leva o nome original (em chinês, como ele se reconhece); a aba usa o apelido da loja, se houver.
  */
-export function itensRecompra(analise: AnaliseVendas): SkuAnalise[] {
+export function itensRecompra(analise: Pick<AnaliseVendas, "skus">): SkuAnalise[] {
   return analise.skus
     .filter((s) => (s.status === "repor" || s.status === "esgotado") && s.quantidadeSugerida > 0)
-    .sort((a, b) => (a.fornecedor ?? "~").localeCompare(b.fornecedor ?? "~", "pt-BR") || a.curva.localeCompare(b.curva) || b.quantidadeSugerida - a.quantidadeSugerida);
+    .sort((a, b) => (a.fornecedor ?? "~").localeCompare(b.fornecedor ?? "~", "pt-BR") || ordemCurva(a.curva).localeCompare(ordemCurva(b.curva)) || b.quantidadeSugerida - a.quantidadeSugerida);
 }
 
 const nomeFornecedor = (s: SkuAnalise) => s.fornecedor?.trim() || "Sem fornecedor";
 
 export function csvRecompra(itens: SkuAnalise[], origem: string): string {
-  const esc = (v: unknown) => {
-    const s = typeof v === "number" ? String(v).replace(".", ",") : String(v ?? "");
-    return /[;"\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-  };
-  const linhas: string[][] = [COLUNAS_RECOMPRA.filter((c) => c.chave !== "foto").map((c) => c.titulo)];
+  const linhas: string[][] = [COLUNAS_RECOMPRA.filter((c) => c.chave !== "foto").map((c) => celulaCsv(c.titulo))];
   for (const s of itens) {
     linhas.push(
-      [nomeFornecedor(s), s.codigoFornecedor ?? "", s.referencia ?? "", s.codigoBarras ?? "", s.nome, s.vendido, s.estoque, s.quantidadeSugerida, s.imagemId ? `${origem}/api/imagens/${s.imagemId}` : ""].map(
-        esc,
+      [nomeFornecedor(s), s.codigoFornecedor ?? "", s.referencia ?? "", s.codigoBarras ?? "", s.nome, s.vendido, s.estoque, s.quantidadeSugerida, s.imagemId ? `${origem}/api/imagens/${s.imagemId}` : ""].map((v) =>
+        celulaCsv(v),
       ),
     );
   }
@@ -427,26 +543,32 @@ export async function revendedorasDoHistorico() {
   };
 }
 
+/**
+ * Maleta sugerida: só peças que já chegaram, que o UP conhece e que estão disponíveis
+ * (estoque − o que está com as revendedoras); nunca o que ela tem agora ou já devolveu.
+ * `valorAlvo` é teto; vazio = sem teto (a maleta fecha pelas peças-alvo).
+ */
 export async function montarMaleta(pedido: Partial<PedidoMaleta>) {
-  const hoje = hojeLocal();
-  const [produtos, vendas, sistema, tax] = await Promise.all([carregarProdutos(), carregarVendas(hoje), getConfig("sistema"), getConfig("taxonomia")]);
-  const analise = analisarVendas(produtos, vendas, {
-    hoje,
-    prazoReposicaoDias: Number(sistema.prazoReposicaoDias) || 45,
-    diasEstoqueParado: Number(sistema.diasEstoqueParado) || 120,
-  });
-  const idx = indexarProdutos(produtos);
-  const ligadas = vendas.map((v) => {
-    const { produto } = ligarVenda(v, idx);
-    return { chave: produto ? chaveSku(produto) : null, revendedora: v.revendedora, quantidade: v.quantidade, valorTotal: v.valorTotal };
-  });
-  const valorAlvo = Number(pedido.valorAlvo) > 0 ? Number(pedido.valorAlvo) : Number(sistema.maletaValorAlvo) || 4000;
-  const pecasAlvo = Number(pedido.pecasAlvo) > 0 ? Number(pedido.pecasAlvo) : Number(sistema.maletaPecasAlvo) || 85;
+  const [ctx, tax] = await Promise.all([contextoAnalise(null), getConfig("taxonomia")]);
+  const analise = analisarVendas(ctx.produtos, ctx.vendas, ctx.params);
+  const ligadas = ctx.vendas.map((v) => ({ chave: ctx.chaveDe(v), revendedora: v.revendedora, quantidade: v.quantidade, valorTotal: v.valorTotal }));
+  const teto = Number(pedido.valorAlvo) > 0 ? Number(pedido.valorAlvo) : 0;
+  const pecasAlvo = Number(pedido.pecasAlvo) > 0 ? Math.floor(Number(pedido.pecasAlvo)) : Math.floor(Number(ctx.sistema.maletaPecasAlvo)) || 85;
+  const consignado = consignadoDaRevendedora(ctx.consignado, pedido.revendedora, ctx.chaveDe);
   const resultado = sugerirMaleta(
     analise.skus,
     ligadas,
-    { revendedora: pedido.revendedora ?? null, valorAlvo, pecasAlvo, tiposExcluidos: Array.isArray(pedido.tiposExcluidos) ? pedido.tiposExcluidos.map(String) : [] },
-    { hoje, nomesTipo: Object.fromEntries(tax.tipos.map((t) => [t.id, t.nome])) },
+    { revendedora: pedido.revendedora ?? null, valorAlvo: teto, pecasAlvo, tiposExcluidos: Array.isArray(pedido.tiposExcluidos) ? pedido.tiposExcluidos.map(String) : [] },
+    { hoje: ctx.hoje, nomesTipo: Object.fromEntries(tax.tipos.map((t) => [t.id, t.nome])), consignado },
   );
-  return { ...resultado, valorAlvo, pecasAlvo, temVendas: analise.temVendas, geradoEm: hoje };
+  if (analise.aCaminho.pecas > 0)
+    resultado.avisos.push(`${analise.aCaminho.pecas.toLocaleString("pt-BR")} peça(s) de pedidos que ainda não chegaram ficaram de fora (entram quando o pedido for marcado como recebido).`);
+  return {
+    ...resultado,
+    valorAlvo: teto || null,
+    pecasAlvo,
+    temVendas: analise.temVendas,
+    temConsignado: ctx.consignado.length > 0,
+    geradoEm: ctx.hoje,
+  };
 }

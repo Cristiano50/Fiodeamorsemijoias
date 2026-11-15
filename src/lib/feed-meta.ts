@@ -3,7 +3,12 @@
  *
  * Lógica pura, sem acesso ao banco: a rota /api/feed/meta busca os dados e chama montarFeedMeta().
  * Os nomes das colunas seguem a especificação da Meta (em inglês). O CSV usa vírgula, como a Meta exige.
+ *
+ * Entram só peças com foto boa para o público: a foto com IA aprovada na fila "Fotos para aprovar"
+ * (avaliada pelo marketing e aprovada pela loja) ou uma foto enviada pela loja (origem "upload").
+ * Estoque: o saldo do UP quando existe; senão o que entrou (pedidos que já chegaram) − vendidas.
  */
+import { estoqueEntrada } from "./estoque";
 
 export const COLUNAS_META = [
   "id",
@@ -53,6 +58,19 @@ export interface ProdutoFeed {
   precoVenda: number | null;
   status: string;
   imagemId: string | null;
+  /* Sem `ctx.estoque`, o estoque da linha sai daqui (o pedido já chegou: recebida − defeito ou a pedida). */
+  quantidadeRecebida?: number | null;
+  quantidadeDefeito?: number | null;
+  /** O pedido já chegou? (falso = a caminho: estoque 0). Vazio = chegou. */
+  chegou?: boolean;
+}
+
+/** Estoque do SKU da peça, calculado pelo servidor (o mesmo para todas as linhas do SKU). */
+export interface EstoqueFeed {
+  /** Chave do SKU (código de barras ou a cadeia de recompra): linhas da mesma chave viram uma linha no feed. */
+  chave: string;
+  estoque: number;
+  fonte: "up" | "app";
 }
 
 /** Foto criada por IA escolhida para o produto (ver fotosModeloPorProduto). */
@@ -74,6 +92,10 @@ export interface ContextoFeed {
   linkModelo: string;
   taxonomia: { tipos: ItemTaxonomia[]; materiais: ItemTaxonomia[]; banhos: ItemTaxonomia[]; cores_pedra: ItemTaxonomia[] };
   fotos: Record<string, FotoModeloFeed | undefined>;
+  /** Foto enviada pela loja (origem "upload") de cada produto: id da imagem. */
+  fotosLoja?: Record<string, string | undefined>;
+  /** Estoque por produto (saldo do UP ou entrada − vendidas). Sem ele, vale o da própria linha. */
+  estoque?: Record<string, EstoqueFeed | undefined>;
 }
 
 /* ------------------------------------------------------------------ textos */
@@ -201,17 +223,20 @@ function frases(partes: (string | null | undefined | false)[]): string {
 }
 
 /**
- * Imagem principal e adicional: a foto com IA entra só depois de aprovada pela loja (fila de fotos)
- * e vem primeiro; a foto do catálogo vira a adicional. Sem aprovação da loja, só a foto do catálogo.
+ * Imagem principal e adicional:
+ *  - a foto com IA aprovada pela loja (fila de fotos) vem primeiro; a enviada pela loja (ou, sem ela, a do catálogo) vira a adicional;
+ *  - sem IA aprovada, a foto enviada pela loja;
+ *  - sem nenhuma das duas, a foto do catálogo, mas a peça não entra no feed (`aprovada` falso; só no "todas" para conferir).
  */
-export function imagensDoProduto(p: Pick<ProdutoFeed, "id" | "imagemId">, ctx: Pick<ContextoFeed, "urlBase" | "fotos">) {
-  const url = (id: string) => `${ctx.urlBase}/api/imagens/${encodeURIComponent(id)}`;
+export function imagensDoProduto(p: Pick<ProdutoFeed, "id" | "imagemId">, ctx: Pick<ContextoFeed, "urlBase" | "fotos" | "fotosLoja">) {
+  const url = (id: string | null | undefined) => (id ? `${ctx.urlBase}/api/imagens/${encodeURIComponent(id)}` : "");
   const foto = ctx.fotos[p.id];
-  const principal = p.imagemId ? url(p.imagemId) : "";
-  const ia = foto?.publicavel ? url(foto.id) : "";
-  const imagem = ia || principal;
-  const adicional = ia && principal !== ia ? principal : "";
-  return { imagem, adicional };
+  const ia = foto?.publicavel ? foto.id : null;
+  const loja = ctx.fotosLoja?.[p.id] ?? null;
+  const principal = p.imagemId ?? null;
+  const imagemId = ia ?? loja ?? principal;
+  const adicionalId = ia ? (loja ?? principal) : null;
+  return { imagem: url(imagemId), adicional: adicionalId && adicionalId !== imagemId ? url(adicionalId) : "", aprovada: !!(ia || loja) };
 }
 
 /** Identificador único no catálogo: o EAN; sem EAN, a referência + o id interno. */
@@ -233,7 +258,8 @@ export function linhaMeta(p: ProdutoFeed, ctx: ContextoFeed): LinhaMeta {
   const descricao = frases([texto || titulo, material && `Material: ${material}`, banho && `Banho: ${banho}`]);
   // Cor: até 3 cores das pedras separadas por "/" (padrão do catálogo); sem pedra, a cor do banho.
   const cores = [...new Set((p.corPedra ?? []).filter((c) => c && c !== "sem_pedra").map((c) => nomeCurto(nomeDe(tax.cores_pedra, c))))].filter(Boolean).slice(0, 3);
-  const quantidade = Math.max(0, Math.floor(Number(p.quantidade) || 0));
+  const doSku = ctx.estoque?.[p.id];
+  const quantidade = doSku ? Math.max(0, Math.floor(Number(doSku.estoque) || 0)) : p.chegou === false ? 0 : estoqueEntrada(p);
   const { imagem, adicional } = imagensDoProduto(p, ctx);
   return {
     id: idMeta(p),
@@ -257,16 +283,19 @@ export function linhaMeta(p: ProdutoFeed, ctx: ContextoFeed): LinhaMeta {
   };
 }
 
-/** Por padrão, só peças aprovadas, com preço e com foto. */
-export function entraNoFeed(p: ProdutoFeed, linha: LinhaMeta): boolean {
-  return p.status === "aprovado" && !!linha.price && !!linha.image_link;
+/** Por padrão, só peças aprovadas, com preço e com foto aprovada (IA aprovada pela loja) ou enviada pela loja. */
+export function entraNoFeed(p: ProdutoFeed, linha: LinhaMeta, fotoAprovada = true): boolean {
+  return p.status === "aprovado" && !!linha.price && !!linha.image_link && fotoAprovada;
 }
 
-/** Mesmo EAN em mais de uma linha (recompra): a linha mais nova vale e o estoque é somado. */
-function juntar(antiga: LinhaMeta, nova: LinhaMeta): LinhaMeta {
+/**
+ * Mesmo SKU em mais de uma linha (recompra): a linha mais nova vale (o id do catálogo continua o da primeira).
+ * O estoque do SKU (saldo do UP ou entrada − vendidas) é o mesmo nas duas; sem ele, soma o de cada linha.
+ */
+function juntar(antiga: LinhaMeta, nova: LinhaMeta, estoqueDoSku: boolean): LinhaMeta {
   const out = { ...antiga };
-  for (const c of COLUNAS_META) if (nova[c]) out[c] = nova[c];
-  const estoque = (Number(antiga.inventory) || 0) + (Number(nova.inventory) || 0);
+  for (const c of COLUNAS_META) if (c !== "id" && nova[c]) out[c] = nova[c];
+  const estoque = estoqueDoSku ? Math.max(Number(antiga.inventory) || 0, Number(nova.inventory) || 0) : (Number(antiga.inventory) || 0) + (Number(nova.inventory) || 0);
   out.inventory = String(estoque);
   out.availability = estoque > 0 ? "in stock" : "out of stock";
   return out;
@@ -291,19 +320,27 @@ export function serializarFeed(linhas: LinhaMeta[], formato: FormatoFeed = "csv"
   return [COLUNAS_META.join(sep), ...linhas.map((l) => COLUNAS_META.map((c) => campo(l[c])).join(sep))].join("\r\n") + "\r\n";
 }
 
-/** Gera o arquivo do feed. `todos` inclui também peças não aprovadas, sem preço ou sem foto. */
+/**
+ * Gera o arquivo do feed. `todos` inclui também peças não aprovadas, sem preço ou sem foto aprovada (para conferir).
+ * `semFotoAprovada`: peças aprovadas e com preço que ficaram de fora só pela foto (para o aviso em Configurações).
+ */
 export function montarFeedMeta(produtos: ProdutoFeed[], ctx: ContextoFeed, opts: { formato?: FormatoFeed; todos?: boolean } = {}) {
-  const porId = new Map<string, LinhaMeta>();
+  const porGrupo = new Map<string, LinhaMeta>();
   let ignorados = 0;
+  let semFotoAprovada = 0;
   for (const p of produtos) {
     const linha = linhaMeta(p, ctx);
-    if (!opts.todos && !entraNoFeed(p, linha)) {
+    const { aprovada } = imagensDoProduto(p, ctx);
+    if (!opts.todos && !entraNoFeed(p, linha, aprovada)) {
       ignorados++;
+      if (entraNoFeed(p, linha, true)) semFotoAprovada++;
       continue;
     }
-    const existente = porId.get(linha.id);
-    porId.set(linha.id, existente ? juntar(existente, linha) : linha);
+    const doSku = ctx.estoque?.[p.id];
+    const grupo = doSku?.chave ?? linha.id;
+    const existente = porGrupo.get(grupo);
+    porGrupo.set(grupo, existente ? juntar(existente, linha, !!doSku) : linha);
   }
-  const linhas = [...porId.values()];
-  return { texto: serializarFeed(linhas, opts.formato ?? "csv"), itens: linhas.length, ignorados, total: produtos.length };
+  const linhas = [...porGrupo.values()];
+  return { texto: serializarFeed(linhas, opts.formato ?? "csv"), itens: linhas.length, ignorados, semFotoAprovada, total: produtos.length };
 }

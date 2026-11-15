@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AnaliseVendas, CampoVenda, Curva, Mapeamento, ResumoGrupo, SkuAnalise, StatusSku } from "@/lib/vendas-calculo";
+import type { AnaliseCompleta, CampoVenda, Curva, Mapeamento, ResumoGrupo, SkuAnalise, StatusSku, TotalRecompra } from "@/lib/vendas-calculo";
 import { Botao, Campo, Carregando, Cartao, Numero, Selo, useAviso } from "@/components/ui";
 import { nomeDe, useConfig, type TaxonomiaCliente } from "@/components/hooks";
-import { api, brl, img, num } from "@/lib/cliente";
+import { api, brl, img, moedaSimbolo, num } from "@/lib/cliente";
 
-type Aba = "repor" | "parados" | "abc" | "tipo" | "fornecedor" | "revendedoras";
+type Aba = "repor" | "parados" | "abc" | "faixas" | "tipo" | "fornecedor" | "revendedoras" | "estoqueUp";
 
 interface Lote {
   id: string;
@@ -44,9 +44,16 @@ interface ResultadoImportacao {
 }
 
 const dataBr = (d?: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "—");
+const dataHora = (iso?: string | null) => (iso ? new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
 const pct = (v: number, casas = 0) => `${num(v * 100, casas)}%`;
 const pecas = (v: number) => num(v, Number.isInteger(v) ? 0 : 1);
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+/** Valores na moeda do fornecedor: "¥ 1.234,50". */
+const naMoeda = (m: Record<string, number>) =>
+  Object.entries(m)
+    .filter(([, v]) => v > 0)
+    .map(([moeda, v]) => `${moedaSimbolo(moeda)} ${num(v, 2)}`)
+    .join(" · ") || "—";
 
 function diasAtras(n: number) {
   const d = new Date();
@@ -62,12 +69,23 @@ const STATUS: Record<StatusSku, { rotulo: string; cor: "amarelo" | "vermelho" | 
 };
 const COR_CURVA: Record<Curva, "dourado" | "rose" | "cinza"> = { A: "dourado", B: "rose", C: "cinza" };
 
+/** Selo da curva; peça nova (fora da curva) = "nova". */
+const SeloCurva = ({ curva }: { curva: Curva | null }) => (curva ? <Selo cor={COR_CURVA[curva]}>{curva}</Selo> : <Selo cor="verde">nova</Selo>);
+
+/** Data de entrada, com "estimada" quando não há data de chegada (vale a da compra). */
+const Entrada = ({ s }: { s: SkuAnalise }) => (
+  <span className="whitespace-nowrap" title={s.dataEntradaEstimada ? "Sem data de chegada: usei a data da compra" : "Data de chegada"}>
+    {dataBr(s.dataEntrada)}
+    {s.dataEntradaEstimada && <span className="ml-1 text-[0.65rem] text-[#9a8089]">(estimada)</span>}
+  </span>
+);
+
 export default function VendasPage() {
   const avisar = useAviso();
   const { config } = useConfig();
   const tax = config?.taxonomia;
   const [periodo, setPeriodo] = useState({ inicio: "", fim: "" });
-  const [analise, setAnalise] = useState<(AnaliseVendas & { apelidosFornecedor?: Record<string, string> }) | null>(null);
+  const [analise, setAnalise] = useState<AnaliseCompleta | null>(null);
   const [lotes, setLotes] = useState<Lote[] | null>(null);
   const [aba, setAba] = useState<Aba>("repor");
   const [importar, setImportar] = useState(false);
@@ -81,7 +99,7 @@ export default function VendasPage() {
   const qs = useMemo(() => new URLSearchParams(Object.entries(periodo).filter(([, v]) => v)).toString(), [periodo]);
   const carregar = useCallback(
     () =>
-      Promise.all([api<AnaliseVendas>(`/api/vendas/analise?${qs}`), api<Lote[]>("/api/vendas/lotes")]).then(([a, l]) => {
+      Promise.all([api<AnaliseCompleta>(`/api/vendas/analise?${qs}`), api<Lote[]>("/api/vendas/lotes")]).then(([a, l]) => {
         setAnalise(a);
         setLotes(l);
       }),
@@ -104,24 +122,26 @@ export default function VendasPage() {
 
   const atalho = (dias: number | null) => setPeriodo(dias == null ? { inicio: "", fim: "" } : { inicio: diasAtras(dias), fim: "" });
   const t = analise?.totais;
+  const ordemCurva = (c: Curva | null) => c ?? "Z";
   const repor = useMemo(
     () =>
       (analise?.skus ?? [])
         .filter((s) => s.status === "repor" || s.status === "esgotado")
-        .sort((a, b) => a.curva.localeCompare(b.curva) || b.quantidadeSugerida - a.quantidadeSugerida),
+        .sort((a, b) => Number(b.quantidadeSugerida > 0) - Number(a.quantidadeSugerida > 0) || ordemCurva(a.curva).localeCompare(ordemCurva(b.curva)) || b.quantidadeSugerida - a.quantidadeSugerida),
     [analise],
   );
   const parados = useMemo(
     () => (analise?.skus ?? []).filter((s) => s.status === "parado").sort((a, b) => b.estoque * (b.precoVenda ?? 0) - a.estoque * (a.precoVenda ?? 0)),
     [analise],
   );
-  const naRecompra = repor.filter((s) => s.quantidadeSugerida > 0).length;
+  const naRecompra = analise?.recompra.skus ?? 0;
+  const diferencasUp = analise?.estoqueUp?.itens.length ?? 0;
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-4xl font-semibold">Vendas e recompra</h1>
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold sm:text-4xl">Vendas e recompra</h1>
           <p className="text-sm text-[#8a6d78]">Retorno das vendas do UP Vendas: o que gira, o que parou e quando recomprar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -131,7 +151,7 @@ export default function VendasPage() {
           {naRecompra > 0 ? (
             <>
               <a href={`/api/vendas/recompra?formato=xlsx&${qs}`} title="XLSX com uma aba por fornecedor e a foto de cada peça">
-                <Botao>Lista de recompra para o fornecedor ({naRecompra})</Botao>
+                <Botao>Lista de recompra ({naRecompra})</Botao>
               </a>
               <a href={`/api/vendas/recompra?formato=csv&${qs}`}>
                 <Botao variante="secundario">CSV</Botao>
@@ -139,25 +159,20 @@ export default function VendasPage() {
             </>
           ) : (
             <Botao disabled title="Nenhuma peça para repor no momento">
-              Lista de recompra para o fornecedor
+              Lista de recompra
             </Botao>
           )}
         </div>
       </div>
 
-      {importar && (
-        <Importacao
-          aoFechar={() => setImportar(false)}
-          aoImportar={() => carregar().catch((e) => avisar(msg(e), "erro"))}
-        />
-      )}
+      {importar && <Importacao aoFechar={() => setImportar(false)} aoImportar={() => carregar().catch((e) => avisar(msg(e), "erro"))} />}
 
       <Cartao>
         <div className="flex flex-wrap items-end gap-3">
-          <Campo rotulo="De" className="w-40">
+          <Campo rotulo="De" className="w-[9.5rem]">
             <input type="date" value={periodo.inicio} onChange={(e) => setPeriodo((p) => ({ ...p, inicio: e.target.value }))} />
           </Campo>
-          <Campo rotulo="Até" className="w-40">
+          <Campo rotulo="Até" className="w-[9.5rem]">
             <input type="date" value={periodo.fim} onChange={(e) => setPeriodo((p) => ({ ...p, fim: e.target.value }))} />
           </Campo>
           <div className="flex flex-wrap gap-1 pb-1">
@@ -193,11 +208,17 @@ export default function VendasPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Numero rotulo="Receita" valor={brl(t!.receita)} detalhe={`${t!.linhas} linha(s) · ${t!.linhas ? pct(t!.linhasLigadas / t!.linhas) : "—"} ligadas a produtos`} />
+            <Numero rotulo="Receita" valor={<span className="text-xl sm:text-2xl">{brl(t!.receita)}</span>} detalhe={`${t!.linhas} linha(s) · ${t!.linhas ? pct(t!.linhasLigadas / t!.linhas) : "—"} ligadas a produtos`} />
             <Numero rotulo="Peças vendidas" valor={pecas(t!.pecas)} detalhe={`${t!.skusVendidos} SKU(s) diferentes`} />
-            <Numero rotulo="Sell-through" valor={pct(t!.sellThrough, 1)} detalhe={`${pecas(t!.vendido)} de ${pecas(t!.comprado)} peças compradas`} />
+            <Numero rotulo="Sell-through" valor={pct(t!.sellThrough, 1)} detalhe={`${pecas(t!.vendido)} de ${pecas(t!.comprado)} peças que entraram`} />
             <Numero rotulo="Repor agora" valor={t!.repor + t!.esgotados} detalhe={`${t!.esgotados} esgotada(s) · ${t!.parados} parada(s)`} />
           </div>
+
+          {analise.aCaminho.pecas > 0 && (
+            <p className="rounded-xl bg-creme px-4 py-2 text-sm text-[#6b5560]">
+              {pecas(analise.aCaminho.pecas)} peça(s) de {analise.aCaminho.skus} modelo(s) estão em pedidos que ainda não chegaram: ficam fora do estoque e da maleta, e a recompra já desconta.
+            </p>
+          )}
 
           {analise.naoLigadas.linhas > 0 && (
             <details className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -222,9 +243,11 @@ export default function VendasPage() {
                   ["repor", `Repor agora (${repor.length})`],
                   ["parados", `Parados (${parados.length})`],
                   ["abc", "Curva ABC"],
+                  ["faixas", "Faixa de preço"],
                   ["tipo", "Por tipo"],
                   ["fornecedor", "Por fornecedor"],
                   ["revendedoras", `Revendedoras (${analise.revendedoras.filter((r) => r.chave).length})`],
+                  ["estoqueUp", analise.estoqueUp ? `Estoque × UP (${diferencasUp})` : "Estoque × UP"],
                 ] as const
               ).map(([k, r]) => (
                 <button key={k} onClick={() => setAba(k)} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-sm ${aba === k ? "bg-rose-escuro text-white" : "bg-rose-claro text-rose-escuro"}`}>
@@ -232,33 +255,46 @@ export default function VendasPage() {
                 </button>
               ))}
             </div>
-            {aba === "repor" && <AbaRepor lista={repor} tax={tax} prazo={analise.parametros.prazoReposicaoDias} />}
+            {aba === "repor" && <AbaRepor lista={repor} tax={tax} analise={analise} />}
             {aba === "parados" && <AbaParados lista={parados} tax={tax} dias={analise.parametros.diasEstoqueParado} />}
             {aba === "abc" && <AbaAbc analise={analise} tax={tax} />}
+            {aba === "faixas" && <AbaFaixas analise={analise} />}
             {aba === "tipo" && <TabelaResumo lista={analise.porTipo} titulo="Tipo" nome={(k) => (k ? nomeDe(tax?.tipos, k) : "Sem tipo")} />}
-            {aba === "fornecedor" && <TabelaResumo lista={analise.porFornecedor} titulo="Fornecedor" nome={(k) => (k ? (analise.apelidosFornecedor?.[k] ? `${analise.apelidosFornecedor[k]} · ${k}` : k) : "Sem fornecedor")} />}
+            {aba === "fornecedor" && <TabelaResumo lista={analise.porFornecedor} titulo="Fornecedor" nome={(k) => nomeDoFornecedor(analise, k)} />}
             {aba === "revendedoras" && <AbaRevendedoras analise={analise} tax={tax} />}
+            {aba === "estoqueUp" && <AbaEstoqueUp analise={analise} />}
           </Cartao>
 
           <details className="rounded-2xl border border-borda bg-white px-4 py-3 text-sm text-[#6b5560]">
             <summary className="cursor-pointer font-medium text-rose-escuro">Como as contas são feitas</summary>
             <ul className="mt-2 ml-5 list-disc space-y-1">
               <li>
-                <b>Comprado</b>: soma das quantidades das linhas de produto com o mesmo código de barras (o original e as recompras). <b>Estoque estimado</b> = comprado −
-                vendido. As peças que estão em maletas de revendedoras contam como estoque (o UP não exporta isso).
+                <b>Comprado</b> (entrou): peças com o mesmo código de barras (o original e as recompras; sem código, a recompra soma com o original) de pedidos que <b>já chegaram</b>. Pedido
+                conferido conta o recebido − o com defeito; os outros, a quantidade pedida. Pedido em trânsito ou com chegada futura fica de fora (aparece como “a caminho”). Pedidos antigos, sem
+                informação de chegada, contam como chegados na data da compra (data <b>estimada</b>).
               </li>
               <li>
-                <b>Sell-through</b> = vendido ÷ comprado. <b>Venda média diária</b> = vendido ÷ dias desde a entrada (data do pedido).
+                <b>Estoque estimado</b> = comprado − vendido. As peças com as revendedoras (consignado importado do UP) continuam no estoque, mas não vão para outra maleta.
               </li>
               <li>
-                <b>Ponto de reposição</b> = venda média diária × {analise.parametros.prazoReposicaoDias} dias de prazo × 1,5. <b>Repor</b>: vendeu e o estoque está no ponto ou
-                abaixo. <b>Quantidade sugerida</b> = venda média × prazo × 2,5 − estoque (cobre a chegada, a margem e mais um prazo de vendas).
+                <b>Sell-through</b> = vendido ÷ comprado. <b>Venda média diária</b> = vendido ÷ dias desde a <b>chegada</b> (sem data de chegada, desde a compra).
               </li>
               <li>
-                <b>Parado</b>: com estoque e sem venda há mais de {analise.parametros.diasEstoqueParado} dias (prazo e dias ajustáveis em Configurações).
+                <b>Ponto de reposição</b> = venda média diária × {analise.parametros.prazoReposicaoDias} dias de prazo × 1,5. <b>Repor</b>: vendeu e o estoque está no ponto ou abaixo. Pelo
+                giro, a recompra cobre venda média × prazo × 2,5 − estoque − o que já está a caminho.
+              </li>
+              <li>
+                <b>Freios da recompra</b>: a leitura da curva ABC (“esperar” e “não recomprar” zeram; “recomprar pouco” leva metade); o teto por modelo
+                {analise.parametros.tetoPorModelo ? ` (${analise.parametros.tetoPorModelo} = maletas ativas + reserva da vitrine)` : ""}: estoque + a caminho + recompra não passam dele; e o lote do
+                fornecedor (arredonda para cima; padrão {analise.parametros.loteMinimoPadrao}).
+              </li>
+              <li>
+                <b>Parado</b>: com estoque e sem venda há mais de {analise.parametros.diasEstoqueParado} dias.
               </li>
               <li>
                 <b>Curva ABC</b> pela receita do período: A soma os primeiros 80%, B até 95%, C o resto.
+                {analise.parametros.diasForaDaCurva ? ` Peças com menos de ${analise.parametros.diasForaDaCurva} dias desde a chegada ficam fora, como “novas”.` : ""} Prazo, dias, teto, lote,
+                orçamento e faixas de preço: Configurações → Vendas e recompra.
               </li>
             </ul>
           </details>
@@ -291,7 +327,7 @@ export default function VendasPage() {
                     <td className="max-w-[260px] truncate" title={l.arquivoNome ?? ""}>
                       {l.arquivoNome ?? "—"}
                     </td>
-                    <td className="whitespace-nowrap">{new Date(l.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap">{dataHora(l.criadoEm)}</td>
                     <td className="whitespace-nowrap">
                       {dataBr(l.periodoInicio)} a {dataBr(l.periodoFim)}
                     </td>
@@ -318,6 +354,8 @@ export default function VendasPage() {
     </div>
   );
 }
+
+const nomeDoFornecedor = (analise: AnaliseCompleta, k: string) => (k ? (analise.apelidosFornecedor?.[k] ? `${analise.apelidosFornecedor[k]} · ${k}` : k) : "Sem fornecedor");
 
 /* ---------------------------------------------------------- estado vazio */
 
@@ -588,14 +626,19 @@ function Importacao({ aoFechar, aoImportar }: { aoFechar: () => void; aoImportar
   );
 }
 
+
 /* ---------------------------------------------------------- abas */
 
-function Peca({ s, tax }: { s: SkuAnalise; tax?: TaxonomiaCliente }) {
+function Foto({ id, tamanho = "h-12 w-12" }: { id: string | null; tamanho?: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return id ? <img src={img(id, 120)!} alt="" loading="lazy" decoding="async" className={`${tamanho} rounded-lg object-cover`} /> : <div className={`${tamanho} rounded-lg bg-rose-claro`} />;
+}
+
+function Peca({ s, tax }: { s: Pick<SkuAnalise, "produtoId" | "imagemId" | "nome" | "referencia" | "codigoBarras" | "tipo" | "fornecedor" | "fornecedorApelido" | "codigoFornecedor">; tax?: TaxonomiaCliente }) {
   return (
     <div className="flex min-w-[230px] items-start gap-2">
       <Link href={`/produtos/${s.produtoId}`} className="shrink-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {s.imagemId ? <img src={img(s.imagemId, 120)!} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="h-12 w-12 rounded-lg bg-rose-claro" />}
+        <Foto id={s.imagemId} />
       </Link>
       <div className="min-w-0">
         <Link href={`/produtos/${s.produtoId}`} className="line-clamp-2 text-xs font-medium uppercase leading-snug hover:text-rose-escuro">
@@ -615,16 +658,91 @@ function Peca({ s, tax }: { s: SkuAnalise; tax?: TaxonomiaCliente }) {
 
 const Vazio = ({ children }: { children: React.ReactNode }) => <p className="py-6 text-center text-sm text-[#8a6d78]">{children}</p>;
 
-function AbaRepor({ lista, tax, prazo }: { lista: SkuAnalise[]; tax?: TaxonomiaCliente; prazo: number }) {
+const COR_ACAO: Record<SkuAnalise["acao"], string> = {
+  recomprar: "text-emerald-700",
+  recomprar_pouco: "text-amber-700",
+  aguardar: "text-stone-500",
+  nao_recomprar: "text-red-700",
+};
+
+/** Leitura ABC × sell-through, em texto curto e com cor pela ação. */
+const Leitura = ({ s }: { s: SkuAnalise }) => <span className={`text-xs ${COR_ACAO[s.acao]}`}>{s.leitura}</span>;
+
+function TabelaTotais({ titulo, lista, nome }: { titulo: string; lista: TotalRecompra[]; nome: (k: string) => string }) {
+  if (!lista.length) return null;
+  return (
+    <div className="min-w-0">
+      <div className="rotulo mb-1">{titulo}</div>
+      <div className="overflow-x-auto">
+        <table className="tabela w-full min-w-[360px]">
+          <thead>
+            <tr>
+              <th>{titulo.replace(/^Por /, "")}</th>
+              <th>Peças</th>
+              <th>Na moeda</th>
+              <th>R$ (custo)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((t) => (
+              <tr key={t.chave || "sem"}>
+                <td className="max-w-[180px] truncate" title={nome(t.chave)}>
+                  {nome(t.chave)}
+                </td>
+                <td>{pecas(t.pecas)}</td>
+                <td className="whitespace-nowrap">{naMoeda(t.moeda)}</td>
+                <td className="whitespace-nowrap">{brl(t.brl)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AbaRepor({ lista, tax, analise }: { lista: SkuAnalise[]; tax?: TaxonomiaCliente; analise: AnaliseCompleta }) {
   if (!lista.length) return <Vazio>Nada para repor agora: nenhuma peça que vende está no ponto de reposição.</Vazio>;
+  const r = analise.recompra;
+  const prazo = analise.parametros.prazoReposicaoDias;
   return (
     <>
+      <div className="mb-3 rounded-xl bg-creme p-3 text-sm text-[#6b5560]">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span>
+            Recompra: <b>{pecas(r.pecas)}</b> peça(s) de <b>{r.skus}</b> modelo(s)
+          </span>
+          <span>
+            <b>{naMoeda(r.moeda)}</b> no fornecedor
+          </span>
+          <span>
+            <b>{brl(r.brl)}</b> de custo
+          </span>
+          {r.orcamento > 0 && (
+            <span>
+              orçamento do mês {brl(r.orcamento)}: {r.excesso > 0 ? <Selo cor="vermelho">passou {brl(r.excesso)}</Selo> : <Selo cor="verde">dentro</Selo>}
+            </span>
+          )}
+        </div>
+        {r.excesso > 0 && (
+          <p className="mt-1 text-xs text-red-700">
+            A lista passa do orçamento mensal em {brl(r.excesso)}. Comece pelas peças A que vendem rápido e deixe as “recomprar pouco” para o mês que vem.
+          </p>
+        )}
+        {r.semCusto > 0 && <p className="mt-1 text-xs text-[#9a8089]">{r.semCusto} peça(s) sem custo ficaram fora do total em R$.</p>}
+        {r.skus > 0 && (
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <TabelaTotais titulo="Por fornecedor" lista={r.porFornecedor} nome={(k) => nomeDoFornecedor(analise, k)} />
+            <TabelaTotais titulo="Por tipo" lista={r.porTipo} nome={(k) => (k ? nomeDe(tax?.tipos, k) : "Sem tipo")} />
+          </div>
+        )}
+      </div>
       <p className="mb-2 text-xs text-[#9a8089]">
-        Peças que vendem com estoque estimado no ponto de reposição (venda de {prazo} dias × 1,5) ou esgotadas. A lista de recompra leva estas peças, agrupadas por
-        fornecedor.
+        Peças que vendem com estoque estimado no ponto de reposição (venda de {prazo} dias × 1,5) ou esgotadas. A “Sugerida” já passou pelos freios (leitura ABC, teto por modelo e lote do
+        fornecedor); só as com sugerida entram na lista de recompra, agrupadas por fornecedor.
       </p>
       <div className="max-h-[70vh] overflow-auto">
-        <table className="tabela w-full min-w-[900px]">
+        <table className="tabela w-full min-w-[1040px]">
           <thead>
             <tr>
               <th>Peça</th>
@@ -635,7 +753,8 @@ function AbaRepor({ lista, tax, prazo }: { lista: SkuAnalise[]; tax?: TaxonomiaC
               <th>Sell-through</th>
               <th>Venda/dia</th>
               <th>Estoque</th>
-              <th>Ponto</th>
+              <th>A caminho</th>
+              <th>Leitura</th>
               <th>Sugerida</th>
             </tr>
           </thead>
@@ -654,17 +773,29 @@ function AbaRepor({ lista, tax, prazo }: { lista: SkuAnalise[]; tax?: TaxonomiaC
                   )}
                 </td>
                 <td>
-                  <Selo cor={COR_CURVA[s.curva]}>{s.curva}</Selo>
+                  <SeloCurva curva={s.curva} />
                 </td>
                 <td>{pecas(s.comprado)}</td>
                 <td>{pecas(s.vendido)}</td>
                 <td>{pct(s.sellThrough)}</td>
-                <td className="whitespace-nowrap" title={`${num(s.mediaDiaria * 30, 1)} por mês`}>
+                <td className="whitespace-nowrap" title={`${num(s.mediaDiaria * 30, 1)} por mês · desde ${dataBr(s.dataEntrada)}${s.dataEntradaEstimada ? " (data estimada: sem chegada)" : ""}`}>
                   {num(s.mediaDiaria, 2)}
+                  {s.dataEntradaEstimada && <span className="text-[#9a8089]"> ≈</span>}
                 </td>
                 <td>{pecas(s.estoque)}</td>
-                <td>{num(s.pontoReposicao, 1)}</td>
-                <td className="font-titulo text-lg font-semibold text-rose-escuro">{s.quantidadeSugerida || "—"}</td>
+                <td>{s.aCaminho ? pecas(s.aCaminho) : "—"}</td>
+                <td className="min-w-[170px]">
+                  <Leitura s={s} />
+                </td>
+                <td className="min-w-[130px]">
+                  <div className="font-titulo text-lg font-semibold text-rose-escuro">{s.quantidadeSugerida || "—"}</div>
+                  {s.necessidade > 0 && s.necessidade !== s.quantidadeSugerida && <div className="text-[0.7rem] text-[#9a8089]">pelo giro: {s.necessidade}</div>}
+                  {s.freios.map((f) => (
+                    <div key={f} className="text-[0.7rem] leading-snug text-[#9a8089]">
+                      · {f}
+                    </div>
+                  ))}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -678,10 +809,13 @@ function AbaParados({ lista, tax, dias }: { lista: SkuAnalise[]; tax?: Taxonomia
   if (!lista.length) return <Vazio>Nenhuma peça parada: tudo o que tem estoque vendeu nos últimos {dias} dias.</Vazio>;
   const valor = lista.reduce((s, x) => s + x.estoque * (x.precoVenda ?? 0), 0);
   const custo = lista.reduce((s, x) => s + x.estoque * (x.custo ?? 0), 0);
+  const estimadas = lista.filter((s) => s.dataEntradaEstimada).length;
   return (
     <>
       <p className="mb-2 text-sm text-[#6b5560]">
-        Com estoque e sem venda há mais de {dias} dias: <b>{brl(valor)}</b> em etiqueta ({brl(custo)} de custo). Ideias: colocar nas maletas, montar kits ou fazer promoção.
+        Com estoque e sem venda há mais de {dias} dias desde a chegada (ou a última venda): <b>{brl(valor)}</b> em etiqueta ({brl(custo)} de custo). Ideias: colocar nas maletas, montar kits
+        ou fazer promoção.
+        {estimadas > 0 && <span className="text-xs text-[#9a8089]"> {estimadas} peça(s) sem data de chegada: a conta parte da data da compra (estimada).</span>}
       </p>
       <div className="max-h-[70vh] overflow-auto">
         <table className="tabela w-full min-w-[860px]">
@@ -704,7 +838,9 @@ function AbaParados({ lista, tax, dias }: { lista: SkuAnalise[]; tax?: Taxonomia
                 <td>
                   <Peca s={s} tax={tax} />
                 </td>
-                <td className="whitespace-nowrap">{dataBr(s.dataEntrada)}</td>
+                <td>
+                  <Entrada s={s} />
+                </td>
                 <td className="whitespace-nowrap">{s.ultimaVenda ? dataBr(s.ultimaVenda) : "nunca vendeu"}</td>
                 <td>{s.diasSemVenda}</td>
                 <td>{pecas(s.comprado)}</td>
@@ -721,13 +857,15 @@ function AbaParados({ lista, tax, dias }: { lista: SkuAnalise[]; tax?: Taxonomia
   );
 }
 
-function AbaAbc({ analise, tax }: { analise: AnaliseVendas; tax?: TaxonomiaCliente }) {
+function AbaAbc({ analise, tax }: { analise: AnaliseCompleta; tax?: TaxonomiaCliente }) {
   const [filtro, setFiltro] = useState<Curva | "">("");
-  const lista = analise.skus.filter((s) => (filtro ? s.curva === filtro : s.receita > 0));
+  const lista = analise.skus.filter((s) => s.curva && (filtro ? s.curva === filtro : s.receita > 0));
+  const novas = analise.skus.filter((s) => !s.curva);
+  const dias = analise.parametros.diasForaDaCurva;
   const LIMITE = 400;
   return (
     <>
-      <div className="mb-3 grid grid-cols-3 gap-2">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(["A", "B", "C"] as const).map((c) => (
           <button
             key={c}
@@ -741,12 +879,21 @@ function AbaAbc({ analise, tax }: { analise: AnaliseVendas; tax?: TaxonomiaClien
             <div className="text-xs text-[#9a8089]">{brl(analise.abc[c].receita)}</div>
           </button>
         ))}
+        {dias > 0 && (
+          <a href="#novas" className="rounded-xl border border-borda bg-white px-3 py-2 text-left hover:bg-[#fdf7f9]">
+            <div className="font-titulo text-2xl font-semibold text-rose-escuro">Novas</div>
+            <div className="text-xs text-[#6b5560]">
+              {analise.novas.skus} SKU(s) · menos de {dias} dias
+            </div>
+            <div className="text-xs text-[#9a8089]">{brl(analise.novas.receita)} · fora da curva</div>
+          </a>
+        )}
       </div>
       {!lista.length ? (
         <Vazio>Nenhuma peça com venda neste período.</Vazio>
       ) : (
         <div className="max-h-[70vh] overflow-auto">
-          <table className="tabela w-full min-w-[820px]">
+          <table className="tabela w-full min-w-[960px]">
             <thead>
               <tr>
                 <th>Curva</th>
@@ -755,15 +902,16 @@ function AbaAbc({ analise, tax }: { analise: AnaliseVendas; tax?: TaxonomiaClien
                 <th>Part.</th>
                 <th>Acumulado</th>
                 <th>Vendido no período</th>
+                <th>Sell-through</th>
                 <th>Estoque</th>
-                <th>Status</th>
+                <th>Leitura</th>
               </tr>
             </thead>
             <tbody>
               {lista.slice(0, LIMITE).map((s) => (
                 <tr key={s.chave}>
                   <td>
-                    <Selo cor={COR_CURVA[s.curva]}>{s.curva}</Selo>
+                    <SeloCurva curva={s.curva} />
                   </td>
                   <td>
                     <Peca s={s} tax={tax} />
@@ -772,17 +920,118 @@ function AbaAbc({ analise, tax }: { analise: AnaliseVendas; tax?: TaxonomiaClien
                   <td>{pct(s.participacao, 1)}</td>
                   <td>{pct(s.acumulado, 1)}</td>
                   <td>{pecas(s.vendidoPeriodo)}</td>
+                  <td>{pct(s.sellThrough)}</td>
                   <td>{pecas(s.estoque)}</td>
-                  <td>
-                    <Selo cor={STATUS[s.status].cor}>{STATUS[s.status].rotulo}</Selo>
+                  <td className="min-w-[170px]">
+                    <Leitura s={s} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {lista.length > LIMITE && <p className="py-2 text-center text-xs text-[#9a8089]">Mostrando {LIMITE} de {lista.length}. Use os filtros A, B e C.</p>}
+          {lista.length > LIMITE && (
+            <p className="py-2 text-center text-xs text-[#9a8089]">
+              Mostrando {LIMITE} de {lista.length}. Use os filtros A, B e C.
+            </p>
+          )}
         </div>
       )}
+      {novas.length > 0 && (
+        <div id="novas" className="mt-5">
+          <h3 className="text-lg font-semibold">Novas: fora da curva ({novas.length})</h3>
+          <p className="mb-2 text-xs text-[#9a8089]">Peças com menos de {dias} dias desde a chegada. Entram na curva depois desse prazo, com tempo de mostrar o giro.</p>
+          <div className="max-h-[50vh] overflow-auto">
+            <table className="tabela w-full min-w-[760px]">
+              <thead>
+                <tr>
+                  <th>Peça</th>
+                  <th>Entrada</th>
+                  <th>Receita</th>
+                  <th>Vendido</th>
+                  <th>Sell-through</th>
+                  <th>Estoque</th>
+                  <th>Leitura</th>
+                </tr>
+              </thead>
+              <tbody>
+                {novas.slice(0, LIMITE).map((s) => (
+                  <tr key={s.chave}>
+                    <td>
+                      <Peca s={s} tax={tax} />
+                    </td>
+                    <td>
+                      <Entrada s={s} />
+                    </td>
+                    <td className="whitespace-nowrap">{brl(s.receita)}</td>
+                    <td>{pecas(s.vendido)}</td>
+                    <td>{pct(s.sellThrough)}</td>
+                    <td>{pecas(s.estoque)}</td>
+                    <td className="min-w-[170px]">
+                      <Leitura s={s} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function AbaFaixas({ analise }: { analise: AnaliseCompleta }) {
+  const lista = analise.faixas;
+  if (!lista.some((f) => f.skus)) return <Vazio>Sem peças no período.</Vazio>;
+  const max = Math.max(...lista.map((f) => f.participacao), 0.0001);
+  return (
+    <>
+      <p className="mb-2 text-xs text-[#9a8089]">
+        Pelo preço de etiqueta de cada peça. Faturamento e margem são do período; sell-through usa tudo o que entrou e vendeu até o fim do período. Margem = (faturamento − custo das vendidas) ÷
+        faturamento. Limites das faixas em Configurações → Vendas e recompra.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="tabela w-full min-w-[820px]">
+          <thead>
+            <tr>
+              <th>Faixa</th>
+              <th>Peças (SKUs)</th>
+              <th>Comprado</th>
+              <th>Vendidas</th>
+              <th>Sell-through</th>
+              <th>Faturamento</th>
+              <th className="w-40">Part.</th>
+              <th>Margem</th>
+              <th>Estoque</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((f) => (
+              <tr key={f.chave}>
+                <td className="whitespace-nowrap font-medium">{f.nome}</td>
+                <td>{f.skus}</td>
+                <td>{pecas(f.comprado)}</td>
+                <td>
+                  {pecas(f.vendido)}
+                  {f.vendidoPeriodo !== f.vendido && <span className="block text-[0.7rem] text-[#9a8089]">{pecas(f.vendidoPeriodo)} no período</span>}
+                </td>
+                <td>{pct(f.sellThrough)}</td>
+                <td className="whitespace-nowrap">{brl(f.receita)}</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 flex-1 rounded-full bg-rose-claro">
+                      <div className="h-2 rounded-full bg-rose-escuro" style={{ width: `${(f.participacao / max) * 100}%` }} />
+                    </div>
+                    <span className="w-12 text-right text-xs">{pct(f.participacao, 1)}</span>
+                  </div>
+                </td>
+                <td>{f.margem == null ? "—" : pct(f.margem)}</td>
+                <td>{pecas(f.estoque)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -837,7 +1086,7 @@ function TabelaResumo({ lista, titulo, nome }: { lista: ResumoGrupo[]; titulo: s
   );
 }
 
-function AbaRevendedoras({ analise, tax }: { analise: AnaliseVendas; tax?: TaxonomiaCliente }) {
+function AbaRevendedoras({ analise, tax }: { analise: AnaliseCompleta; tax?: TaxonomiaCliente }) {
   if (!analise.revendedoras.length) return <Vazio>Sem vendas no período.</Vazio>;
   if (!analise.revendedoras.some((r) => r.chave))
     return <Vazio>A planilha importada não tem a coluna da revendedora. Importe de novo indicando essa coluna para ver o ranking e alimentar a maleta.</Vazio>;
@@ -878,5 +1127,121 @@ function AbaRevendedoras({ analise, tax }: { analise: AnaliseVendas; tax?: Taxon
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* ------------------------------------------------------ estoque × UP */
+
+function AbaEstoqueUp({ analise }: { analise: AnaliseCompleta }) {
+  const e = analise.estoqueUp;
+  if (!e)
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="text-sm text-[#6b5560]">
+          <p className="mb-2">
+            Ainda não há saldo do UP no app. Com ele, esta aba compara o estoque que o app espera (o que entrou − as vendas) com o saldo que o UP mostra, peça por peça, e lista as diferenças.
+          </p>
+          <ol className="ml-5 list-decimal space-y-1">
+            <li>
+              No <b>UP Vendas</b>, exporte a <b>lista de produtos</b> em Excel ou CSV com as colunas <b>Referência</b>, <b>Código de barras</b> e a do <b>estoque</b> (saldo).
+            </li>
+            <li>
+              No app, abra{" "}
+              <Link href="/up-vendas" className="text-rose-escuro underline">
+                UP Vendas
+              </Link>{" "}
+              → <b>Códigos de barras do UP</b>, envie o arquivo e indique a coluna do saldo.
+            </li>
+            <li>Volte aqui. Repita sempre que quiser conferir (por exemplo, uma vez por mês, depois de importar as vendas).</li>
+          </ol>
+        </div>
+        <div className="rounded-xl bg-creme p-4 text-sm text-[#6b5560]">
+          <div className="rotulo mb-1">Para que serve</div>
+          <ul className="ml-5 list-disc space-y-1">
+            <li>Achar vendas que não foram importadas (o UP tem menos do que o app espera);</li>
+            <li>Achar peças que entraram no UP e não no app (o UP tem mais);</li>
+            <li>Conferir perdas e defeitos que não foram anotados na conferência do pedido.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[#6b5560]">
+        <span>
+          Saldo do UP de <b>{dataHora(e.atualizadoEm)}</b>
+          {e.arquivo ? (
+            <>
+              {" "}
+              (<span className="font-mono text-xs">{e.arquivo}</span>)
+            </>
+          ) : null}
+          :
+        </span>
+        <Selo cor="cinza">{e.comparados} peça(s) comparadas</Selo>
+        <Selo cor="verde">{e.iguais} iguais</Selo>
+        <Selo cor={e.itens.length ? "amarelo" : "verde"}>{e.itens.length} com diferença</Selo>
+        <span className="text-xs text-[#9a8089]">
+          app espera {pecas(e.somaEsperado)} · UP tem {pecas(e.somaUp)}
+        </span>
+      </div>
+      {!e.atual && (
+        <p className="mb-3 rounded-xl bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          O saldo do UP é de agora, e o período escolhido termina antes de hoje: escolha “Tudo” (ou um período até hoje) para comparar com o estoque atual.
+        </p>
+      )}
+      {(e.semSaldo > 0 || e.foraDoApp > 0) && (
+        <p className="mb-3 text-xs text-[#9a8089]">
+          {e.semSaldo > 0 && `${e.semSaldo} peça(s) do app com código não aparecem no arquivo do UP. `}
+          {e.foraDoApp > 0 && `${e.foraDoApp} código(s) do arquivo do UP não acharam peça no app (peças antigas ou cadastradas só no UP).`}
+        </p>
+      )}
+      {!e.itens.length ? (
+        <Vazio>Tudo certo: o saldo do UP bate com o estoque que o app espera.</Vazio>
+      ) : (
+        <div className="max-h-[70vh] overflow-auto">
+          <table className="tabela w-full min-w-[640px]">
+            <thead>
+              <tr>
+                <th>Peça</th>
+                <th>App espera</th>
+                <th>Saldo no UP</th>
+                <th>Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              {e.itens.map((d) => (
+                <tr key={d.chave}>
+                  <td>
+                    <div className="flex min-w-[220px] items-start gap-2">
+                      <Link href={`/produtos/${d.produtoId}`} className="shrink-0">
+                        <Foto id={d.imagemId} />
+                      </Link>
+                      <div className="min-w-0">
+                        <Link href={`/produtos/${d.produtoId}`} className="line-clamp-2 text-xs font-medium uppercase leading-snug hover:text-rose-escuro">
+                          {d.nome}
+                        </Link>
+                        <div className="font-mono text-[0.7rem] text-[#8a6d78]">
+                          {d.referencia ?? "—"} · {d.codigoBarras}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{pecas(d.esperado)}</td>
+                  <td>{pecas(d.saldoUp)}</td>
+                  <td>
+                    <span className={`font-titulo text-lg font-semibold ${d.diferenca < 0 ? "text-red-700" : "text-amber-700"}`}>
+                      {d.diferenca > 0 ? "+" : ""}
+                      {pecas(d.diferenca)}
+                    </span>
+                    <span className="block text-[0.7rem] text-[#9a8089]">{d.diferenca < 0 ? "UP tem menos (venda não importada? perda?)" : "UP tem mais (entrada fora do app?)"}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

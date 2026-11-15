@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
     if (!(arquivo instanceof File)) return erro("Envie a planilha exportada do UP Vendas (CSV ou XLSX).", 400);
     return ok(await previaVendas(arquivo));
   } catch (e) {
-    return erro(e);
+    return erro(e, 400); // planilha inválida ou insegura: a mensagem já vem pronta para a tela
   }
 }

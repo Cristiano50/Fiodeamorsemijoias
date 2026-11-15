@@ -45,6 +45,7 @@ function produto(p: Partial<ProdutoBase> = {}): ProdutoBase {
     linha: seq,
     fornecedor: "Yiwu",
     dataPedido: "2026-01-01",
+    codigoBarrasOrigem: "up", // a maleta só usa peças que o UP conhece
     ...p,
   };
 }
